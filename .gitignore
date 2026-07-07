@@ -1,0 +1,28 @@
+# Données — jamais dans git (volumineuses + actif commercial + RGPD)
+data/
+sales/
+*.gpkg
+*.shp
+*.shx
+*.dbf
+*.prj
+*.csv.gz
+*.7z
+*.zip
+*.tif
+*.laz
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets
+.env
+*.key
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
