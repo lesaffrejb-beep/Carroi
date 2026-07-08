@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import logging
 import subprocess
+from datetime import date
 from pathlib import Path
 
 import geopandas as gpd
@@ -58,23 +59,31 @@ def dl_cadastre(cfg: dict, raw: Path, interim: Path, millesimes: dict) -> None:
         gdf = gdf.to_crs(cfg["crs_metric"])
         gdf.to_parquet(interim / f"{out_name}.parquet")
         log.info("%s : %d entités", out_name, len(gdf))
-    millesimes["Cadastre (DGFiP/Etalab)"] = "latest (résolu au téléchargement — noter la date du run)"
+    millesimes["Cadastre (DGFiP/Etalab)"] = f"latest@{date.today().isoformat()}"
 
 
 def dl_ban(cfg: dict, raw: Path, interim: Path, millesimes: dict) -> None:
     dept = cfg["dept"]
     src = fetch(BAN_URL.format(dept=dept), raw / f"adresses-{dept}.csv.gz")
     df = pd.read_csv(src, sep=";", dtype=str)
-    df["x"] = df["x"].astype(float)
-    df["y"] = df["y"].astype(float)
+    df["x"] = pd.to_numeric(df["x"], errors="coerce")
+    df["y"] = pd.to_numeric(df["y"], errors="coerce")
+    # Adresses sans coordonnées : géométrie NaN = plantage silencieux des sjoin
+    # en aval. On les écarte BRUYAMMENT ici.
+    sans_xy = df["x"].isna() | df["y"].isna()
+    if sans_xy.any():
+        log.warning("BAN : %d adresse(s) sans coordonnées écartée(s) (%.2f %%).",
+                    int(sans_xy.sum()), 100 * sans_xy.mean())
+        df = df[~sans_xy]
     gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df["x"], df["y"]), crs=cfg["crs_metric"])
     gdf = gdf.rename(columns={"id": "id_ban"})
     gdf.to_parquet(interim / f"ban_{dept}.parquet")
     log.info("BAN : %d adresses", len(gdf))
-    millesimes["BAN"] = "latest (résolu au téléchargement)"
+    millesimes["BAN"] = f"latest@{date.today().isoformat()}"
 
 
-def dl_bdtopo(cfg: dict, raw: Path, interim: Path, millesimes: dict) -> None:
+def dl_bdtopo(cfg: dict, raw: Path, interim: Path, millesimes: dict,
+              bdtopo_url: str | None = None) -> None:
     """BD TOPO : archive 7z départementale (~1-2 Go). On extrait 3 couches utiles.
 
     L'URL exacte porte l'édition (ex. BDTOPO_3-5_TOUSTHEMES_GPKG_LAMB93_D049_2026-06-15).
@@ -83,18 +92,22 @@ def dl_bdtopo(cfg: dict, raw: Path, interim: Path, millesimes: dict) -> None:
     l'URL via --bdtopo-url.
     """
     dept = cfg["dept"]
-    idx = requests.get(BDTOPO_MIRROR_INDEX, timeout=120)
-    idx.raise_for_status()
-    import re
-    pattern = rf"BDTOPO_[\d-]+_TOUSTHEMES_GPKG_LAMB93_D0?{dept}_[\d-]+\.7z"
-    matches = sorted(set(re.findall(pattern, idx.text)))
-    if not matches:
-        raise SystemExit(
-            f"Archive BD TOPO D{dept} introuvable sur {BDTOPO_MIRROR_INDEX} — "
-            "récupérer l'URL sur geoservices.ign.fr/bdtopo et relancer avec --bdtopo-url."
-        )
-    name = matches[-1]
-    archive = fetch(BDTOPO_MIRROR_INDEX + name, raw / name)
+    if bdtopo_url:
+        name = bdtopo_url.rsplit("/", 1)[-1]
+        archive = fetch(bdtopo_url, raw / name)
+    else:
+        idx = requests.get(BDTOPO_MIRROR_INDEX, timeout=120)
+        idx.raise_for_status()
+        import re
+        pattern = rf"BDTOPO_[\d-]+_TOUSTHEMES_GPKG_LAMB93_D0?{dept}_[\d-]+\.7z"
+        matches = sorted(set(re.findall(pattern, idx.text)))
+        if not matches:
+            raise SystemExit(
+                f"Archive BD TOPO D{dept} introuvable sur {BDTOPO_MIRROR_INDEX} — "
+                "récupérer l'URL sur geoservices.ign.fr/bdtopo et relancer avec --bdtopo-url."
+            )
+        name = matches[-1]
+        archive = fetch(BDTOPO_MIRROR_INDEX + name, raw / name)
     millesimes["BD TOPO (IGN)"] = name.rsplit("_", 1)[-1].removesuffix(".7z")
 
     extract_dir = raw / name.removesuffix(".7z")
@@ -127,6 +140,7 @@ def dl_bdtopo(cfg: dict, raw: Path, interim: Path, millesimes: dict) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--only", choices=["cadastre", "ban", "bdtopo"])
+    p.add_argument("--bdtopo-url", help="URL directe de l'archive 7z BD TOPO si le scraping du miroir échoue")
     args = p.parse_args()
 
     cfg = load_config()
@@ -136,7 +150,11 @@ def main() -> None:
     mfile = interim / "millesimes.yaml"
     millesimes = yaml.safe_load(mfile.read_text()) if mfile.exists() else {}
 
-    steps = {"cadastre": dl_cadastre, "ban": dl_ban, "bdtopo": dl_bdtopo}
+    steps = {
+        "cadastre": dl_cadastre,
+        "ban": dl_ban,
+        "bdtopo": lambda *a: dl_bdtopo(*a, bdtopo_url=args.bdtopo_url),
+    }
     for name, fn in steps.items():
         if args.only and name != args.only:
             continue
