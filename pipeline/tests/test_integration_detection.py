@@ -111,6 +111,8 @@ def test_chaine_detection_puis_tri(environnement, monkeypatch):
     assert len(cand) == 1, "exactement une piscine dans la scène"
     row = cand.iloc[0]
     assert row["methode"] == "hsv"
+    id_det = str(row["id_detection"])
+    assert id_det.startswith("pisc_"), "id stable dérivé de la position, pas de l'ordre du run"
     assert row["surface_m2"] == pytest.approx(np.pi * 25 * 15 * RES * RES, rel=0.25)
     # Géoréférencement absolu dans la dalle (fenêtrage + transform fenêtre).
     c = cand.geometry.iloc[0].centroid
@@ -126,12 +128,12 @@ def test_chaine_detection_puis_tri(environnement, monkeypatch):
     )
     tri_cli.main()
     html = (tmp_path / "interim" / "tri" / "tri.html").read_text(encoding="utf-8")
-    assert "data:image/png;base64," in html
-    assert '"id": 0' in html
+    assert f"vignettes/{id_det}.png" in html, "vignettes en fichiers séparés (pas de base64 monolithique)"
+    assert (tmp_path / "interim" / "tri" / "vignettes" / f"{id_det}.png").exists()
 
     # --- 16 --apply : décisions → base validée ---
     decisions = tmp_path / "decisions.csv"
-    decisions.write_text("id_detection,decision\n0,oui\n")
+    decisions.write_text(f"id_detection,decision\n{id_det},oui\n")
     monkeypatch.setattr(
         sys, "argv",
         ["16", "--candidats", str(out), "--apply", str(decisions)],

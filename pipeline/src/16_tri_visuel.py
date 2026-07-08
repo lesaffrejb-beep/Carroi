@@ -22,7 +22,6 @@ production. Les candidats bruts ne se joignent pas, ne s'exportent pas.
 from __future__ import annotations
 
 import argparse
-import base64
 import io
 import json
 import logging
@@ -150,6 +149,12 @@ def generer_planche(candidats: gpd.GeoDataFrame, ortho_dir: Path, cfg: dict, out
     index = indexer_dalles(ortho_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Vignettes en FICHIERS séparés (pas de base64 embarqué : à l'échelle d'un
+    # département — 50-100 k candidats — un HTML monolithique ferait plusieurs Go
+    # et tuerait le navigateur ; l'interface n'affiche qu'une image à la fois,
+    # le navigateur ne charge donc que la vignette courante).
+    vign_dir = out_dir / "vignettes"
+    vign_dir.mkdir(parents=True, exist_ok=True)
     items, sans_dalle = [], 0
     for _, row in candidats.iterrows():
         pt = row.geometry.representative_point()
@@ -158,11 +163,12 @@ def generer_planche(candidats: gpd.GeoDataFrame, ortho_dir: Path, cfg: dict, out
             sans_dalle += 1
             continue
         img = extraire_vignette(dalle, pt.x, pt.y, tri_cfg["vignette_m"], tri_cfg["vignette_px"])
-        b64 = base64.b64encode(png_bytes(img)).decode()
+        id_det = str(row["id_detection"])
+        (vign_dir / f"{id_det}.png").write_bytes(png_bytes(img))
         items.append(
             {
-                "id": int(row["id_detection"]),
-                "png": f"data:image/png;base64,{b64}",
+                "id": id_det,
+                "png": f"vignettes/{id_det}.png",
                 "surface": float(row["surface_m2"]),
                 "score": float(row["score_detection"]),
             }
@@ -195,13 +201,15 @@ def appliquer_decisions(candidats: gpd.GeoDataFrame, decisions: pd.DataFrame) ->
     """
     if not {"id_detection", "decision"} <= set(decisions.columns):
         raise ValueError("decisions.csv : colonnes id_detection,decision attendues.")
-    decisions = decisions.astype({"id_detection": int})
+    # Comparaison en str : les id_detection sont des identifiants stables
+    # (contrat.ids_stables), pas des entiers d'ordre de run.
+    decisions = decisions.assign(id_detection=decisions["id_detection"].astype(str))
     valides = {"oui", "non", "incertain"}
     inconnues = set(decisions["decision"]) - valides
     if inconnues:
         raise ValueError(f"Décisions invalides : {inconnues} (attendu {valides}).")
 
-    ids_cand = set(candidats["id_detection"].astype(int))
+    ids_cand = set(candidats["id_detection"].astype(str))
     ids_dec = set(decisions["id_detection"])
     if ids_dec - ids_cand:
         raise ValueError(
@@ -218,7 +226,7 @@ def appliquer_decisions(candidats: gpd.GeoDataFrame, decisions: pd.DataFrame) ->
         log.warning("%d candidat(s) sans décision → traités comme 'non' (exclus).", len(manquants))
 
     oui = set(decisions.loc[decisions["decision"] == "oui", "id_detection"])
-    out = candidats[candidats["id_detection"].astype(int).isin(oui)].copy()
+    out = candidats[candidats["id_detection"].astype(str).isin(oui)].copy()
     out["methode"] = "valide_humain"
     n_inc = (decisions["decision"] == "incertain").sum()
     log.info("Décisions : %d oui, %d non, %d incertains (exclus — on ne vend pas le doute).",

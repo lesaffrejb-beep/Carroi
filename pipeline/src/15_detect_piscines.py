@@ -35,6 +35,7 @@ from shapely.geometry import box
 
 import detection
 from common import ensure_dirs, load_config
+from contrat import ids_stables, valider_couche1
 
 log = logging.getLogger("detect")
 
@@ -229,10 +230,11 @@ def main() -> None:
     tous = tous.to_crs(cfg["crs_metric"])
     tous = detection.fusionner_adjacentes(tous)
     tous["methode"] = "hsv" if args.irc_dir else "hsv_sans_irc"
-    tous["id_detection"] = range(len(tous))
+    tous["id_detection"] = ids_stables(tous, "pisc")
 
     suffix = f"_{args.commune}" if args.commune else ""
     out = Path(cfg["paths"]["interim"]) / f"piscines_candidates_{cfg['dept']}{suffix}.parquet"
+    valider_couche1(tous, cfg["crs_metric"])
     tous.to_parquet(out)
     log.info("Écrit : %s (%d candidats). Prochaine étape : 16_tri_visuel.py "
              "(le tri humain est OBLIGATOIRE avant la jointure).", out, len(tous))

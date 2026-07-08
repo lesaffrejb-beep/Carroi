@@ -118,6 +118,80 @@ def ombres(
     return ombre
 
 
+def _decaler_1d(arr: np.ndarray, d: int) -> np.ndarray:
+    """arr décalé de d (out[c] = arr[c+d]), rempli à -inf hors emprise."""
+    if d == 0:
+        return arr.copy()
+    out = np.full_like(arr, -np.inf)
+    n = arr.shape[0]
+    if d > 0:
+        out[: n - d] = arr[d:]
+    else:
+        out[-d:] = arr[: n + d]
+    return out
+
+
+def _propagation_lignes(mns: np.ndarray, res_m: float, drow: float, dcol: float,
+                        tan_alt: float) -> np.ndarray:
+    """Propagation d'horizon ligne par ligne. Précondition : |drow| ≥ |dcol|.
+
+    R[p] = max(mns[p], R[p vers le soleil] − pas·tanα) : la hauteur du rayon
+    rasant venant du soleil se propage en UNE passe sur la grille. Un pixel est
+    à l'ombre si le rayon arrivant sur lui dépasse son élévation. La dérive de
+    colonne (soleil non axial) est accumulée en sub-pixel et appliquée par
+    décalages entiers (erreur bornée à ±0,5 px, sans dérive cumulative).
+    """
+    h, w = mns.shape
+    pas = res_m / abs(drow)          # distance réelle parcourue entre deux lignes
+    drop = pas * tan_alt
+    derive = dcol / abs(drow)        # dérive de colonne par ligne, vers le soleil
+    lignes = range(h - 1, -1, -1) if drow > 0 else range(h)
+
+    ombre = np.zeros((h, w), dtype=bool)
+    rayon_prec: np.ndarray | None = None
+    frac = 0.0
+    for r in lignes:
+        ligne = mns[r]
+        if rayon_prec is None:
+            rayon = ligne.astype(np.float64, copy=True)
+        else:
+            frac += derive
+            d = int(round(frac))
+            frac -= d
+            venant = _decaler_1d(rayon_prec, d) - drop
+            ombre[r] = venant > ligne + 1e-9
+            rayon = np.maximum(ligne, venant)
+        rayon_prec = rayon
+    return ombre
+
+
+def ombres_rapide(mns: np.ndarray, res_m: float, altitude: float, azimut: float) -> np.ndarray:
+    """Même sémantique qu'`ombres()` mais en UNE passe sur la grille (propagation
+    d'horizon) au lieu de portée/res passes complètes : ~2 ordres de grandeur plus
+    rapide, portée d'ombre illimitée. C'est ce qui rend le calcul départemental
+    (produits 2 et 3) réaliste en Python pur.
+
+    Différences assumées vs `ombres()` (l'oracle de référence, conservé) :
+    discrétisation sub-pixel différente sur les azimuts obliques (équivalence
+    exacte sur les azimuts cardinaux, ≥98 % de pixels identiques ailleurs —
+    prouvé par pipeline/tests/test_solaire.py) ; pas de limite de portée.
+    """
+    if mns.ndim != 2:
+        raise ValueError(f"MNS 2D attendu, reçu {mns.shape}")
+    if res_m <= 0:
+        raise ValueError("res_m doit être > 0")
+    if altitude <= 0:
+        return np.ones(mns.shape, dtype=bool)
+    drow = -np.cos(azimut)
+    dcol = np.sin(azimut)
+    tan_alt = np.tan(altitude)
+    mns_f = mns.astype(np.float64)
+    if abs(drow) >= abs(dcol):
+        return _propagation_lignes(mns_f, res_m, drow, dcol, tan_alt)
+    # Axe dominant horizontal : on transpose le problème (lignes ↔ colonnes).
+    return _propagation_lignes(mns_f.T, res_m, dcol, drow, tan_alt).T
+
+
 def heures_soleil_jour(
     mns: np.ndarray,
     res_m: float,
@@ -126,15 +200,22 @@ def heures_soleil_jour(
     pas_minutes: int = 30,
     portee_m: float = 150.0,
     altitude_min_deg: float = 2.0,
+    algorithme: str = "rapide",
 ) -> np.ndarray:
     """Raster d'heures de soleil DIRECT reçues dans la journée (float, en heures).
 
     Échantillonne la journée par pas de pas_minutes ; chaque échantillon où le
     soleil est levé (altitude > altitude_min_deg, en dessous : rasant, non
     significatif pour une terrasse) ajoute pas_minutes/60 aux pixels éclairés.
+
+    algorithme : "rapide" (propagation d'horizon, défaut — portee_m ignorée,
+    portée illimitée) ou "reference" (shift-and-compare borné à portee_m,
+    conservé comme oracle de validation).
     """
     if pas_minutes <= 0 or pas_minutes > 120:
         raise ValueError("pas_minutes doit être dans ]0, 120]")
+    if algorithme not in ("rapide", "reference"):
+        raise ValueError(f"algorithme inconnu : {algorithme}")
     heures = np.zeros(mns.shape, dtype=np.float64)
     poids = pas_minutes / 60.0
     n_ech = 0
@@ -142,7 +223,11 @@ def heures_soleil_jour(
         alt, az = position_soleil(lat_deg, jour, minutes / 60.0)
         if np.degrees(alt) <= altitude_min_deg:
             continue
-        heures += np.where(ombres(mns, res_m, alt, az, portee_m), 0.0, poids)
+        if algorithme == "rapide":
+            masque_ombre = ombres_rapide(mns, res_m, alt, az)
+        else:
+            masque_ombre = ombres(mns, res_m, alt, az, portee_m)
+        heures += np.where(masque_ombre, 0.0, poids)
         n_ech += 1
     log.info("Jour %d (lat %.1f) : %d échantillons de soleil levé, max %.1f h.",
              jour, lat_deg, n_ech, float(heures.max()) if heures.size else 0.0)

@@ -47,6 +47,7 @@ from shapely.geometry import box
 import solaire
 import terrasses
 from common import ensure_dirs, load_config
+from contrat import ids_stables, valider_couche1
 
 log = logging.getLogger("terrasses25")
 
@@ -206,9 +207,10 @@ def main() -> None:
         raise SystemExit("0 zone jardin produite — mauvaises dalles, mauvaise commune, "
                          "ou parcelles/bâtiments manquants ?")
     gdf = gpd.GeoDataFrame(lignes, geometry="geometry", crs=cfg["crs_metric"])
-    gdf["id_detection"] = range(len(gdf))
+    gdf["id_detection"] = ids_stables(gdf, "terr")
     suffix = f"_{args.commune}" if args.commune else ""
     out = Path(cfg["paths"]["interim"]) / f"terrasses_candidates_{cfg['dept']}{suffix}.parquet"
+    valider_couche1(gdf, cfg["crs_metric"])
     gdf.to_parquet(out)
     log.info("Écrit : %s (%d zones ; classes : %s).", out, len(gdf),
              gdf["classe_soleil"].value_counts().to_dict())
