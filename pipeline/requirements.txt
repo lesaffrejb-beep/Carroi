@@ -1,0 +1,10 @@
+geopandas>=0.14
+shapely>=2.0
+pyogrio>=0.7
+pandas>=2.0
+pyarrow>=14.0
+pyyaml>=6.0
+requests>=2.31
+py7zr>=0.20
+matplotlib>=3.8      # cartes PDF des exports commerciaux
+contextily>=1.4      # fond de carte pour les PDF (tuiles OSM, usage ponctuel OK)

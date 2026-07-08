@@ -1,0 +1,26 @@
+# Configuration centrale du pipeline. Tout paramètre métier vit ici, pas dans le code.
+
+dept: "49"                 # département cible (string, garde le zéro initial des DOM/Corse ailleurs)
+crs_metric: "EPSG:2154"    # Lambert-93 : tous les calculs de surface/distance
+crs_output: "EPSG:4326"    # WGS84 : lat/lon des exports
+
+paths:
+  raw: "data/raw"          # téléchargements bruts (gitignoré)
+  interim: "data/interim"  # couches intermédiaires (parquet/gpkg)
+  final: "data/final"      # base qualifiée interne
+  exports: "data/exports"  # fichiers clients générés
+  optout: "data/optout/optout.csv"   # adresses retirées (droit d'opposition) — filtre systématique
+  validation: "data/validation"
+
+piscines:
+  # Filtres qualité — justifiés dans docs/06-QUALITE-VALIDATION.md.
+  # Ajuster UNIQUEMENT après une passe de validation, et consigner l'ancien/nouveau dans 08-ROADMAP.md.
+  surface_min_m2: 8
+  surface_max_m2: 150
+  dist_max_batiment_m: 60      # piscine sans bâtiment d'habitation à <60 m => exclue
+  dist_max_adresse_m: 120      # adresse BAN retenue à plus de 120 m de la piscine => confiance basse
+  chevauchement_parcelle_min: 0.6  # part min. de la piscine dans la parcelle retenue, sinon jointure ambiguë
+
+export:
+  rayon_defaut_km: 30
+  confiances_vendues: ["haute", "moyenne"]  # la basse confiance ne sort jamais

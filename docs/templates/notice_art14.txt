@@ -1,0 +1,31 @@
+NOTICE D'INFORMATION — À JOINDRE PAR L'ACHETEUR À SON PREMIER COURRIER (obligation contractuelle)
+[TEMPLATE — faire relire par un avocat avant première utilisation réelle, avec le contrat de licence]
+
+--------------------------------------------------------------------------------
+Pourquoi recevez-vous ce courrier ?
+
+Votre adresse postale figure dans un fichier de prospection constitué par
+[RAISON SOCIALE DU VENDEUR — à compléter], [adresse], à partir de données
+publiques ouvertes (Institut national de l'information géographique et
+forestière — IGN, plan cadastral DGFiP/Etalab, Base Adresse Nationale),
+sous licence ouverte Etalab 2.0. Ce fichier contient uniquement votre adresse
+et des caractéristiques du bien immobilier (présence d'équipements extérieurs) ;
+il ne contient ni nom, ni téléphone, ni adresse électronique.
+
+Ce fichier a été communiqué à [RAISON SOCIALE DE L'ACHETEUR], qui l'utilise
+pour vous adresser des offres commerciales par courrier postal uniquement.
+
+Vos droits (Règlement général sur la protection des données) :
+vous pouvez à tout moment, gratuitement et sans justification, vous opposer à
+recevoir de la prospection et demander la suppression de votre adresse du
+fichier, ainsi qu'exercer vos droits d'accès et de rectification :
+  - par email : [EMAIL D'OPPOSITION DU VENDEUR]
+  - par courrier : [ADRESSE POSTALE DU VENDEUR]
+  - en ligne : [URL DU FORMULAIRE]
+Votre demande sera traitée sous un mois et répercutée à l'ensemble des
+destinataires du fichier. Vous disposez également du droit d'introduire une
+réclamation auprès de la CNIL (cnil.fr).
+
+Durée de conservation : 3 ans, avec actualisation à chaque nouveau millésime
+des données publiques sources.
+--------------------------------------------------------------------------------
