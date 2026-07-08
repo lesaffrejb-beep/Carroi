@@ -181,6 +181,8 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-08 | orchestration | CLAUDE.md : ordre de lecture + routage [OPUS]/[FABLE]/[HUMAIN] ; bloc « prochaine session » en tête de roadmap | la tour de contrôle est transmise — les sessions suivantes ont tout |
 | 2026-07-08 | R&D moteur | contrat.py (validation couche 1 + scan anti-nominatif automatisé) ; ombres_rapide ×59 mesuré ; ids stables ; tri en fichiers | 82 tests verts ; le moteur est clos — dérogation « code avant vente » terminée |
 | 2026-07-08 | audit pièges | 5 pièges corrigés : BAN sans x/y, --bdtopo-url manquant, millésimes non datés, 2 scans linéaires (tri dalles, parcelles/dalle) → index spatiaux | l'agent d'audit externe a été interrompu ; audit refait à la main sur 10/16/20/25/30/35 |
+| 2026-07-08 | cibles moteur | Doc `14` : recensement attribut→acheteur, top 3 arbitré (① ombrières APER, ② foncier divisible, ③ grandes toitures) | acheteurs pros de la donnée, tickets 10-100× ; s'active via l'arbre `12`, ne double PAS D0-pisciniers |
+| 2026-07-08 | R&D géométrie | `geometrie.py` : rectangle libre maximal à orientation libre (histogramme + rotations), cœur commun ombrières/foncier — 8 tests | 90 tests verts au total ; deepsearch ⑧ (APER/parkings/PLU) ajoutée à `13` |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 

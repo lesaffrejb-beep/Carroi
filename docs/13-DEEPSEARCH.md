@@ -78,6 +78,21 @@
 > des données. Même question pour « propriétaires de maisons avec jardin/terrasse ».
 > Objectif : préparer la contre-objection « j'ai trouvé moins cher avec les téléphones ».
 
+## ⑧ Loi APER (ombrières de parkings) + données parkings/PLU — cible n°1 de `14`
+
+> Trois questions distinctes, vérifiées en 2026 :
+> 1. **Loi APER (10 mars 2023, art. 40) et ses décrets d'application** : quelles sont les
+>    obligations EXACTES d'équipement en ombrières photovoltaïques des parkings extérieurs
+>    existants en 2026 — seuil de surface (1 500 m² ? nombre de places ?), part de la
+>    superficie à couvrir, échéances par taille de parking, exemptions, sanctions ?
+>    Y a-t-il eu des assouplissements/reports depuis 2023 ?
+> 2. **Où trouver les parkings en open data** : la BD TOPO de l'IGN contient-elle une couche
+>    des parkings/aires de stationnement (quel thème, quelle couche, quels attributs de
+>    surface) ? Sinon : OSM (amenity=parking — quelle couverture en France) ou autre source
+>    ouverte des parkings de surface avec leur emprise ?
+> 3. **Géoportail de l'urbanisme** : peut-on télécharger en masse le zonage PLU (zones U/AU)
+>    de toutes les communes d'un département (format, URL d'API/atom feed, licence) ?
+
 ## Fait / résultats
 
 | # | Lancée le | Résultat collé dans | Verdict en une ligne |
@@ -89,3 +104,4 @@
 | ⑤ | | | |
 | ⑥ | | | |
 | ⑦ | | | |
+| ⑧ | | | |
