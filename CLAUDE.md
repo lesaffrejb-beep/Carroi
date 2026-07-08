@@ -10,7 +10,9 @@ Ce repo est le socle d'un business de **vente de bases de données d'adresses qu
 4. `docs/10-PREMORTEM.md` §Règles de séquence — **le kill-switch et l'interdiction de coder
    du produit avant la pré-vente D0 priment sur l'envie d'écrire du code.**
 5. Le doc du chantier concerné : `04`/`05` (pipelines), `09` (architecture moteur multi-produits
-   + moats), `11`+`12` (kit de vente D0 et arbre de décision terrain).
+   + moats), `11`+`12` (kit de vente D0 et arbre de décision terrain), `16` (décisions
+   opérationnelles : livrable, stockage, flux, tarifs, recoupement — tout y est tranché,
+   ne pas re-décider ailleurs).
 
 ## Routage des tâches par modèle (décision d'orchestration, 2026-07-08)
 
