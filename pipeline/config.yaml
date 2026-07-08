@@ -21,6 +21,52 @@ piscines:
   dist_max_adresse_m: 120      # adresse BAN retenue à plus de 120 m de la piscine => confiance basse
   chevauchement_parcelle_min: 0.6  # part min. de la piscine dans la parcelle retenue, sinon jointure ambiguë
 
+detection:
+  # Étape 1b (15_detect_piscines.py) — seuillage colorimétrique HSV + IRC, option B
+  # de docs/04-PIPELINE-PISCINES.md. Seuils initiaux justifiés par la physique du
+  # signal (eau de piscine = teinte cyan, forte absorption du proche infrarouge) ;
+  # à calibrer sur la commune test (B2) et consigner tout changement dans 08-ROADMAP.md.
+  hsv:
+    hue_min: 0.42            # teinte (0-1) : fenêtre cyan-azur de l'eau traitée
+    hue_max: 0.62
+    sat_min: 0.15            # en dessous : gris/blanc (toits, routes)
+    val_min: 0.25            # en dessous : ombres
+  irc:
+    band_nir: 1              # BD ORTHO IRC : bande 1 = proche infrarouge
+    ndvi_max: 0.10           # (NIR-R)/(NIR+R) au-delà : végétation → exclu
+    ndwi_min: -0.05          # (G-NIR)/(G+NIR) en dessous : pas un plan d'eau → exclu
+  forme:
+    surface_min_m2: 4        # plus lâche que le filtre qualité (8-150) : on garde
+    surface_max_m2: 400      # les cas limites pour le tri humain, 30_score retranche
+    compacite_min: 0.30      # 4πA/P² : élimine les formes filandreuses (fossés, reflets)
+    solidite_min: 0.65       # A/A_enveloppe_convexe : élimine les amas de bruit
+  fenetre:
+    taille_px: 2048          # fenêtre de lecture (borne la mémoire, dalle = 25 000² px)
+    chevauchement_px: 128    # ≥ diamètre max d'une piscine (150 m² ⇒ ~14 m ⇒ 70 px à 20 cm)
+  buffer_batiments_m: 80     # fenêtre sans bâtiment BD TOPO à <80 m : sautée (gain ~60 %)
+  score_min: 0.35            # score_detection minimal pour retenir un candidat
+
+terrasses:
+  # Produit 2 (25_terrasses.py) — seuils de docs/05 §2 et §4. Les classes sont
+  # à calibrer sur le terrain (validation docs/06, précision ≥ 90 % pour ce produit).
+  dist_facade_m: 15          # la zone terrasse potentielle : ≤ 15 m de la façade
+  tampon_limite_m: 1.0       # bande le long des limites de parcelle : exclue
+  surface_zone_min_m2: 10    # zone jardin plus petite : pas un prospect pergola
+  hauteur_sol_max_m: 0.5     # MNH au-delà : sursol (arbre, abri) — exclu du masque
+  pas_minutes: 30            # échantillonnage de la journée solaire
+  portee_ombre_m: 150        # au-delà, un obstacle n'ombrage plus (voir solaire.py)
+  surface_contigue_min_m2: 20  # la classe exige une surface CONTIGUË qui la satisfait
+  plein_soleil:              # > 7 h au 21 juin ET > 4 h à l'équinoxe (docs/05 §4)
+    juin_min_h: 7
+    equinoxe_min_h: 4
+  bon:
+    juin_min_h: 5
+    equinoxe_min_h: 3
+
+tri_visuel:
+  vignette_m: 60             # côté du crop ortho centré sur la détection (mètres)
+  vignette_px: 300           # résolution de la vignette PNG
+
 export:
   rayon_defaut_km: 30
   confiances_vendues: ["haute", "moyenne"]  # la basse confiance ne sort jamais

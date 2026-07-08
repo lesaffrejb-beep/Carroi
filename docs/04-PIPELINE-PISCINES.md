@@ -7,7 +7,8 @@
 ```
 Étape 0  — 10_download.py        télécharger cadastre + BAN + BD TOPO (+ ortho par lots)   [code écrit]
 Étape 1a — OSM dev only          extraire piscines OSM pour développer/déboguer la suite    [instructions]
-Étape 1b — 15_detect_piscines.py détection sur BD ORTHO 20 cm                               [à implémenter]
+Étape 1b — 15_detect_piscines.py détection sur BD ORTHO 20 cm (option B)                    [code écrit + testé]
+Étape 1c — 16_tri_visuel.py      tri visuel humain (planche HTML + application)             [code écrit + testé]
 Étape 2  — 20_join_piscines_adresses.py   piscine → parcelle → adresse                      [code écrit]
 Étape 3  — 30_score_qualite.py   filtres + score de confiance                               [code écrit]
 Étape 4  — 35_stats + 40_export  chiffres de vente + livrables                              [code écrit]
@@ -33,7 +34,22 @@ Garder `access` (private/…) et `location` (écarter indoor). **Fichier marqué
 
 Usage secondaire : estimer le rappel de la détection (étape 1b) sur les communes où OSM est dense.
 
-## Étape 1b — Détection sur BD ORTHO (le cœur de l'actif, à implémenter)
+## Étape 1b — Détection sur BD ORTHO (le cœur de l'actif)
+
+> **État 2026-07-08 : l'option B est implémentée et testée** (`pipeline/src/detection.py`
+> cœur algorithmique pur + `15_detect_piscines.py` orchestration par dalles/fenêtres +
+> `16_tri_visuel.py` tri humain). 25 tests sur imagerie synthétique (`pipeline/tests/`,
+> lancer `python -m pytest pipeline/tests/`) verrouillent : signatures spectrales
+> (piscine vs végétation bleutée vs bâche marine), filtres de forme, géoréférencement,
+> partition des fenêtres (zéro doublon par construction), fusion inter-dalles,
+> refus des tris incomplets. **Reste à faire : calibrer les seuils sur une commune
+> réelle (B2) — les seuils de config.yaml sont des valeurs physiquement raisonnables,
+> pas encore des valeurs mesurées.**
+>
+> Flux : `15` écrit `piscines_candidates_{dept}.parquet` (candidats, jamais joints
+> ni exportés) → tri humain via `16` (planche `tri.html`, raccourcis O/N/U, export
+> `decisions.csv`) → `16 --apply` écrit `piscines_detectees_{dept}.parquet`
+> (`methode='valide_humain'`), le seul fichier que `20_join` consomme en production.
 
 C'est l'étape qui fait la valeur (aucune base ouverte ne contient les piscines privées — cf. `02-DATA-SOURCES.md`). Problème classique et bien documenté ("swimming pool detection aerial imagery") : objet turquoise/bleu, géométrique, 8–150 m², dans les jardins.
 

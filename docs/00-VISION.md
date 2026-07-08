@@ -43,7 +43,7 @@ Le produit Terrasses est plus différenciant (personne d'autre ne le fait) mais 
 | Extract local non-exclusif | Adresses piscines dans un rayon de 30 km autour du client | 500–1 500 € selon volume |
 | Département complet non-exclusif | Tout le 49 | 2 000–4 000 € |
 | **Exclusivité sectorielle locale** | Un seul piscinier servi par zone | ×3 à ×5 le prix non-exclusif |
-| Abonnement fraîcheur | Mise à jour annuelle (nouvelles piscines = prospects chauds "construction récente") | 30–40 % du prix initial / an |
+| Abonnement fraîcheur | Mise à jour **à chaque nouveau millésime IGN (~3 ans)** + veille SITADEL (permis de construire piscine, mensuelle) entre millésimes | 30–40 % du prix initial / millésime |
 
 Règles :
 - **Ne jamais vendre le fichier brut complet à bas prix.** On vend des extraits territorialisés. Le fichier complet reste l'actif.
@@ -55,7 +55,7 @@ Règles :
 Objectif du POC en rendez-vous : prouver en < 5 minutes que la base est vraie.
 
 1. Demander au prospect sa commune ou son adresse d'entreprise.
-2. Sortir l'extrait rayon 30 km (préparé à l'avance ou généré sur place — voir `pipeline/`).
+2. Sortir l'extrait rayon 30 km (préparé à l'avance ou généré sur place — voir `pipeline/`). **Toujours en mode `--demo` (confiance haute uniquement)** : le maillon fragile en RDV n'est pas la détection mais la jointure d'adresse, et une adresse fausse sur cinq tue la réputation locale (pre-mortem `10` §6).
 3. Choisir **4–5 adresses au hasard** (laisser le prospect choisir les lignes lui-même : ça tue l'objection "tu as trié les meilleures").
 4. Ouvrir chaque adresse dans le Géoportail IGN (vue aérienne) → la piscine est visible.
 5. Annoncer le taux de précision mesuré (voir `06-QUALITE-VALIDATION.md` — on ne promet que ce qu'on a mesuré).
