@@ -61,7 +61,16 @@ du cadre ; si quelque chose bloque ou surprend, le consigner ici et s'arrêter p
    `config[produit]`, défaut piscines). Fini = 82+ tests verts, aucun comportement changé
    pour piscines. NE PAS : refactorer au-delà de ces deux flags.
 
-8. `[OPUS — après le premier re-run de détection sur un nouveau millésime]`
+8. `[OPUS — sans dépendance]` **Décisions opérationnelles → code** (spec complète dans
+   `16-DECISIONS-OPERATIONNELLES.md`, ne rien improviser au-delà) : (a) 40_export : produire
+   AUSSI un .xlsx (openpyxl : colonnes figées, filtres actifs, largeurs auto) à côté du CSV ;
+   (b) 30_score : copie datée `data/final/archive/{produit}_{dept}_{AAAA-MM-JJ}.parquet` à
+   chaque écriture ; (c) `90_backup.py` : tar de final/exports/sales/optout/validation +
+   chiffrement (age ou gpg) + envoi rclone vers le stockage distant configuré dans
+   config.yaml (nouvelle clé `backup:`), idempotent, échec bruyant. Fini = 3 livrables +
+   tests des (a) et (b). NE PAS : sauvegarder data/raw ; toucher au tatouage.
+
+9. `[OPUS — après le premier re-run de détection sur un nouveau millésime]`
    **45_diff_millesimes.py** : CLI mince autour de `millesimes.py` (cœur fait et testé).
    Args : --avant X.parquet --apres Y.parquet [--tolerance-m 8]. Sorties :
    `{produit}_nouvelles_{dept}.parquet` (contrat couche 1 intact — les nouvelles
@@ -70,7 +79,7 @@ du cadre ; si quelque chose bloque ou surprend, le consigner ici et s'arrêter p
    Mêmes conventions que les autres CLI (config, ensure_dirs, échec bruyant).
    NE PAS : toucher à millesimes.py ; vendre les « disparues ».
 
-9. `[FABLE — seulement si déclenché]` : option A détection (déclencheur : B2-terrain
+10. `[FABLE — seulement si déclenché]` : option A détection (déclencheur : B2-terrain
    plafonne < 95 % après calibration ; noter — doc 15 : l'option A améliore le rappel
    et le débit, PAS la précision finale, le tri humain reste) ; détecteur P3 pans de
    toiture (déclencheur : branche D de l'arbre `12`, ou 5 ventes P1).
@@ -205,6 +214,7 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-08 | état de l'art 2 | APER : assouplie (Huwart) mais échéances 2026/2028 MAINTENUES, bon de commande avant le 31/12/2026 → cible ① brûlante | namR (coté, open data retraité) valide la thèse ; artisans locaux = angle mort des gros |
 | 2026-07-08 | concurrence P1 | ⚠ Cartégie/Easyfichiers louent déjà des fichiers piscines NOMINATIFS (1 M+, téléphones) — risque n°8 du pre-mortem confirmé | repositionnement P1 (achat + vérifiable + zéro risque RGPD + exclusivité) dans kit `11` ; le segment imprenable = « nouvelles » locales |
 | 2026-07-08 | R&D millésimes | `millesimes.py` : diff par appariement spatial un-pour-un (les ids stables ne survivent pas au recalage inter-millésimes) — 7 tests, 97 verts au total | garde-fou : > 50 % de « nouvelles » = recalage suspect, refus de vendre ; CLI 45 spécifiée [OPUS] |
+| 2026-07-08 | décisions op | Doc `16` : TOUT le reste est tranché — livrable (ZIP xlsx+csv+pdf+notices, pas de portail), stockage (local + backup chiffré, l'actif jamais sur git), flux de dossiers, grille tarifaire v1 (490 € lancement → 39-59 €/mois veille = l'indispensable), doctrine de recoupement (corrobore, ne crée jamais ; OSM exclu même du score), micro-entreprise, budget ~115 €/mois tenu | 4 tâches [OPUS] cadrées en découlent (n°8) ; 🧑 restent : nom commercial, forme juridique (avec avocat C3), RC pro, numéro dédié |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 
