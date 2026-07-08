@@ -64,6 +64,20 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 - [ ] **D3.** 4-5 RDV de preuve (protocole `07` §3). Consigner objections réelles et prix acceptés.
 - [ ] **D4.** Premières ventes ; registre des ventes tenu ; ajuster la grille tarifaire de `00` avec les prix réels.
 
+## État au 2026-07-08 (2e passe session Fable — architecture moteur + cœur solaire)
+
+- **`docs/09-MOTEUR-PROSPECTION.md` créé** : le repo est officiellement un moteur de
+  prospection multi-produits (5 couches, seule la couche « détecteur » est spécifique à un
+  produit ; couches tri/adressage/qualité/export mutualisées et porteuses des garde-fous).
+  Portefeuille de produits scoré (P1 piscines → P7) + **critères de pivot chiffrés décidés à
+  froid** (Go/No-Go P1 : 10 RDV, < 2 ventes ou < 300 €/extrait ⇒ pivot P2 ou P3).
+- **Cœur du produit 2 écrit et testé : `pipeline/src/solaire.py`** (position solaire,
+  ombres portées vectorisées sur MNS, heures de soleil direct aux 3 dates contractuelles).
+  12 tests physiques verts (37 au total). Décision consignée : moteur natif remplace GRASS
+  r.sun (voir docs/05 §3 et l'en-tête du module). Réutilisable tel quel pour P3 (toitures PV).
+- Reste `[FABLE]` quand P2 démarre : `25_terrasses.py` (orchestration MNS par dalles, zones
+  jardin, contrat couche 1). Reste `[OPUS]` : généralisation cosmétique de 20/30 (voir 09 §5).
+
 ## Phase E — Extension (après premières ventes)
 
 - [ ] **E1.** Produit 2 Terrasses (architecture prête : `05`) — prototype 1 commune.
@@ -80,3 +94,5 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-08 | B2-code/B3 | Étape 1b codée + testée (25 tests verts) | seuils config.yaml = a priori physiques, PAS calibrés terrain |
 | 2026-07-08 | B2-code | Sans IRC, la végétation bleutée devient faux positif (test le prouve) | IRC obligatoire en production ; `methode='hsv_sans_irc'` trace la dégradation |
 | 2026-07-08 | orchestration | Répartition modèles : tâches `[OPUS]` = exécution ; Fable = algorithmique/architecture | deepsearch Gemini demandée à l'humain : URLs/format BD ORTHO 49 (RVB+IRC) |
+| 2026-07-08 | architecture | Repo = moteur multi-produits (doc 09) ; critères de pivot chiffrés | un pivot = un détecteur + une doc, l'aval est mutualisé |
+| 2026-07-08 | P2 (cœur) | solaire.py natif remplace GRASS r.sun ; 12 tests physiques verts | même cœur réutilisable P3 toitures PV ; kWh non nécessaires (classement) |
