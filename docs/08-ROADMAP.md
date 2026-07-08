@@ -55,11 +55,21 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 - [ ] **C1.** Protocole de validation `06` §2 (100 adresses aléatoires, ≥ 95 %). Consigner le rapport.
 - [ ] **C2.** Checklist légale `03` §6 : rédiger LIA + AIPD + registre + politique de confidentialité + compléter `docs/templates/notice_art14.txt` (un LLM peut drafter tout ça ; templates CNIL en ligne).
 - [ ] **C3.** Contrat de licence draft + **relecture avocat** (action humaine, à planifier tôt : compter 2 semaines de délai).
-- [ ] **C4.** Canal d'opposition opérationnel (email dédié + page web statique) + test du filtre opt-out avec une adresse factice.
+- [ ] **C4.** Canal d'opposition opérationnel (email DÉDIÉ — pas le gmail perso, non sérieux en contrôle — + page web statique avec formulaire) + test du filtre opt-out avec une adresse factice + process art. 11 écrit (opposition sans identité : matching par adresse seule).
+- [ ] **C5.** `[OPUS]` « Pack incident » (pre-mortem `10` §9) : Q&A presse 1 page écrit à froid (sources publiques, opt-out en un clic, aucun lien avec le fisc) + procédure écrite de réclamation qualité (ligne fausse → remplacement/avoir sous 90 j, et l'adresse entre dans `data/validation/` comme étiquette négative).
 
 ## Phase D — Vente
 
-- [ ] **D1.** Liste de prospects B2B (SIRENE + annuaire — méthode dans `07` §1). Cible : 30 pisciniers/vendeurs 49.
+> **Règles de séquence issues du pre-mortem (`docs/10-PREMORTEM.md`) — priment sur tout :**
+> D0 se fait AVANT la suite de la phase A/B. Kill-switch : si au 15/10/2026 il n'y a ni LIA
+> validée ni 5 RDV bookés, gel total du code. Saisonnalité : les pisciniers achètent
+> d'oct. à fév. — l'été sert à préparer, pas à vendre.
+
+- [ ] **D0. [HUMAIN, cette semaine]** Pré-vente avant la base : appeler 5 pisciniers du 49
+  avec le pitch (`00` + `07`). Objectif : tester le prix réel (« à 800 € vous prenez ? ») et
+  l'appétence pour une offre « fichier + mailing clé en main ». Consigner chaque réponse ici.
+  C'est le test des deux hypothèses les plus dangereuses du plan (`10` §hypothèses).
+- [ ] **D1.** `[OPUS]` Liste de prospects B2B (SIRENE + annuaire — méthode dans `07` §1). Cible : 30 pisciniers/vendeurs 49.
 - [ ] **D2.** `41_export_carte.py` (PDF carte pour RDV) — à écrire, simple (matplotlib + contextily).
 - [ ] **D3.** 4-5 RDV de preuve (protocole `07` §3). Consigner objections réelles et prix acceptés.
 - [ ] **D4.** Premières ventes ; registre des ventes tenu ; ajuster la grille tarifaire de `00` avec les prix réels.
@@ -101,3 +111,6 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-08 | orchestration | Répartition modèles : tâches `[OPUS]` = exécution ; Fable = algorithmique/architecture | deepsearch Gemini demandée à l'humain : URLs/format BD ORTHO 49 (RVB+IRC) |
 | 2026-07-08 | architecture | Repo = moteur multi-produits (doc 09) ; critères de pivot chiffrés | un pivot = un détecteur + une doc, l'aval est mutualisé |
 | 2026-07-08 | P2 (cœur) | solaire.py natif remplace GRASS r.sun ; 12 tests physiques verts | même cœur réutilisable P3 toitures PV ; kWh non nécessaires (classement) |
+| 2026-07-08 | pre-mortem | 2 analyses indépendantes (investisseur/concurrent + juriste/ops) → `docs/10-PREMORTEM.md` | risque n°1 : inversion de séquence (code avant vente/légal) ; kill-switch 15/10/2026 adopté |
+| 2026-07-08 | pre-mortem | Abonnement « annuel » impossible (BD ORTHO ~3 ans) — sur-promesse corrigée dans `00` | parade : SITADEL (permis piscine, mensuel) ajouté à `02` ; millésime 49 à vérifier (deepsearch) |
+| 2026-07-08 | pre-mortem | `40_export_client.py --demo` : les extraits de RDV = confiance haute uniquement | le maillon fragile en démo est la jointure d'adresse, pas la détection |

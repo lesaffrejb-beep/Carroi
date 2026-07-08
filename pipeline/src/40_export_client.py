@@ -101,6 +101,10 @@ def main() -> None:
     zone.add_argument("--communes", help="codes INSEE séparés par des virgules")
     zone.add_argument("--dept", action="store_true", help="département entier")
     p.add_argument("--rayon-km", type=float, default=None)
+    p.add_argument("--demo", action="store_true",
+                   help="extrait de démonstration RDV : confiance HAUTE uniquement "
+                        "(une adresse fausse sur cinq devant le prospect tue la réputation "
+                        "locale — pre-mortem docs/10 §risque n°6)")
     args = p.parse_args()
 
     cfg = load_config()
@@ -118,7 +122,11 @@ def main() -> None:
     log.info("Base chargée : %d lignes.", len(gdf))
 
     # --- Garde-fous, dans l'ordre ---
-    gdf = gdf[gdf["confiance"].isin(cfg["export"]["confiances_vendues"])]
+    if args.demo:
+        gdf = gdf[gdf["confiance"] == "haute"]
+        log.info("Mode DÉMO : confiance haute uniquement (%d lignes).", len(gdf))
+    else:
+        gdf = gdf[gdf["confiance"].isin(cfg["export"]["confiances_vendues"])]
     gdf = apply_optout(gdf, cfg, log)
 
     # --- Découpe territoriale ---
@@ -148,7 +156,8 @@ def main() -> None:
         raise SystemExit(f"Colonnes attendues absentes de la base : {manquantes}")
     df = tatouer(df[COLONNES_LIVREES], args.acheteur)
 
-    out_dir = Path(cfg["paths"]["exports"]) / f"{slugify(args.acheteur)}_{date.today().isoformat()}"
+    prefixe_demo = "DEMO-" if args.demo else ""
+    out_dir = Path(cfg["paths"]["exports"]) / f"{prefixe_demo}{slugify(args.acheteur)}_{date.today().isoformat()}"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_csv = out_dir / f"{args.produit}_{zone_label}.csv"
     df.to_csv(out_csv, index=False, encoding="utf-8-sig")  # BOM : ouverture propre dans Excel
@@ -175,7 +184,7 @@ def main() -> None:
     else:
         log.warning("docs/templates/notice_art14.txt absent — À CRÉER avant toute livraison réelle (obligation légale).")
 
-    registre_vente(cfg, args.acheteur, args.produit, zone_label, len(df), out_csv)
+    registre_vente(cfg, f"{prefixe_demo}{args.acheteur}", args.produit, zone_label, len(df), out_csv)
     log.info("Export prêt : %s", out_dir)
 
 

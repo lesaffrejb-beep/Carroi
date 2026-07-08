@@ -40,6 +40,14 @@
 - `leisure=swimming_pool` (souvent tracées depuis le cadastre) : couverture réelle mais très inégale selon les communes. Extraction : Geofabrik `pays-de-la-loire-latest.osm.pbf` + `osmium tags-filter w/leisure=swimming_pool`.
 - **Licence ODbL, share-alike : toute base dérivée publiquement diffusée (= vendue) devrait être licenciée ODbL**, ce qui détruirait exclusivité et interdiction de revente. **Règle du projet : les géométries OSM n'entrent JAMAIS dans le produit vendu.** Usages autorisés : développement/débogage du pipeline de jointure, estimation du rappel, et éventuellement constitution de masques d'entraînement (voir le point licence dans `04-PIPELINE-PISCINES.md` — par prudence on privilégie l'annotation manuelle).
 
+### SITADEL (SDES) — permis de construire : la fraîcheur entre deux millésimes ortho
+- Base ouverte des autorisations d'urbanisme (mise à jour mensuelle, data.gouv.fr) : les
+  déclarations préalables/permis « piscine » donnent les piscines NEUVES — le segment le plus
+  chaud — sans attendre le prochain survol BD ORTHO (~3 ans). Identifiée par le pre-mortem
+  (`10` §7) comme la parade à l'impossibilité d'un abonnement annuel sur la seule ortho.
+- À évaluer `[OPUS]` : granularité d'adresse réelle (commune ? parcelle ?), champ de nature
+  des travaux, licence (Licence Ouverte attendue). Ne rien promettre commercialement avant.
+
 ### SIRENE (INSEE) — prospects B2B (les acheteurs, pas la base vendue)
 - Base ouverte des entreprises : filtrer département 49 + codes NAF pisciniers/pergolistes pour construire la liste d'appels. Voir `07-VENTE-PLAYBOOK.md`.
 
