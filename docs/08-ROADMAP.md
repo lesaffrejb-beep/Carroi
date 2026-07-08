@@ -9,23 +9,46 @@ Fait par la session d'architecture :
 - Toute la documentation structurante (docs 00→08) + garde-fous dans `CLAUDE.md`.
 - Code écrit (non exécuté sur données réelles — à tester au premier run) : `common.py`, `10_download.py`, `20_join_piscines_adresses.py`, `30_score_qualite.py`, `35_stats_prospection.py`, `40_export_client.py`.
 
+## État au 2026-07-08 (session détection — Fable 5)
+
+Stratégie d'orchestration décidée : les tâches à haute complexité algorithmique/architecturale
+sont traitées par les sessions Fable 5 ; les tâches d'exécution mécanique (téléchargements,
+débogage de chaîne sur données réelles, drafts de documents, scripts simples) sont **réservées
+aux sessions Opus 4.8** — elles sont marquées `[OPUS]` ci-dessous.
+
+Fait par cette session :
+- **B2 (code) + B3 : étape 1b implémentée et testée.** `detection.py` (cœur pur : masque HSV+IRC,
+  morphologie, vectorisation géoréférencée, filtres de forme, score, fusion inter-dalles),
+  `15_detect_piscines.py` (orchestration par dalles/fenêtres avec chevauchement, partition des
+  zones intérieures = zéro doublon par construction, masque bâti BD TOPO, appariement RVB/IRC
+  par emprise, échecs bruyants), `16_tri_visuel.py` (vignettes + page de tri HTML autonome
+  O/N/U + application des décisions avec refus des tris incomplets >2 %).
+- **25 tests** (`pipeline/tests/`, `python -m pytest pipeline/tests/`) : détection sur scènes
+  synthétiques (piscine trouvée à ±20 % de surface, végétation bleutée rejetée par l'IRC,
+  bâche marine rejetée par la teinte, fossé rejeté par la compacité), propriétés du fenêtrage,
+  intégration bout-en-bout sur dalles GeoTIFF fabriquées (15 → 16 → --apply), garde-fous
+  (opt-out, traçabilité, incertains jamais vendus). Tous verts au 2026-07-08.
+- Config `detection:` + `tri_visuel:` ajoutées à `config.yaml` (seuils **non calibrés** sur
+  données réelles — valeurs physiquement raisonnables à ajuster en B2-terrain).
+- requirements.txt : + rasterio, scikit-image ≥ 0.26, scipy, pillow, pytest.
+
 ## Phase A — Chaîne technique en mode dev (OSM, 2-3 communes)
 
 Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à ce stade.
 
-- [ ] **A1.** `pip install -r pipeline/requirements.txt` ; lancer `10_download.py` (cadastre, BAN, BD TOPO 49). Corriger les surprises d'URL/format et **consigner ici les URLs réelles utilisées + millésimes**.
-- [ ] **A2.** Extraire les piscines OSM (commandes dans `04` étape 1a). Choisir 2 communes bien couvertes (compter les piscines OSM par commune ; viser une péri-urbaine d'Angers + une rurale).
-- [ ] **A3.** Lancer `20` puis `30 --dev` puis `35 --dev` sur ces communes. Déboguer. Consigner : % de jointures via `cad_parcelles` vs `nearest` (si `cad_parcelles` < 50 %, activer le dataset "Adresses extraites du cadastre" en complément — voir `02`).
-- [ ] **A4.** Contrôle visuel de 30 lignes sur le Géoportail : l'adresse tombe-t-elle sur la bonne parcelle ? Consigner le taux et les erreurs types.
+- [ ] **A1.** `[OPUS]` `pip install -r pipeline/requirements.txt` ; lancer `10_download.py` (cadastre, BAN, BD TOPO 49). Corriger les surprises d'URL/format et **consigner ici les URLs réelles utilisées + millésimes**.
+- [ ] **A2.** `[OPUS]` Extraire les piscines OSM (commandes dans `04` étape 1a). Choisir 2 communes bien couvertes (compter les piscines OSM par commune ; viser une péri-urbaine d'Angers + une rurale).
+- [ ] **A3.** `[OPUS]` Lancer `20` puis `30 --dev` puis `35 --dev` sur ces communes. Déboguer. Consigner : % de jointures via `cad_parcelles` vs `nearest` (si `cad_parcelles` < 50 %, activer le dataset "Adresses extraites du cadastre" en complément — voir `02`).
+- [ ] **A4.** `[OPUS]` Contrôle visuel de 30 lignes sur le Géoportail : l'adresse tombe-t-elle sur la bonne parcelle ? Consigner le taux et les erreurs types.
 
 ## Phase B — Détection BD ORTHO (l'actif)
 
-- [ ] **B1.** Télécharger les dalles BD ORTHO (RVB + IRC) d'UNE commune test. Consigner l'URL/format réel.
-- [ ] **B2.** Implémenter `15_detect_piscines.py`, option B d'abord (seuillage HSV + IRC + filtres de forme — spec dans `04` étape 1b). Mesurer précision/rappel vs OSM sur la commune test.
-- [ ] **B3.** Construire l'outil de tri visuel (page HTML de vignettes, raccourcis O/N — spec dans `04` étape 1b point 4).
-- [ ] **B4.** Décision A/B (modèle entraîné vs seuillage+tri) sur les chiffres de B2. Consigner la décision et les chiffres.
-- [ ] **B5.** Industrialiser sur le département par lots de dalles + tri humain. Sortie : `piscines_detectees_49.parquet`.
-- [ ] **B6.** Chaîne complète 20→30 en mode production ; `35 --dept` pour le chiffre total.
+- [ ] **B1.** `[OPUS]` Télécharger les dalles BD ORTHO (RVB + IRC) d'UNE commune test. Consigner l'URL/format réel. (Une deepsearch Gemini a été demandée pour les URLs/formats exacts — voir journal.)
+- [x] **B2-code.** ~~Implémenter `15_detect_piscines.py`~~ **Fait 2026-07-08** (+ `detection.py` + 25 tests sur imagerie synthétique). Reste **B2-terrain** `[OPUS, avec les seuils — remonter à Fable si la précision plafonne]` : lancer sur la commune test, mesurer précision/rappel vs OSM, calibrer les seuils `detection:` de config.yaml, consigner ici les chiffres.
+- [x] **B3.** ~~Outil de tri visuel~~ **Fait 2026-07-08** (`16_tri_visuel.py` : planche `tri.html` autonome, O/N/U, export `decisions.csv`, `--apply` avec garde-fous).
+- [ ] **B4.** Décision A/B (modèle entraîné vs seuillage+tri) sur les chiffres de B2-terrain. Consigner la décision et les chiffres. `[FABLE si option A retenue : architecture d'entraînement]`
+- [ ] **B5.** `[OPUS]` Industrialiser sur le département par lots de dalles + tri humain. Sortie : `piscines_detectees_49.parquet`.
+- [ ] **B6.** `[OPUS]` Chaîne complète 20→30 en mode production ; `35 --dept` pour le chiffre total.
 
 ## Phase C — Qualité & légal (bloquants avant vente)
 
@@ -54,3 +77,6 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-07 | fondation | Google Solar API écarté | CGU : cache 30 j, revente interdite, usage hors énergie solaire interdit |
 | 2026-07-07 | fondation | OSM = dev only | ODbL share-alike incompatible avec vente/exclusivité |
 | 2026-07-07 | fondation | Piscines privées absentes de BD TOPO/cadastre Etalab | détection maison sur BD ORTHO requise |
+| 2026-07-08 | B2-code/B3 | Étape 1b codée + testée (25 tests verts) | seuils config.yaml = a priori physiques, PAS calibrés terrain |
+| 2026-07-08 | B2-code | Sans IRC, la végétation bleutée devient faux positif (test le prouve) | IRC obligatoire en production ; `methode='hsv_sans_irc'` trace la dégradation |
+| 2026-07-08 | orchestration | Répartition modèles : tâches `[OPUS]` = exécution ; Fable = algorithmique/architecture | deepsearch Gemini demandée à l'humain : URLs/format BD ORTHO 49 (RVB+IRC) |
