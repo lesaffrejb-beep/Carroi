@@ -2,6 +2,31 @@
 
 > **Ce fichier est le journal du projet.** Chaque session LLM qui termine une tâche met à jour le statut, la date, et surtout ce qui a été **appris/mesuré** (les chiffres réels valent plus que le plan). La session suivante ne sait que ce qui est écrit ici.
 
+## ⚡ PROCHAINE SESSION : COMMENCER ICI (état au 2026-07-08, fin des sessions Fable)
+
+**Où on en est en une phrase** : tout le moteur est codé et testé (45 tests verts — détection
+piscines 1b complète, tri humain, moteur solaire, détecteur terrasses P2, export avec --demo) ;
+AUCUNE donnée réelle n'a encore été traitée, AUCUN document légal rédigé, AUCUN prospect appelé
+— et le pre-mortem (`10`) a établi que c'est LE risque n°1. La priorité absolue n'est plus le code.
+
+**File d'attente, dans l'ordre :**
+1. `[HUMAIN — en cours, RDV imminents]` D0 : appels de pré-vente avec le kit `11`, réponses
+   dans `sales/prospection_d0.csv`, puis dérouler l'arbre `12`.
+2. `[OPUS]` C2 : drafts LIA + AIPD + registre art. 30 + politique de confidentialité + notice
+   art. 14 complétée (templates CNIL ; intégrer le raisonnement art. 14.5.b « stock invendu »
+   du pre-mortem `10` §4) — livrer à l'humain pour l'avocat (C3).
+3. `[OPUS]` C5 : pack incident (Q&A presse + procédure réclamation, spec dans `10` §9).
+4. `[OPUS]` A1-A4 : chaîne réelle sur 2 communes OSM (dès que les URLs de la deepsearch
+   BD ORTHO sont connues, enchaîner B1 + B2-terrain : calibration des seuils `detection:`).
+5. `[OPUS]` D1 : liste SIRENE des 30 prospects (méthode `07` §1) pour outiller l'humain.
+6. `[FABLE, seulement si déclenché]` : option A détection (si B2-terrain plafonne < 95 %),
+   détecteur P3 pans de toiture (si branche D ou 5 ventes P1 — réutiliser `solaire.py`).
+**Interdit tant que D0/D3 n'ont pas parlé : tout nouveau code produit** (`10` §Règles).
+
+**Deepsearchs demandées à l'humain (résultats à coller ici)** : ① URLs/format/millésime
+BD ORTHO 49 RVB+IRC + date du prochain survol ; ② SITADEL : adresse précise des DP piscine ?
+licence ? ; ③ cadastre solaire public couvrant le 49 (concurrence gratuite de P3) ?
+
 ## État au 2026-07-07 (session fondation)
 
 Fait par la session d'architecture :
@@ -114,3 +139,6 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-08 | pre-mortem | 2 analyses indépendantes (investisseur/concurrent + juriste/ops) → `docs/10-PREMORTEM.md` | risque n°1 : inversion de séquence (code avant vente/légal) ; kill-switch 15/10/2026 adopté |
 | 2026-07-08 | pre-mortem | Abonnement « annuel » impossible (BD ORTHO ~3 ans) — sur-promesse corrigée dans `00` | parade : SITADEL (permis piscine, mensuel) ajouté à `02` ; millésime 49 à vérifier (deepsearch) |
 | 2026-07-08 | pre-mortem | `40_export_client.py --demo` : les extraits de RDV = confiance haute uniquement | le maillon fragile en démo est la jointure d'adresse, pas la détection |
+| 2026-07-08 | vente | Kit D0 complet (`11`) : cold call, cold email, RDV sans base, objections, grille prix, grille de consignation | positionnement honnête « je finalise la carte » (la base n'existe pas encore) |
+| 2026-07-08 | stratégie | Arbre de décision terrain (`12`) : branches D0 et post-RDV décidées à froid + 7 options gros ticket scorées | franchises siège 5-30 k€, PAC, clé en main ×3-5, marque blanche ; assureurs GELÉ (RGPD aggravé) |
+| 2026-07-08 | orchestration | CLAUDE.md : ordre de lecture + routage [OPUS]/[FABLE]/[HUMAIN] ; bloc « prochaine session » en tête de roadmap | la tour de contrôle est transmise — les sessions suivantes ont tout |

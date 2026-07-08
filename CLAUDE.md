@@ -6,8 +6,22 @@ Ce repo est le socle d'un business de **vente de bases de données d'adresses qu
 
 1. `docs/00-VISION.md` — le business, les produits, les prix, le protocole de preuve.
 2. `docs/03-LEGAL-RGPD.md` — **les garde-fous légaux. Non négociables.**
-3. `docs/08-ROADMAP.md` — où on en est, quelle est la prochaine tâche.
-4. Le doc du pipeline concerné (`04-PIPELINE-PISCINES.md` ou `05-PIPELINE-TERRASSES.md`).
+3. `docs/08-ROADMAP.md` — où on en est, quelle est la prochaine tâche (bloc « prochaine session » en tête).
+4. `docs/10-PREMORTEM.md` §Règles de séquence — **le kill-switch et l'interdiction de coder
+   du produit avant la pré-vente D0 priment sur l'envie d'écrire du code.**
+5. Le doc du chantier concerné : `04`/`05` (pipelines), `09` (architecture moteur multi-produits
+   + moats), `11`+`12` (kit de vente D0 et arbre de décision terrain).
+
+## Routage des tâches par modèle (décision d'orchestration, 2026-07-08)
+
+- `[OPUS]` dans la roadmap = exécution mécanique (téléchargements, runs sur données réelles,
+  calibration de seuils, drafts de documents depuis templates, scripts simples). Une session
+  Opus ne re-débat pas l'architecture : elle exécute, mesure, et consigne dans `08`.
+- `[FABLE]` = algorithmique/architecture (nouveaux détecteurs, refontes, décisions structurantes).
+  Ne pas entamer avec un modèle plus petit ; si une tâche `[OPUS]` révèle un problème de fond
+  (ex. précision qui plafonne), la remonter en `[FABLE]` dans la roadmap plutôt que bricoler.
+- `[HUMAIN]` = terrain (appels, RDV, avocat). Les préparer au mieux (scripts `11`, grilles),
+  puis attendre le retour consigné dans `sales/prospection_d0.csv` et dérouler l'arbre `12`.
 
 ## Règles non négociables (garde-fous)
 
