@@ -48,14 +48,23 @@ du cadre ; si quelque chose bloque ou surprend, le consigner ici et s'arrêter p
    modifier detection.py/solaire.py (seuils config UNIQUEMENT — si ça ne suffit pas,
    consigner et s'arrêter : c'est un déclencheur [FABLE]).
 
-6. `[OPUS — après A1]` **Généralisation cosmétique** (doc 09 §6) : 20_join `--source`
+6. `[OPUS — sans dépendance]` **Leçons de l'état de l'art** (doc 15 §2, deux petites
+   améliorations cadrées) : (a) 16_tri : trier les vignettes par incertitude
+   (|score − 0,5| croissant) au lieu de l'ordre du fichier — les cas limites d'abord,
+   les évidences en rafale à la fin ; (b) protocole `06` §2 : remplacer le point simple
+   « ≥ 95 % sur 100 » par l'intervalle de Wilson à 95 % (annoncer la borne BASSE de
+   l'intervalle, jamais le point). Fini = les deux changements + tests verts.
+   NE PAS : toucher à autre chose dans 16_tri ; changer les seuils.
+
+7. `[OPUS — après A1]` **Généralisation cosmétique** (doc 09 §6) : 20_join `--source`
    (alias rétro-compatible de --source-piscines), 30_score `--produit` (lit
    `config[produit]`, défaut piscines). Fini = 82+ tests verts, aucun comportement changé
    pour piscines. NE PAS : refactorer au-delà de ces deux flags.
 
-7. `[FABLE — seulement si déclenché]` : option A détection (déclencheur : B2-terrain
-   plafonne < 95 % après calibration) ; détecteur P3 pans de toiture (déclencheur :
-   branche D de l'arbre `12`, ou 5 ventes P1) — réutiliser `solaire.py` + `contrat.py`.
+8. `[FABLE — seulement si déclenché]` : option A détection (déclencheur : B2-terrain
+   plafonne < 95 % après calibration ; noter — doc 15 : l'option A améliore le rappel
+   et le débit, PAS la précision finale, le tri humain reste) ; détecteur P3 pans de
+   toiture (déclencheur : branche D de l'arbre `12`, ou 5 ventes P1).
 
 **Interdit tant que D0/D3 n'ont pas parlé : tout nouveau code produit** (`10` §Règles ;
 dérogation moteur du 2026-07-08 close — le moteur est fini).
@@ -183,6 +192,7 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-08 | audit pièges | 5 pièges corrigés : BAN sans x/y, --bdtopo-url manquant, millésimes non datés, 2 scans linéaires (tri dalles, parcelles/dalle) → index spatiaux | l'agent d'audit externe a été interrompu ; audit refait à la main sur 10/16/20/25/30/35 |
 | 2026-07-08 | cibles moteur | Doc `14` : recensement attribut→acheteur, top 3 arbitré (① ombrières APER, ② foncier divisible, ③ grandes toitures) | acheteurs pros de la donnée, tickets 10-100× ; s'active via l'arbre `12`, ne double PAS D0-pisciniers |
 | 2026-07-08 | R&D géométrie | `geometrie.py` : rectangle libre maximal à orientation libre (histogramme + rotations), cœur commun ombrières/foncier — 8 tests | 90 tests verts au total ; deepsearch ⑧ (APER/parkings/PLU) ajoutée à `13` |
+| 2026-07-08 | état de l'art | Doc `15` : Foncier innovant = 94 % annoncé + polémique faux positifs ; DL brut ≈ 80/85 % précision/rappel | nos choix validés (tri humain = LA différence) ; 2 améliorations [OPUS] (tri par incertitude, Wilson) ; prompts ⑨⑩ dans `13` |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 

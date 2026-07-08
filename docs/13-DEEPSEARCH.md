@@ -93,6 +93,30 @@
 > 3. **Géoportail de l'urbanisme** : peut-on télécharger en masse le zonage PLU (zones U/AU)
 >    de toutes les communes d'un département (format, URL d'API/atom feed, licence) ?
 
+## ⑨ Les géants du même business — modèles économiques et leçons
+
+> Analyse ces entreprises qui vendent des attributs de propriétés détectés par IA sur
+> imagerie aérienne, avec sources 2024-2026 : **Cape Analytics** (US, assurance),
+> **Nearmap AI**, **Betterview**, **EagleView** ; côté France : **namR** (attributs de
+> bâtiments issus d'open data retraité — quelle santé économique, quels clients, quel
+> pricing ?), **Kermap/Nimbo**, **KelFoncier** (constructibilité parcellaire : pricing
+> public, réputation chez les promoteurs). Pour chacune : ce qu'elle vend exactement et
+> à qui, la précision annoncée, comment la validation humaine est gérée, les échecs/succès
+> économiques documentés. Conclure : les 5 leçons pour un solo qui vend des adresses
+> qualifiées (piscines, ensoleillement) issues d'open data IGN sur un département français.
+
+## ⑩ Pratiques d'ingénierie des pipelines de détection à grande échelle
+
+> Comment Microsoft Building Footprints, Google Open Buildings et les pipelines
+> équivalents documentent-ils publiquement leur ingénierie : tuilage et déduplication
+> aux frontières de tuiles, post-traitement des polygones (simplification,
+> régularisation), gestion des faux positifs, métriques qualité annoncées et leur
+> méthode de mesure (échantillonnage, intervalles de confiance) ? Et côté outillage
+> human-in-the-loop : quel débit réaliste (vignettes validées/heure) rapportent les
+> projets de labellisation, et quelles pratiques d'active learning simple (tri par
+> incertitude) sont documentées comme efficaces ? Sources techniques (papers, blogs
+> d'ingénierie, GitHub) 2023-2026.
+
 ## Fait / résultats
 
 | # | Lancée le | Résultat collé dans | Verdict en une ligne |
@@ -105,3 +129,5 @@
 | ⑥ | | | |
 | ⑦ | | | |
 | ⑧ | | | |
+| ⑨ | | | |
+| ⑩ | | | |
