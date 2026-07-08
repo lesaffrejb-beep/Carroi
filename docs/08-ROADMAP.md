@@ -9,19 +9,56 @@ piscines 1b complète, tri humain, moteur solaire, détecteur terrasses P2, expo
 AUCUNE donnée réelle n'a encore été traitée, AUCUN document légal rédigé, AUCUN prospect appelé
 — et le pre-mortem (`10`) a établi que c'est LE risque n°1. La priorité absolue n'est plus le code.
 
-**File d'attente, dans l'ordre :**
-1. `[HUMAIN — en cours, RDV imminents]` D0 : appels de pré-vente avec le kit `11`, réponses
-   dans `sales/prospection_d0.csv`, puis dérouler l'arbre `12`.
-2. `[OPUS]` C2 : drafts LIA + AIPD + registre art. 30 + politique de confidentialité + notice
-   art. 14 complétée (templates CNIL ; intégrer le raisonnement art. 14.5.b « stock invendu »
-   du pre-mortem `10` §4) — livrer à l'humain pour l'avocat (C3).
-3. `[OPUS]` C5 : pack incident (Q&A presse + procédure réclamation, spec dans `10` §9).
-4. `[OPUS]` A1-A4 : chaîne réelle sur 2 communes OSM (dès que les URLs de la deepsearch
-   BD ORTHO sont connues, enchaîner B1 + B2-terrain : calibration des seuils `detection:`).
-5. `[OPUS]` D1 : liste SIRENE des 30 prospects (méthode `07` §1) pour outiller l'humain.
-6. `[FABLE, seulement si déclenché]` : option A détection (si B2-terrain plafonne < 95 %),
-   détecteur P3 pans de toiture (si branche D ou 5 ventes P1 — réutiliser `solaire.py`).
-**Interdit tant que D0/D3 n'ont pas parlé : tout nouveau code produit** (`10` §Règles).
+**File d'attente — chaque tâche est autonome et cadrée ; une session Opus prend LA PREMIÈRE
+non cochée de son niveau, la fait EN ENTIER, consigne, et s'arrête. Ne pas improviser au-delà
+du cadre ; si quelque chose bloque ou surprend, le consigner ici et s'arrêter proprement.**
+
+1. `[HUMAIN — en cours, RDV imminents]` **D0** : appels de pré-vente avec le kit `11`,
+   réponses dans `sales/prospection_d0.csv`, puis dérouler l'arbre `12`.
+
+2. `[OPUS — sans dépendance, faisable maintenant]` **C2 : drafts légaux.**
+   Livrables : `docs/legal/LIA.md`, `docs/legal/AIPD.md`, `docs/legal/registre_art30.md`,
+   `docs/legal/politique_confidentialite.md`, `docs/templates/notice_art14.txt` complétée.
+   Cadre : suivre `03-LEGAL-RGPD.md` + intégrer OBLIGATOIREMENT le raisonnement art. 14.5.b
+   « stock invendu » (`10` §4 : mesures compensatoires publiques) et les 4 clauses contrat
+   (`10` §5). Structure des templates CNIL (outil PIA). Marquer chaque document « DRAFT —
+   à valider par avocat ». Fini = les 5 fichiers existent, roadmap cochée, PR mergée.
+   NE PAS : inventer des positions juridiques hors de `03`/`10` ; toucher au code.
+
+3. `[OPUS — sans dépendance]` **C5 : pack incident.** Livrables : `docs/legal/qa_presse.md`
+   (1 page, spec `10` §9 : sources publiques, opt-out 1 clic, AUCUNE référence au fisc) et
+   `docs/legal/procedure_reclamation.md` (ligne fausse → remplacement/avoir 90 j + entrée
+   `data/validation/reclamations.csv` comme étiquette négative ; opposition sans identité
+   → process art. 11). Fini = 2 fichiers + roadmap. NE PAS : dépasser 1 page chacun.
+
+4. `[OPUS — sans dépendance]` **D1 : liste de prospects.** Livrable :
+   `sales/prospects_49.csv` (hors git) via SIRENE open data (méthode `07` §1, codes NAF
+   listés là-bas) : ≥ 30 lignes {raison_sociale, naf, ville, tel_si_public, site_web,
+   priorite}. Écrire le script d'extraction dans `pipeline/src/50_prospects_sirene.py`
+   (réutilisable, --dept paramétré, mêmes conventions que les autres scripts).
+   NE PAS : collecter d'autres données que l'établissement (pas de dirigeants).
+
+5. `[OPUS — dès résultats deepsearch ① collés ici]` **A1-A4 puis B1 + B2-terrain.**
+   Ordre strict : A1 (10_download ; si le miroir BD TOPO échoue → --bdtopo-url), A2 (OSM
+   2 communes), A3 (20→35 en --dev ; consigner % cad_parcelles vs nearest), A4 (contrôle
+   visuel 30 lignes Géoportail, consigner le taux), B1 (dalles ortho 1 commune), B2-terrain
+   (15_detect sur la commune ; consigner ratio candidats/piscines-OSM, précision, rappel ;
+   calibrer les seuils `detection:` de config.yaml en consignant AVANT/APRÈS chaque seuil).
+   Fini = tableau de mesures ci-dessous rempli. NE PAS : lancer le département entier ;
+   modifier detection.py/solaire.py (seuils config UNIQUEMENT — si ça ne suffit pas,
+   consigner et s'arrêter : c'est un déclencheur [FABLE]).
+
+6. `[OPUS — après A1]` **Généralisation cosmétique** (doc 09 §6) : 20_join `--source`
+   (alias rétro-compatible de --source-piscines), 30_score `--produit` (lit
+   `config[produit]`, défaut piscines). Fini = 82+ tests verts, aucun comportement changé
+   pour piscines. NE PAS : refactorer au-delà de ces deux flags.
+
+7. `[FABLE — seulement si déclenché]` : option A détection (déclencheur : B2-terrain
+   plafonne < 95 % après calibration) ; détecteur P3 pans de toiture (déclencheur :
+   branche D de l'arbre `12`, ou 5 ventes P1) — réutiliser `solaire.py` + `contrat.py`.
+
+**Interdit tant que D0/D3 n'ont pas parlé : tout nouveau code produit** (`10` §Règles ;
+dérogation moteur du 2026-07-08 close — le moteur est fini).
 
 **Deepsearchs demandées à l'humain (résultats à coller ici)** : ① URLs/format/millésime
 BD ORTHO 49 RVB+IRC + date du prochain survol ; ② SITADEL : adresse précise des DP piscine ?
@@ -142,3 +179,18 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-08 | vente | Kit D0 complet (`11`) : cold call, cold email, RDV sans base, objections, grille prix, grille de consignation | positionnement honnête « je finalise la carte » (la base n'existe pas encore) |
 | 2026-07-08 | stratégie | Arbre de décision terrain (`12`) : branches D0 et post-RDV décidées à froid + 7 options gros ticket scorées | franchises siège 5-30 k€, PAC, clé en main ×3-5, marque blanche ; assureurs GELÉ (RGPD aggravé) |
 | 2026-07-08 | orchestration | CLAUDE.md : ordre de lecture + routage [OPUS]/[FABLE]/[HUMAIN] ; bloc « prochaine session » en tête de roadmap | la tour de contrôle est transmise — les sessions suivantes ont tout |
+| 2026-07-08 | R&D moteur | contrat.py (validation couche 1 + scan anti-nominatif automatisé) ; ombres_rapide ×59 mesuré ; ids stables ; tri en fichiers | 82 tests verts ; le moteur est clos — dérogation « code avant vente » terminée |
+| 2026-07-08 | audit pièges | 5 pièges corrigés : BAN sans x/y, --bdtopo-url manquant, millésimes non datés, 2 scans linéaires (tri dalles, parcelles/dalle) → index spatiaux | l'agent d'audit externe a été interrompu ; audit refait à la main sur 10/16/20/25/30/35 |
+
+## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
+
+| Mesure | Valeur | Commentaire |
+|---|---|---|
+| Commune test (INSEE) | | |
+| % jointures cad_parcelles (A3) | | seuil d'alerte : < 50 % → activer « Adresses cadastre » (doc 02) |
+| Taux contrôle visuel 30 lignes (A4) | | |
+| Candidats bruts 15_detect (B2) | | |
+| Ratio candidats / piscines OSM | | seuil d'alerte : > 4:1 → tri humain intenable au dept (doc 10 §8) |
+| Précision après tri (échantillon) | | objectif ≥ 95 % |
+| Rappel vs OSM | | |
+| Seuils modifiés (avant → après) | | |

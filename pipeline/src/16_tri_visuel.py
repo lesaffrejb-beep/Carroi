@@ -40,22 +40,29 @@ log = logging.getLogger("tri")
 
 # ---------------------------------------------------------------- vignettes
 
-def indexer_dalles(ortho_dir: Path) -> list[tuple[tuple, Path]]:
-    index = []
+def indexer_dalles(ortho_dir: Path):
+    """Index SPATIAL des emprises de dalles (STRtree) : la recherche linéaire
+    coûterait dalles × candidats (7 100 × 100 000 à l'échelle du département)."""
+    import geopandas as gpd
+    from shapely.geometry import box as sbox
+
+    boxes, paths = [], []
     for p in sorted(ortho_dir.iterdir()):
         if p.suffix.lower() in (".jp2", ".tif", ".tiff"):
             with rasterio.open(p) as src:
-                index.append((tuple(src.bounds), p))
-    if not index:
+                boxes.append(sbox(*src.bounds))
+                paths.append(p)
+    if not paths:
         raise SystemExit(f"Aucune dalle dans {ortho_dir}.")
-    return index
+    serie = gpd.GeoSeries(boxes)
+    return {"serie": serie, "sindex": serie.sindex, "paths": paths}
 
 
 def dalle_pour(x: float, y: float, index) -> Path | None:
-    for (x0, y0, x1, y1), p in index:
-        if x0 <= x <= x1 and y0 <= y <= y1:
-            return p
-    return None
+    from shapely.geometry import Point
+
+    hits = index["sindex"].query(Point(x, y), predicate="within")
+    return index["paths"][int(hits[0])] if len(hits) else None
 
 
 def extraire_vignette(path: Path, x: float, y: float, cote_m: float, out_px: int) -> np.ndarray | None:

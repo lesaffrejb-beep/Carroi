@@ -111,12 +111,15 @@ def traiter_dalle(
     index_mns,
     index_mnh,
     parcelles: gpd.GeoDataFrame,
+    pts_parcelles_sidx,
     batiments: gpd.GeoDataFrame,
     cfg_t: dict,
     crs,
 ) -> list[dict]:
     emprise = box(*dalle_bounds)
-    dans_dalle = parcelles[parcelles.geometry.representative_point().within(emprise)]
+    # Index spatial des points représentatifs (construit UNE fois dans main) :
+    # le scan linéaire coûterait dalles × parcelles (7 100 × 400 000 au département).
+    dans_dalle = parcelles.iloc[pts_parcelles_sidx.query(emprise, predicate="contains")]
     if dans_dalle.empty:
         return []
 
@@ -193,6 +196,8 @@ def main() -> None:
     index_mns = indexer_bounds(dalles)
     index_mnh = indexer_bounds(lister_dalles(Path(args.mnh_dir))) if args.mnh_dir else []
     parcelles, batiments = charger_vecteurs(cfg, args.commune)
+    pts_parcelles = parcelles.geometry.representative_point()
+    pts_parcelles_sidx = pts_parcelles.sindex
 
     with rasterio.open(dalles[0]) as src:
         crs = src.crs
@@ -201,7 +206,7 @@ def main() -> None:
     for i, (bounds, path) in enumerate(index_mns, 1):
         log.info("[%d/%d] %s", i, len(index_mns), path.name)
         lignes.extend(traiter_dalle(bounds, index_mns, index_mnh, parcelles,
-                                    batiments, cfg_t, crs))
+                                    pts_parcelles_sidx, batiments, cfg_t, crs))
 
     if not lignes:
         raise SystemExit("0 zone jardin produite — mauvaises dalles, mauvaise commune, "
