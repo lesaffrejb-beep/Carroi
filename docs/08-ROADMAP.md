@@ -75,8 +75,13 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
   ombres portées vectorisées sur MNS, heures de soleil direct aux 3 dates contractuelles).
   12 tests physiques verts (37 au total). Décision consignée : moteur natif remplace GRASS
   r.sun (voir docs/05 §3 et l'en-tête du module). Réutilisable tel quel pour P3 (toitures PV).
-- Reste `[FABLE]` quand P2 démarre : `25_terrasses.py` (orchestration MNS par dalles, zones
-  jardin, contrat couche 1). Reste `[OPUS]` : généralisation cosmétique de 20/30 (voir 09 §5).
+- ~~Reste `[FABLE]` : 25_terrasses.py~~ → **fait (3e passe, 2026-07-08)** : détecteur produit 2
+  complet (`terrasses.py` + `25_terrasses.py`, mosaïque inter-dalles pour les ombres, masque
+  MNH « la canopée d'un arbre ensoleillé n'est pas une terrasse », classes sur surface
+  contiguë). 8 tests dont bout-en-bout (jardin sud dégagé → plein_soleil, cour emmurée →
+  ombrage). **45 tests verts au total.** Le produit 2 n'attend plus que les dalles MNS/MNH
+  réelles `[OPUS]` — mais reste bloqué par la règle « P1 vendu d'abord » (docs/05).
+- Reste `[OPUS]` : généralisation cosmétique de 20/30 (voir 09 §6).
 
 ## Phase E — Extension (après premières ventes)
 

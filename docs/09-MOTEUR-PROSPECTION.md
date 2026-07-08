@@ -95,7 +95,38 @@ un seul investissement algorithmique, deux produits.
   mesurée, opt-out) s'appliquent à TOUT produit du portefeuille, sans exception — c'est le
   moteur qui les impose, pas la bonne volonté.
 
-## 5. Ce que ça change au code (état & reste à faire)
+## 5. Différenciation défendable (arbitrage 2026-07-08)
+
+Lucidité d'abord : **le code n'est PAS le moat.** Un dev assisté par LLM reproduit ce repo
+en quelques semaines ; l'open data est public ; l'idée de détecter les piscines est publique
+depuis le « foncier innovant » du fisc. Si on gagne, ce n'est pas par secret technique.
+Les vrais moats, par ordre de priorité d'exécution :
+
+1. **Verrouillage contractuel du marché local — le moat n°1, à exécuter AVANT tout le reste.**
+   Le marché est étroit : ~30 pisciniers autour d'Angers. Une fois 5-10 exclusivités signées
+   (par secteur d'activité × zone × 12 mois, tacite reconduction), un copieur arrive sur un
+   marché déjà fermé : il a le fichier mais plus d'acheteurs. Conséquence tarifaire assumée :
+   accepter un rabais sur les premières exclusivités vaut mieux que vendre cher du non-exclusif.
+2. **L'actif temporel irrécupérable.** Deux choses qu'un retardataire ne peut PAS reconstruire :
+   (a) la **vérité terrain accumulée** — décisions de tri humain, retours clients « cette adresse
+   n'a pas de piscine », seuils calibrés par territoire. C'est un dataset étiqueté qui s'améliore
+   à chaque vente et qui financera l'option A (modèle entraîné) le moment venu ; le formaliser :
+   chaque réclamation client entre dans `data/validation/` comme étiquette négative.
+   (b) le **point zéro des millésimes** — le produit « nouvelles piscines » (le plus cher au
+   prospect le plus chaud) exige une base t₀ ; un entrant tardif attend un cycle BD ORTHO
+   complet (~3 ans) pour son premier diff.
+3. **La vitesse de réplication.** Le moteur (couches 2-5) + le playbook rendent un nouveau
+   département ≈ mécanique. Pendant qu'un copieur valide son 49, on ouvre 44, 85, 72.
+4. **Le produit composite.** Chaque nouveau détecteur enrichit les MÊMES adresses (piscine +
+   ensoleillement + toiture) : la valeur du fichier croît en produit cartésien, un copieur
+   mono-produit ne suit pas. C'est l'argument économique profond de l'architecture en couches.
+
+Anti-moat assumé : si un acteur installé (opérateur d'annuaires, courtier en données) décidait
+de le faire, il gagnerait — mais le marché est trop niche pour justifier son coût d'opportunité.
+Le concurrent réaliste est un autre solo outillé d'IA : contre lui, les moats 1 et 2 suffisent
+**à condition d'être rapide**. La lenteur est le seul vrai concurrent.
+
+## 6. Ce que ça change au code (état & reste à faire)
 
 - [x] Couche 2 déjà générique (16_tri_visuel ne connaît pas le produit).
 - [x] Cœur solaire `solaire.py` écrit + testé (position du soleil, ombres portées MNS,
