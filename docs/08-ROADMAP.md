@@ -61,7 +61,16 @@ du cadre ; si quelque chose bloque ou surprend, le consigner ici et s'arrêter p
    `config[produit]`, défaut piscines). Fini = 82+ tests verts, aucun comportement changé
    pour piscines. NE PAS : refactorer au-delà de ces deux flags.
 
-8. `[FABLE — seulement si déclenché]` : option A détection (déclencheur : B2-terrain
+8. `[OPUS — après le premier re-run de détection sur un nouveau millésime]`
+   **45_diff_millesimes.py** : CLI mince autour de `millesimes.py` (cœur fait et testé).
+   Args : --avant X.parquet --apres Y.parquet [--tolerance-m 8]. Sorties :
+   `{produit}_nouvelles_{dept}.parquet` (contrat couche 1 intact — les nouvelles
+   repartent dans 20→30→40 comme n'importe quelle source) + log des conservées/disparues
+   + REFUS d'écrire si > 50 % de « nouvelles » (recalage suspect, voir warning du cœur).
+   Mêmes conventions que les autres CLI (config, ensure_dirs, échec bruyant).
+   NE PAS : toucher à millesimes.py ; vendre les « disparues ».
+
+9. `[FABLE — seulement si déclenché]` : option A détection (déclencheur : B2-terrain
    plafonne < 95 % après calibration ; noter — doc 15 : l'option A améliore le rappel
    et le débit, PAS la précision finale, le tri humain reste) ; détecteur P3 pans de
    toiture (déclencheur : branche D de l'arbre `12`, ou 5 ventes P1).
@@ -193,6 +202,9 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-08 | cibles moteur | Doc `14` : recensement attribut→acheteur, top 3 arbitré (① ombrières APER, ② foncier divisible, ③ grandes toitures) | acheteurs pros de la donnée, tickets 10-100× ; s'active via l'arbre `12`, ne double PAS D0-pisciniers |
 | 2026-07-08 | R&D géométrie | `geometrie.py` : rectangle libre maximal à orientation libre (histogramme + rotations), cœur commun ombrières/foncier — 8 tests | 90 tests verts au total ; deepsearch ⑧ (APER/parkings/PLU) ajoutée à `13` |
 | 2026-07-08 | état de l'art | Doc `15` : Foncier innovant = 94 % annoncé + polémique faux positifs ; DL brut ≈ 80/85 % précision/rappel | nos choix validés (tri humain = LA différence) ; 2 améliorations [OPUS] (tri par incertitude, Wilson) ; prompts ⑨⑩ dans `13` |
+| 2026-07-08 | état de l'art 2 | APER : assouplie (Huwart) mais échéances 2026/2028 MAINTENUES, bon de commande avant le 31/12/2026 → cible ① brûlante | namR (coté, open data retraité) valide la thèse ; artisans locaux = angle mort des gros |
+| 2026-07-08 | concurrence P1 | ⚠ Cartégie/Easyfichiers louent déjà des fichiers piscines NOMINATIFS (1 M+, téléphones) — risque n°8 du pre-mortem confirmé | repositionnement P1 (achat + vérifiable + zéro risque RGPD + exclusivité) dans kit `11` ; le segment imprenable = « nouvelles » locales |
+| 2026-07-08 | R&D millésimes | `millesimes.py` : diff par appariement spatial un-pour-un (les ids stables ne survivent pas au recalage inter-millésimes) — 7 tests, 97 verts au total | garde-fou : > 50 % de « nouvelles » = recalage suspect, refus de vendre ; CLI 45 spécifiée [OPUS] |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 

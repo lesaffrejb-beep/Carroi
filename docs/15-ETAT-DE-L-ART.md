@@ -44,6 +44,39 @@ précision / 85 % de rappel** en pur modèle. Traduction :
 | **Intervalle de confiance sur la précision mesurée** (Wilson) plutôt qu'un point sur 100 adresses | protocole 06 = point simple | 🔧 à ajouter au protocole C1 (formule dans la tâche) |
 | COG/STAC/Dask, infra cloud | mono-machine, fenêtrage, index spatiaux | ✅ NE PAS adopter — overkill documenté pour 1-3 départements ; réévaluer à 10+ |
 
+## 2 bis. Trois faits de la seconde passe (2026-07-08, recherches ciblées)
+
+**La loi APER tient — et le timing est MAINTENANT.** La loi Huwart (nov. 2025) a assoupli
+la solarisation des parkings (min. 35 % de la moitié à ombrager en PV, le reste combinable
+avec de la végétalisation) mais **les échéances 2026/2028 sont maintenues**, et le report à
+2028 exige un bon de commande de panneaux **avant le 31 décembre 2026**. Conséquence : le
+fichier « parkings > 1 500 m² non équipés » (cible n°1 de `14`) a une fenêtre de vente
+brûlante au 2e semestre 2026 — chaque gestionnaire en retard doit commander dans les mois
+qui viennent. ([Le Moniteur](https://www.lemoniteur.fr/reglementation/droit-de-l-environnement/comment-la-loi-huwart-assouplit-les-obligations-de-solarisation-des-parkings.IK43XNPCT5F3NIUKRLLGSEELVA.html),
+[Banque des Territoires](https://www.banquedesterritoires.fr/ombrieres-photovoltaiques-sur-parkings-le-decret-pris-en-application-de-larticle-40-de-la-loi-aper),
+[service-public](https://entreprendre.service-public.gouv.fr/vosdroits/F38187))
+
+**namR valide la thèse par l'existence.** Société française cotée (IPO 2021, ~8 M€ levés,
++5 M€ en 2023) qui vend 200 attributs sur 34 M de bâtiments **entièrement issus d'open data
+retraité** — à des grands comptes, collectivités, assureurs. Notre thèse « open data
+retraité = donnée vendable » est un business model prouvé ; et leur cible grands comptes
+laisse les artisans locaux — notre terrain — totalement libres.
+([namR](https://namr.com/fr/nos-solutions/nos-attributs/), [Le Moniteur](https://www.lemoniteur.fr/article/la-start-up-qui-connait-tout-du-bati-francais.2139049))
+
+**⚠ La concurrence sur P1 est RÉELLE et nominative.** [Cartégie](https://www.cartegie.com/en/data/btoc-basics/swimming-pool-owners)
+loue un fichier de 1 M+ de propriétaires de piscines avec ~200 000 téléphones ;
+[Easyfichiers](https://www.easyfichiers.com/fr/fichier-proprietaires-piscine) et d'autres
+(source IDAIA : permis de construire + détection aérienne) vendent l'équivalent en ligne.
+Le risque n°8 du pre-mortem est confirmé nommément. Conséquences appliquées :
+- le pitch P1 « fichier seul » se repositionne : ACHAT définitif (vs location), vérifiabilité
+  ligne à ligne sur la zone, ZÉRO risque RGPD/Bloctel pour le client, et l'EXCLUSIVITÉ
+  locale qu'un broker national ne vendra jamais — contre-objection ajoutée au kit `11` §4 ;
+- le segment où les brokers ne peuvent PAS suivre : les « nouvelles piscines » locales
+  fraîches (leur base nationale a une fraîcheur inconnue par commune) → le moteur de diff
+  de millésimes est implémenté (`millesimes.py`, appariement spatial un-pour-un, testé) ;
+- ça renforce l'arbitrage `14` : les cibles ①② (ombrières, foncier) n'ont pas de broker
+  installé équivalent, le trio gros-ticket monte encore d'un cran en priorité relative.
+
 ## 3. Ce qui reste à apprendre (prompts ⑨-⑩ de `13-DEEPSEARCH.md`)
 
 Cape Analytics/Nearmap/Betterview (pricing et attributs vendus aux assureurs US),
