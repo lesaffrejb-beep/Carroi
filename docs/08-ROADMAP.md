@@ -6,8 +6,10 @@
 
 **Où on en est en une phrase** : tout le moteur est codé et testé (45 tests verts — détection
 piscines 1b complète, tri humain, moteur solaire, détecteur terrasses P2, export avec --demo) ;
-AUCUNE donnée réelle n'a encore été traitée, AUCUN document légal rédigé, AUCUN prospect appelé
-— et le pre-mortem (`10`) a établi que c'est LE risque n°1. La priorité absolue n'est plus le code.
+les **drafts légaux C2 sont rédigés** (LIA, AIPD, registre art. 30, politique de confidentialité,
+notice art. 14 — `docs/legal/`, à valider par avocat) ; AUCUNE donnée réelle n'a encore été
+traitée, AUCUN prospect appelé — et le pre-mortem (`10`) a établi que l'inversion de séquence
+reste LE risque n°1. La priorité absolue n'est plus le code.
 
 **File d'attente — chaque tâche est autonome et cadrée ; une session Opus prend LA PREMIÈRE
 non cochée de son niveau, la fait EN ENTIER, consigne, et s'arrête. Ne pas improviser au-delà
@@ -16,7 +18,7 @@ du cadre ; si quelque chose bloque ou surprend, le consigner ici et s'arrêter p
 1. `[HUMAIN — en cours, RDV imminents]` **D0** : appels de pré-vente avec le kit `11`,
    réponses dans `sales/prospection_d0.csv`, puis dérouler l'arbre `12`.
 
-2. `[OPUS — sans dépendance, faisable maintenant]` **C2 : drafts légaux.**
+2. `[OPUS — ✅ FAIT 2026-07-09, PR en cours]` **C2 : drafts légaux.**
    Livrables : `docs/legal/LIA.md`, `docs/legal/AIPD.md`, `docs/legal/registre_art30.md`,
    `docs/legal/politique_confidentialite.md`, `docs/templates/notice_art14.txt` complétée.
    Cadre : suivre `03-LEGAL-RGPD.md` + intégrer OBLIGATOIREMENT le raisonnement art. 14.5.b
@@ -24,6 +26,11 @@ du cadre ; si quelque chose bloque ou surprend, le consigner ici et s'arrêter p
    (`10` §5). Structure des templates CNIL (outil PIA). Marquer chaque document « DRAFT —
    à valider par avocat ». Fini = les 5 fichiers existent, roadmap cochée, PR mergée.
    NE PAS : inventer des positions juridiques hors de `03`/`10` ; toucher au code.
+   → **Fait** : 5 fichiers créés, chacun marqué DRAFT, art. 14.5.b traité dans LIA §4.4 +
+   AIPD §4, les 4 clauses `10` §5 intégrées en LIA §4.5 / registre fiche n°2. **Bloqueurs
+   🧑 à renseigner avant usage réel** (placeholders `[...]` dans les 5 docs) : nom commercial
+   (`16` §6.2), forme juridique, adresse postale, email `opposition@<domaine>`, URL du
+   formulaire (C4). **Reste 🧑** : avis avocat data sur la LIA (bloquant lancement, `03` §5.8).
 
 3. `[OPUS — sans dépendance]` **C5 : pack incident.** Livrables : `docs/legal/qa_presse.md`
    (1 page, spec `10` §9 : sources publiques, opt-out 1 clic, AUCUNE référence au fisc) et
@@ -142,7 +149,7 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 ## Phase C — Qualité & légal (bloquants avant vente)
 
 - [ ] **C1.** Protocole de validation `06` §2 (100 adresses aléatoires, ≥ 95 %). Consigner le rapport.
-- [ ] **C2.** Checklist légale `03` §6 : rédiger LIA + AIPD + registre + politique de confidentialité + compléter `docs/templates/notice_art14.txt` (un LLM peut drafter tout ça ; templates CNIL en ligne).
+- [x] **C2.** ~~Checklist légale `03` §6 : rédiger LIA + AIPD + registre + politique de confidentialité + compléter `docs/templates/notice_art14.txt`~~ **Fait 2026-07-09** (`docs/legal/`, 5 drafts marqués « à valider avocat » ; bloqueurs 🧑 = nom/forme/adresse/email/URL + avis avocat).
 - [ ] **C3.** Contrat de licence draft + **relecture avocat** (action humaine, à planifier tôt : compter 2 semaines de délai).
 - [ ] **C4.** Canal d'opposition opérationnel (email DÉDIÉ — pas le gmail perso, non sérieux en contrôle — + page web statique avec formulaire) + test du filtre opt-out avec une adresse factice + process art. 11 écrit (opposition sans identité : matching par adresse seule).
 - [ ] **C5.** `[OPUS]` « Pack incident » (pre-mortem `10` §9) : Q&A presse 1 page écrit à froid (sources publiques, opt-out en un clic, aucun lien avec le fisc) + procédure écrite de réclamation qualité (ligne fausse → remplacement/avoir sous 90 j, et l'adresse entre dans `data/validation/` comme étiquette négative).
@@ -215,6 +222,7 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-08 | concurrence P1 | ⚠ Cartégie/Easyfichiers louent déjà des fichiers piscines NOMINATIFS (1 M+, téléphones) — risque n°8 du pre-mortem confirmé | repositionnement P1 (achat + vérifiable + zéro risque RGPD + exclusivité) dans kit `11` ; le segment imprenable = « nouvelles » locales |
 | 2026-07-08 | R&D millésimes | `millesimes.py` : diff par appariement spatial un-pour-un (les ids stables ne survivent pas au recalage inter-millésimes) — 7 tests, 97 verts au total | garde-fou : > 50 % de « nouvelles » = recalage suspect, refus de vendre ; CLI 45 spécifiée [OPUS] |
 | 2026-07-08 | décisions op | Doc `16` : TOUT le reste est tranché — livrable (ZIP xlsx+csv+pdf+notices, pas de portail), stockage (local + backup chiffré, l'actif jamais sur git), flux de dossiers, grille tarifaire v1 (490 € lancement → 39-59 €/mois veille = l'indispensable), doctrine de recoupement (corrobore, ne crée jamais ; OSM exclu même du score), micro-entreprise, budget ~115 €/mois tenu | 4 tâches [OPUS] cadrées en découlent (n°8) ; 🧑 restent : nom commercial, forme juridique (avec avocat C3), RC pro, numéro dédié |
+| 2026-07-09 | C2 légal | 5 drafts rédigés (`docs/legal/` : LIA, AIPD, registre art. 30, politique de confidentialité + notice art. 14 complétée), chacun marqué « DRAFT — à valider avocat » | art. 14.5.b traité (mesures compensatoires publiques : politique publique + encart presse + opt-out en ligne AVANT tout courrier) ; 4 clauses `10` §5 portées par la LIA ; bloqueurs 🧑 = nom/forme/adresse/email/URL + avis avocat data sur la LIA (bloquant lancement) |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 
