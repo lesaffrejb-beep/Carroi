@@ -32,11 +32,13 @@ du cadre ; si quelque chose bloque ou surprend, le consigner ici et s'arrêter p
    (`16` §6.2), forme juridique, adresse postale, email `opposition@<domaine>`, URL du
    formulaire (C4). **Reste 🧑** : avis avocat data sur la LIA (bloquant lancement, `03` §5.8).
 
-3. `[OPUS — sans dépendance]` **C5 : pack incident.** Livrables : `docs/legal/qa_presse.md`
-   (1 page, spec `10` §9 : sources publiques, opt-out 1 clic, AUCUNE référence au fisc) et
-   `docs/legal/procedure_reclamation.md` (ligne fausse → remplacement/avoir 90 j + entrée
-   `data/validation/reclamations.csv` comme étiquette négative ; opposition sans identité
-   → process art. 11). Fini = 2 fichiers + roadmap. NE PAS : dépasser 1 page chacun.
+3. `[OPUS — ✅ FAIT 2026-07-09, PR en cours]` **C5 : pack incident.** Livrables :
+   `docs/legal/qa_presse.md` (1 page, spec `10` §9 : sources publiques, opt-out 1 clic,
+   AUCUNE référence au fisc) et `docs/legal/procedure_reclamation.md` (ligne fausse →
+   remplacement/avoir 90 j + entrée `data/validation/reclamations.csv` comme étiquette
+   négative ; opposition sans identité → process art. 11). Fini = 2 fichiers + roadmap.
+   NE PAS : dépasser 1 page chacun. → **Fait** : 2 fichiers ≤ 1 page ; schéma
+   `reclamations.csv` défini ; porte-parole/URL en placeholders 🧑.
 
 4. `[OPUS — sans dépendance]` **D1 : liste de prospects.** Livrable :
    `sales/prospects_49.csv` (hors git) via SIRENE open data (méthode `07` §1, codes NAF
@@ -152,7 +154,7 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 - [x] **C2.** ~~Checklist légale `03` §6 : rédiger LIA + AIPD + registre + politique de confidentialité + compléter `docs/templates/notice_art14.txt`~~ **Fait 2026-07-09** (`docs/legal/`, 5 drafts marqués « à valider avocat » ; bloqueurs 🧑 = nom/forme/adresse/email/URL + avis avocat).
 - [ ] **C3.** Contrat de licence draft + **relecture avocat** (action humaine, à planifier tôt : compter 2 semaines de délai).
 - [ ] **C4.** Canal d'opposition opérationnel (email DÉDIÉ — pas le gmail perso, non sérieux en contrôle — + page web statique avec formulaire) + test du filtre opt-out avec une adresse factice + process art. 11 écrit (opposition sans identité : matching par adresse seule).
-- [ ] **C5.** `[OPUS]` « Pack incident » (pre-mortem `10` §9) : Q&A presse 1 page écrit à froid (sources publiques, opt-out en un clic, aucun lien avec le fisc) + procédure écrite de réclamation qualité (ligne fausse → remplacement/avoir sous 90 j, et l'adresse entre dans `data/validation/` comme étiquette négative).
+- [x] **C5.** ~~`[OPUS]` « Pack incident » (pre-mortem `10` §9) : Q&A presse 1 page + procédure de réclamation~~ **Fait 2026-07-09** (`docs/legal/qa_presse.md` + `docs/legal/procedure_reclamation.md` ; opposition art. 11 sans identité + schéma `reclamations.csv`).
 
 ## Phase D — Vente
 
@@ -223,6 +225,7 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-08 | R&D millésimes | `millesimes.py` : diff par appariement spatial un-pour-un (les ids stables ne survivent pas au recalage inter-millésimes) — 7 tests, 97 verts au total | garde-fou : > 50 % de « nouvelles » = recalage suspect, refus de vendre ; CLI 45 spécifiée [OPUS] |
 | 2026-07-08 | décisions op | Doc `16` : TOUT le reste est tranché — livrable (ZIP xlsx+csv+pdf+notices, pas de portail), stockage (local + backup chiffré, l'actif jamais sur git), flux de dossiers, grille tarifaire v1 (490 € lancement → 39-59 €/mois veille = l'indispensable), doctrine de recoupement (corrobore, ne crée jamais ; OSM exclu même du score), micro-entreprise, budget ~115 €/mois tenu | 4 tâches [OPUS] cadrées en découlent (n°8) ; 🧑 restent : nom commercial, forme juridique (avec avocat C3), RC pro, numéro dédié |
 | 2026-07-09 | C2 légal | 5 drafts rédigés (`docs/legal/` : LIA, AIPD, registre art. 30, politique de confidentialité + notice art. 14 complétée), chacun marqué « DRAFT — à valider avocat » | art. 14.5.b traité (mesures compensatoires publiques : politique publique + encart presse + opt-out en ligne AVANT tout courrier) ; 4 clauses `10` §5 portées par la LIA ; bloqueurs 🧑 = nom/forme/adresse/email/URL + avis avocat data sur la LIA (bloquant lancement) |
+| 2026-07-09 | C5 pack incident | Q&A presse (`docs/legal/qa_presse.md`) + procédure réclamation/opposition (`docs/legal/procedure_reclamation.md`), ≤ 1 page chacun | ligne fausse → remède 90 j + `data/validation/reclamations.csv` (étiquette négative) ; opposition art. 11 par adresse seule, propagation acheteurs via registre ; « à ne jamais dire » (fisc, 100 %) cadré |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 
