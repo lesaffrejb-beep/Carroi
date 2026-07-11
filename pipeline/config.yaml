@@ -36,7 +36,12 @@ detection:
     ndvi_max: 0.10           # (NIR-R)/(NIR+R) au-delà : végétation → exclu
     ndwi_min: -0.05          # (G-NIR)/(G+NIR) en dessous : pas un plan d'eau → exclu
   forme:
-    surface_min_m2: 4        # plus lâche que le filtre qualité (8-150) : on garde
+    # surface_min_m2 : CALIBRÉ B2-terrain 2026-07-11 sur Bouchemaine (49035, 286
+    # piscines OSM connues) : avant 4 → après 8 (aligné sur le filtre qualité final,
+    # donc SANS coût de rappel vendable — ces candidats seraient de toute façon
+    # rejetés par 30_score). Effet mesuré : 2614→1615 candidats (ratio 9,1:1→5,6:1),
+    # rappel 58,0%→54,5%.
+    surface_min_m2: 8
     surface_max_m2: 400      # les cas limites pour le tri humain, 30_score retranche
     compacite_min: 0.30      # 4πA/P² : élimine les formes filandreuses (fossés, reflets)
     solidite_min: 0.65       # A/A_enveloppe_convexe : élimine les amas de bruit
@@ -44,7 +49,11 @@ detection:
     taille_px: 2048          # fenêtre de lecture (borne la mémoire, dalle = 25 000² px)
     chevauchement_px: 128    # ≥ diamètre max d'une piscine (150 m² ⇒ ~14 m ⇒ 70 px à 20 cm)
   buffer_batiments_m: 80     # fenêtre sans bâtiment BD TOPO à <80 m : sautée (gain ~60 %)
-  score_min: 0.35            # score_detection minimal pour retenir un candidat
+  # score_min : CALIBRÉ B2-terrain 2026-07-11 sur Bouchemaine : avant 0,35 → après 0,55.
+  # Objectif : faire repasser le ratio candidats/piscines-OSM sous le seuil d'alerte
+  # de 4:1 (doc 10 §8, tri humain intenable au-delà à l'échelle département). Combiné
+  # à surface_min_m2=8 : 2614→938 candidats, ratio 9,1:1→3,3:1, rappel 58,0%→53,5%.
+  score_min: 0.55
 
 terrasses:
   # Produit 2 (25_terrasses.py) — seuils de docs/05 §2 et §4. Les classes sont

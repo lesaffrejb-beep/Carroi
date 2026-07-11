@@ -12,9 +12,13 @@ B1 est DÉBLOQUÉ, SITADEL est viable, namR a fait faillite, aucun pivot). **Pha
 (chaîne dev OSM) FAITE le 2026-07-11** : A1-A4 déroulés sur données réelles (2 communes),
 3 bugs de chaîne corrigés, jointure cad_parcelles 0 %→96 %, précision d'adressage 94 %
 sur le chemin cad_parcelles — mais tout ça reste du **dev non vendable** (OSM/ODbL) ;
-l'actif vendable dépend de la détection BD ORTHO (Phase B, non commencée). AUCUN prospect
-appelé — l'inversion de séquence (`10`) reste LE risque n°1. La priorité absolue n'est
-toujours pas le code : c'est D0.
+l'actif vendable dépend de la détection BD ORTHO. **B1 FAIT** (🧑 a autorisé le
+téléchargement, 61 Go réels sur disque NOIR, millésime 2022 confirmé) et **B2-terrain
+FAIT** sur Bouchemaine : seuils calibrés, ratio candidats/OSM ramené sous l'alerte
+(3,4:1), rappel 53 %. **Reste avant d'avoir un actif vendable** : 16_tri_visuel (tri
+humain, jamais fait), puis B5 (département), B6 (chaîne prod), C1 (validation qualité
+95 %). AUCUN prospect appelé — l'inversion de séquence (`10`) reste LE risque n°1. La
+priorité absolue n'est toujours pas le code : c'est D0.
 
 **⚠ Incident du 2026-07-11 (17h30-17h45)** : la quasi-totalité de l'arbre de travail a été
 supprimée pendant une session (cause exacte inconnue — concomitant avec le `git init` +
@@ -298,7 +302,20 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
   disque externe — ne jamais copier ces archives dans data/ du Mac, pas la place).
   Reste : extraire les dalles de Bouchemaine (49035), vérifier l'ordre des bandes IRC,
   lancer B2-terrain.
-- [x] **B2-code.** ~~Implémenter `15_detect_piscines.py`~~ **Fait 2026-07-08**. Reste **B2-terrain** `[OPUS, avec les seuils — remonter à Fable si la précision plafonne]` : lancer sur la commune test, mesurer précision/rappel vs OSM, calibrer les seuils `detection:` de config.yaml, consigner les chiffres.
+- [x] **B2-code.** ~~Implémenter `15_detect_piscines.py`~~ **Fait 2026-07-08**.
+- [x] **B2-terrain. ✅ FAIT 2026-07-11** sur Bouchemaine (49035, BD ORTHO 2022 réelle, 4 dalles
+  5×5 km extraites du disque NOIR). **Bande NIR confirmée = bande 1** (ratio réflectance
+  végétation/global 1,13 vs 0,76/0,86 pour les bandes 2/3 — hypothèse config.yaml validée,
+  aucun changement requis). **Calibration seuils (AVANT → APRÈS, consignée dans
+  config.yaml)** : `surface_min_m2` 4→8 (aligné filtre commercial, gratuit) ;
+  `score_min` 0,35→0,55 (seul levier qui fait vraiment baisser le ratio). **Résultat
+  mesuré sur le run réel** : 2614→977 candidats, **ratio candidats/OSM 9,1:1→3,4:1**
+  (repasse sous le seuil d'alerte 4:1 de `10` §8), **rappel 58,0%→53,1%** (perte
+  modérée, acceptable — le tri humain ne peut de toute façon pas absorber 9:1 à
+  l'échelle département). Note : le rappel plafonne autour de 55-58% quel que soit
+  le seuil (cf. sweep) — B4 (décision A/B option modèle) sera à réévaluer si ce
+  plafond s'avère insuffisant après tri humain réel (16_tri_visuel, non fait cette
+  session — candidats prêts dans `data/interim/piscines_candidates_49_49035.parquet`).
 - [x] **B3.** ~~Outil de tri visuel~~ **Fait 2026-07-08** (+ tri par incertitude 2026-07-11, PR #10).
 - [ ] **B4.** Décision A/B (modèle entraîné vs seuillage+tri) sur les chiffres de B2-terrain. Consigner la décision et les chiffres. `[FABLE si option A retenue — poids de départ : sp-swimming-pools CC-BY-4.0, voir DS5]`
 - [ ] **B5.** `[OPUS]` Industrialiser sur le département par lots de dalles + tri humain. Sortie : `piscines_detectees_49.parquet`. (Pré-requis git ✅ résolu 2026-07-11.)
@@ -387,6 +404,8 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-11 | A3 chaîne dev | 20→30→35 OK sur 2 communes ; **3 bugs réels corrigés** ; **cad_parcelles 0 %→96 %** après `normaliser_ref_cadastrale` ; vendables 260 / 85 | bugs : sjoin_nearest vs index id_piscine, format cad BAN≠Etalab (sép. `\|`+`,`, espacé 15 vs compact 14), id_ban doublons ; +4 tests (test_join) |
 | 2026-07-11 | A4 contrôle | Proxy « adresse dans la parcelle » : **94 % via cad_parcelles vs 23 % via nearest** (global 78,5 %) | confirme : cad_parcelles = fiable (→ haute confiance), nearest = fallback à ne pas vendre en haute ; œil Géoportail 🧑 sur 30 lignes exportées |
 | 2026-07-11 | B1 sondage accès | BD ORTHO D049 : **millésime dispo = 2022** (pas de 2025 → pas de diff 2022→2025 pour l'instant) ; accès = **archive 7z ~300 Go RVB+IRC** uniquement (pas de dalle décompressée) ; voie WMS = code neuf (bloqué pré-D0/`[FABLE]`) | **🧑 décision requise** : 300 Go, ou WMS (dérogation), ou différer Phase B après D0 |
+| 2026-07-11 | B1 téléchargement | 🧑 a autorisé ; archives réelles **61 Go** (PAS ~300 Go estimé) sur disque externe NOIR ; dalles réelles = **5×5 km** (pas 1 km comme supposé), nommage `49-2022-XXXX-YYYY-...jp2`, index shapefile `dalles.shp` embarqué dans l'archive (bien plus fiable que calculer les bounds à la main) | corrige 2 hypothèses de la deepsearch ① (taille archive, taille dalle) |
+| 2026-07-11 | B2-terrain | Bande NIR confirmée = bande 1 (physique : réflectance végétation +13 % vs -14/-24 % bandes 2/3) ; seuils calibrés `surface_min_m2` 4→8, `score_min` 0,35→0,55 ; **ratio candidats/OSM 9,1:1→3,4:1**, rappel 58,0%→53,1% sur Bouchemaine (977 candidats) | rappel plafonne ~55-58 % quel que soit le seuil → si insuffisant après tri humain réel, réexaminer B4 (option A modèle) |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 
@@ -398,8 +417,8 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | % jointures cad_parcelles (A3) | **78 % Bouchemaine / 92 % rural** (après correctif format) | > 50 % → PAS d'« Adresses cadastre » |
 | Recouvrement SYM=65 vs OSM (A3bis) | | > 50 % → corroboration au score |
 | Taux contrôle visuel 30 lignes (A4) | proxy auto **94 % via cad_parcelles / 23 % via nearest** | œil Géoportail 🧑 : a4_controle_visuel_49035.csv |
-| Candidats bruts 15_detect (B2) | | |
-| Ratio candidats / piscines OSM | | seuil d'alerte : > 4:1 → tri humain intenable au dept (doc 10 §8) |
-| Précision après tri (échantillon) | | objectif ≥ 95 % (borne basse Wilson) |
-| Rappel vs OSM | | |
-| Seuils modifiés (avant → après) | | |
+| Candidats bruts 15_detect (B2) | **977** (Bouchemaine, après calibration) | avant calibration : 2614 |
+| Ratio candidats / piscines OSM | **3,4:1** | avant calibration : 9,1:1 (seuil d'alerte 4:1 dépassé) |
+| Précision après tri (échantillon) | *(16_tri_visuel non fait cette session)* | objectif ≥ 95 % (borne basse Wilson) |
+| Rappel vs OSM | **53,1 %** | avant calibration : 58,0 % ; plafond ~55-58 % quel que soit le seuil (sweep) |
+| Seuils modifiés (avant → après) | `surface_min_m2` 4→8 ; `score_min` 0,35→0,55 | `hsv`/`irc`/`compacite`/`solidite` inchangés |
