@@ -76,7 +76,9 @@ def main() -> None:
     # Géométrie de sortie : le POINT ADRESSE (pas le polygone piscine — minimisation :
     # le client reçoit une adresse, pas le contour de la piscine du voisin).
     interim = Path(cfg["paths"]["interim"])
-    ban = gpd.read_parquet(interim / f"ban_{dept}.parquet").set_index("id_ban")
+    # La BAN comporte quelques id_ban en doublon (0,02 % sur le 49 : même id, coords
+    # voisines) → index non unique = plantage du .map() de géométrie. On garde la 1re.
+    ban = gpd.read_parquet(interim / f"ban_{dept}.parquet").drop_duplicates("id_ban").set_index("id_ban")
     gdf = gdf.set_geometry(gdf["id_ban"].map(ban.geometry)).set_crs(cfg["crs_metric"])
 
     cols = ["id_ban", "adresse", "code_postal", "commune", "code_insee",

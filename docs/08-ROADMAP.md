@@ -8,9 +8,13 @@
 tâche 5bis a REFAIT les 3 correctifs d'audit + 6 tests perdus dans l'incident du
 2026-07-11, voir journal), les drafts légaux C2/C5 sont rédigés (`docs/legal/`, à valider avocat), les
 **deepsearchs ①②③④⑤⑦⑨⑩ sont reçues, rangées et arbitrées** (`docs/deepsearch/` —
-B1 est DÉBLOQUÉ, SITADEL est viable, namR a fait faillite, aucun pivot), AUCUNE donnée
-réelle n'a encore été traitée, AUCUN prospect appelé — l'inversion de séquence (`10`)
-reste LE risque n°1. La priorité absolue n'est toujours pas le code : c'est D0.
+B1 est DÉBLOQUÉ, SITADEL est viable, namR a fait faillite, aucun pivot). **Phase A
+(chaîne dev OSM) FAITE le 2026-07-11** : A1-A4 déroulés sur données réelles (2 communes),
+3 bugs de chaîne corrigés, jointure cad_parcelles 0 %→96 %, précision d'adressage 94 %
+sur le chemin cad_parcelles — mais tout ça reste du **dev non vendable** (OSM/ODbL) ;
+l'actif vendable dépend de la détection BD ORTHO (Phase B, non commencée). AUCUN prospect
+appelé — l'inversion de séquence (`10`) reste LE risque n°1. La priorité absolue n'est
+toujours pas le code : c'est D0.
 
 **⚠ Incident du 2026-07-11 (17h30-17h45)** : la quasi-totalité de l'arbre de travail a été
 supprimée pendant une session (cause exacte inconnue — concomitant avec le `git init` +
@@ -255,11 +259,31 @@ Fait par cette session :
 
 Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à ce stade.
 
-- [ ] **A1.** `[OPUS]` `pip install -r pipeline/requirements.txt` (ou `.venv/` existant) ; lancer `10_download.py` (cadastre, BAN, BD TOPO 49). Corriger les surprises d'URL/format et **consigner ici les URLs réelles utilisées + millésimes**.
-- [ ] **A2.** `[OPUS]` Extraire les piscines OSM (commandes dans `04` étape 1a). Choisir 2 communes bien couvertes (compter les piscines OSM par commune ; viser une péri-urbaine d'Angers + une rurale).
-- [ ] **A3.** `[OPUS]` Lancer `20` puis `30 --dev` puis `35 --dev` sur ces communes. Déboguer. Consigner : % de jointures via `cad_parcelles` vs `nearest` (si `cad_parcelles` < 50 %, activer le dataset "Adresses extraites du cadastre" — voir `02`).
+- [x] **A1.** `[OPUS — ✅ FAIT 2026-07-11]` `10_download.py` lancé sur le 49. **URLs/millésimes réels** :
+  cadastre Etalab `latest` (parcelles 161 Mo gz → ~800k, bâtiments 48 Mo), BAN `latest`
+  (353 333 adresses), **BD TOPO 3-5 GPKG D049 millésime 2025-12-15** (miroir opendatarchives,
+  scraper OK ; bâtiment 951 847, exclusions 5 680). **Bug corrigé** : `gpd.read_file(.json.gz)`
+  ne marche plus avec pyogrio (geopandas ≥ 1) → lecture via `/vsigzip/{chemin absolu}`.
+  `7z`/`osmium`/`gdal` installés (brew).
+- [x] **A2.** `[OPUS — ✅ FAIT 2026-07-11]` OSM Pays-de-la-Loire (Geofabrik) → `osmium tags-filter
+  w/leisure=swimming_pool` → lu via pyogrio (pas besoin d'ogr2ogr), 81 `indoor` écartées →
+  `data/interim/piscines_osm_dev.parquet` (43 095 ; **7 269 dans le 49**, le reste 44/53/72/85).
+  **Communes tests choisies** (comptage OSM par commune) : **Bouchemaine 49035** (péri-urbain
+  Angers, 286) + **Saint-Melaine-sur-Aubance 49308** (rural, 87).
+- [x] **A3.** `[OPUS — ✅ FAIT 2026-07-11]` Chaîne `20→30 --dev→35 --dev` déroulée sur les 2 communes.
+  **3 bugs réels corrigés** (voir journal) : (1) `sjoin_nearest` vs index `id_piscine` en
+  double ; (2) **`cad_parcelles` : format BAN ≠ format Etalab** (séparateurs `|`+`,`, format
+  espacé 15 car. vs compact 14 car.) → `normaliser_ref_cadastrale`, la jointure passe de
+  **0 % → 96 % (dept)** ; (3) `id_ban` en doublon dans la BAN (0,02 %) → dédup au chargement.
+  **% via cad_parcelles : 78 % (Bouchemaine) / 92 % (rural)** — bien > 50 %, PAS besoin du
+  dataset « Adresses cadastre ». Vendables : 260 (Bouchemaine) / 85 (rural). +4 tests (test_join).
 - [ ] **A3bis.** `[OPUS — nouveau, deepsearch ③]` Extraire les piscines PCI Édigéo `SYM=65` (couche tsurf) des 2 communes ; consigner le taux de recouvrement avec OSM ; décision « corroboration au score » si > 50 %.
-- [ ] **A4.** `[OPUS]` Contrôle visuel de 30 lignes sur le Géoportail : l'adresse tombe-t-elle sur la bonne parcelle ? Consigner le taux et les erreurs types.
+- [x] **A4.** `[OPUS — ✅ FAIT 2026-07-11 (proxy auto) + 🧑 œil Géoportail]` Proxy objectif
+  « le point-adresse tombe-t-il dans la parcelle de la piscine ? » : global **78,5 %**, mais
+  **94 % via cad_parcelles** (fiable, cohérent avec l'objectif ≥ 95 %) contre **23 % via
+  nearest** (le fallback met souvent l'adresse sur une parcelle voisine — déjà exclu de la
+  confiance « haute » par 30_score). Échantillon 30 lignes + URLs Géoportail :
+  `data/validation/a4_controle_visuel_49035.csv` → **🧑 contrôle visuel humain à faire**.
 
 ## Phase B — Détection BD ORTHO (l'actif)
 
@@ -348,17 +372,21 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-11 | deepsearch | ①②③④⑤⑦⑨⑩ reçues, rangées (`docs/deepsearch/`), arbitrées : B1 débloqué, SITADEL viable (tâche 10), PCI SYM=65 en corroboration (A3bis), crue LiDAR 2024 = piège P2, datasets AGPL/Google interdits, chiffres brokers/leads pour kit `11` | vérifs web : namR liquidation CONFIRMÉE (01/07/2026) ; millésime ortho 2025 et crue 7/3/2024 PLAUSIBLES non confirmés (B1 / 1er run P2 tranchent) ; ⑥ et ⑧ restent à lancer |
 | 2026-07-11 | ⚠ INCIDENT | Arbre de travail quasi intégralement supprimé en cours de session (concomitant git init+fetch ; cause exacte non établie) ; restauré via `git reset --hard origin/main` + survivants | perdu : correctifs audit (→ 5bis) ; **118 tests verts** post-restauration ; leçon : COMMIT+PUSH après chaque tâche |
 | 2026-07-11 | 5bis garde-fous | Refait les 3 correctifs perdus + 6 tests : opt-out double clé id_ban+adresse (art. 11 par adresse seule), refus d'export non-démo sans version git, témoins+version au registre des ventes | `common.normalise_adresse` (pure), `40_export.exiger_version_tracable`, `tatouer()→(df,temoins)` ; **124 tests verts** ; répond à « faut-il refaire ? » = c'était la seule perte de code de l'incident |
+| 2026-07-11 | A1 téléchargements | Sources réelles 49 : cadastre Etalab latest, BAN latest (353 333), **BD TOPO 3-5 2025-12-15** (bât. 951 847, excl. 5 680) | bug corrigé : `.json.gz` illisible par pyogrio → `/vsigzip/` ; 7z/osmium/gdal installés |
+| 2026-07-11 | A2 OSM dev | 43 095 piscines OSM région → **7 269 dans le 49** ; communes tests Bouchemaine 49035 (286) + St-Melaine-s-Aubance 49308 (87) | source `_dev` ODbL, jamais en final/ |
+| 2026-07-11 | A3 chaîne dev | 20→30→35 OK sur 2 communes ; **3 bugs réels corrigés** ; **cad_parcelles 0 %→96 %** après `normaliser_ref_cadastrale` ; vendables 260 / 85 | bugs : sjoin_nearest vs index id_piscine, format cad BAN≠Etalab (sép. `\|`+`,`, espacé 15 vs compact 14), id_ban doublons ; +4 tests (test_join) |
+| 2026-07-11 | A4 contrôle | Proxy « adresse dans la parcelle » : **94 % via cad_parcelles vs 23 % via nearest** (global 78,5 %) | confirme : cad_parcelles = fiable (→ haute confiance), nearest = fallback à ne pas vendre en haute ; œil Géoportail 🧑 sur 30 lignes exportées |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 
 | Mesure | Valeur | Commentaire |
 |---|---|---|
-| Commune test (INSEE) | | |
+| Commune test (INSEE) | Bouchemaine 49035 (péri-urb.) + St-Melaine-s-Aubance 49308 (rural) | choisies par comptage OSM |
 | Millésime BD ORTHO constaté (B1) | | 2022 ou 2025 ? conditionne le diff « nouvelles » (E2) |
 | Ordre des bandes IRC vérifié (B1) | | attendu : 1=PIR, 2=R, 3=V (deepsearch ①) |
-| % jointures cad_parcelles (A3) | | seuil d'alerte : < 50 % → activer « Adresses cadastre » (doc 02) |
+| % jointures cad_parcelles (A3) | **78 % Bouchemaine / 92 % rural** (après correctif format) | > 50 % → PAS d'« Adresses cadastre » |
 | Recouvrement SYM=65 vs OSM (A3bis) | | > 50 % → corroboration au score |
-| Taux contrôle visuel 30 lignes (A4) | | |
+| Taux contrôle visuel 30 lignes (A4) | proxy auto **94 % via cad_parcelles / 23 % via nearest** | œil Géoportail 🧑 : a4_controle_visuel_49035.csv |
 | Candidats bruts 15_detect (B2) | | |
 | Ratio candidats / piscines OSM | | seuil d'alerte : > 4:1 → tri humain intenable au dept (doc 10 §8) |
 | Précision après tri (échantillon) | | objectif ≥ 95 % (borne basse Wilson) |

@@ -37,7 +37,9 @@ def charger(cfg: dict, commune: str | None):
     interim = Path(cfg["paths"]["interim"])
     dept = cfg["dept"]
     parcelles = gpd.read_parquet(interim / f"parcelles_{dept}.parquet")
-    ban = gpd.read_parquet(interim / f"ban_{dept}.parquet")
+    # id_ban en doublon dans la BAN (0,02 % sur le 49) → set_index/join non uniques =
+    # multiplication silencieuse de lignes en run départemental. On garde la 1re occurrence.
+    ban = gpd.read_parquet(interim / f"ban_{dept}.parquet").drop_duplicates("id_ban")
     batiments = gpd.read_parquet(interim / f"bdtopo_batiment_{dept}.parquet")
     if commune:
         parcelles = parcelles[parcelles["commune"] == commune]
@@ -69,10 +71,36 @@ def joindre_parcelle(piscines: gpd.GeoDataFrame, parcelles: gpd.GeoDataFrame, se
     return joined.drop(columns=["pt"])
 
 
+def normaliser_ref_cadastrale(part: str) -> str | None:
+    """Convertit une référence de parcelle du champ BAN `cad_parcelles` vers le format
+    d'identifiant cadastre Etalab (14 car. : INSEE 5 + préfixe 3 + section 2 + numéro 4).
+
+    Le champ BAN mélange deux encodages :
+      - compact 14 car., déjà conforme (préfixe de commune absorbée en chiffres,
+        ex. '49003181ZM0083') → gardé tel quel ;
+      - « espacé » 15 car. (un 0 inséré après le dept, préfixe rendu par des espaces,
+        ex. '490007   BS0038') → '49007000BS0038'.
+    Sans normalisation, la jointure par index inverse échoue (0 % via cad_parcelles →
+    tout bascule sur le fallback 'nearest', moins précis). Mesuré sur le 49 : 96 % des
+    références matchent après normalisation vs 63 % brut (0 % sur les communes
+    intégralement au format espacé, ex. Bouchemaine).
+    """
+    if not isinstance(part, str):
+        return None
+    part = part.strip()
+    if not part:
+        return None
+    if len(part) == 15 and part[2] == "0":
+        part = part[:2] + part[3:]
+    return part.replace(" ", "0")
+
+
 def index_ban_par_parcelle(ban: gpd.GeoDataFrame) -> pd.DataFrame:
-    b = ban[ban["cad_parcelles"].notna() & (ban["cad_parcelles"] != "")]
-    idx = b.assign(id_parcelle=b["cad_parcelles"].str.split("|")).explode("id_parcelle")
-    return idx[["id_parcelle", "id_ban"]]
+    b = ban[ban["cad_parcelles"].notna() & (ban["cad_parcelles"].astype(str).str.strip() != "")]
+    # Séparateurs mixtes dans le champ source : '|' ET ','.
+    idx = b.assign(id_parcelle=b["cad_parcelles"].str.split(r"[|,]", regex=True)).explode("id_parcelle")
+    idx["id_parcelle"] = idx["id_parcelle"].map(normaliser_ref_cadastrale)
+    return idx.loc[idx["id_parcelle"].notna(), ["id_parcelle", "id_ban"]]
 
 
 def joindre_adresse(piscines: gpd.GeoDataFrame, ban: gpd.GeoDataFrame, parcelles: gpd.GeoDataFrame, cfg: dict) -> gpd.GeoDataFrame:
@@ -98,7 +126,12 @@ def joindre_adresse(piscines: gpd.GeoDataFrame, ban: gpd.GeoDataFrame, parcelles
     # Voie 2 (fallback) : plus proche adresse dans un rayon, même commune.
     manquants = out["id_ban"].isna()
     if manquants.any():
-        cand = out.loc[manquants].sjoin_nearest(
+        # id_piscine est à la fois index ET colonne (set_index drop=False plus haut) :
+        # sjoin_nearest ferait un reset_index() qui entre en collision. On neutralise le
+        # nom de l'index ; l'affectation out.loc[manquants]=cand s'aligne par VALEURS d'index.
+        sub = out.loc[manquants].copy()
+        sub.index = sub.index.rename(None)
+        cand = sub.sjoin_nearest(
             ban[["id_ban", "code_insee", "geometry"]].rename(columns={"id_ban": "id_ban_n", "code_insee": "insee_n"}),
             how="left", max_distance=dist_max, distance_col="dist_n",
         )
@@ -124,6 +157,12 @@ def joindre_adresse(piscines: gpd.GeoDataFrame, ban: gpd.GeoDataFrame, parcelles
 
 
 def dist_batiment(piscines: gpd.GeoDataFrame, batiments: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    # joindre_adresse laisse id_piscine à la fois en index ET en colonne (drop=False) :
+    # sjoin_nearest fait un reset_index() interne qui tenterait de réinsérer la colonne
+    # id_piscine → collision. On neutralise le NOM de l'index (les valeurs restent, la
+    # déduplication des ex æquo par index.duplicated fonctionne toujours).
+    piscines = piscines.copy()
+    piscines.index = piscines.index.rename(None)
     near = piscines.sjoin_nearest(batiments[["geometry"]], how="left", distance_col="dist_batiment_m")
     return near[~near.index.duplicated(keep="first")].drop(columns=["index_right"], errors="ignore")
 

@@ -55,7 +55,10 @@ def dl_cadastre(cfg: dict, raw: Path, interim: Path, millesimes: dict) -> None:
     dept = cfg["dept"]
     for layer, out_name in (("parcelles", f"parcelles_{dept}"), ("batiments", f"batiments_cadastre_{dept}")):
         src = fetch(CADASTRE_URL.format(dept=dept, layer=layer), raw / f"cadastre-{dept}-{layer}.json.gz")
-        gdf = gpd.read_file(src)  # GDAL lit le .json.gz directement
+        # pyogrio (moteur GDAL par défaut de geopandas ≥ 1.0) ne décompresse pas le
+        # .json.gz en transparent → on passe par le système de fichiers virtuel GDAL
+        # /vsigzip/ (chemin ABSOLU obligatoire).
+        gdf = gpd.read_file(f"/vsigzip/{src.resolve()}")
         gdf = gdf.to_crs(cfg["crs_metric"])
         gdf.to_parquet(interim / f"{out_name}.parquet")
         log.info("%s : %d entités", out_name, len(gdf))
