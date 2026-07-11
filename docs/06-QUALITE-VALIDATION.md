@@ -4,17 +4,31 @@
 
 ## 1. Métriques
 
-- **Précision** (la seule qu'on vend) : parmi les adresses de la base, % dont l'attribut est vrai (piscine réellement présente / terrasse réellement ensoleillée). **Seuil de commercialisation : ≥ 95 %.**
+- **Précision** (la seule qu'on vend) : parmi les adresses de la base, % dont l'attribut est vrai (piscine réellement présente / terrasse réellement ensoleillée). On **annonce la borne basse de l'intervalle de Wilson à 95 %**, jamais l'estimation ponctuelle `succès/n` (garde-fou n°7 « pas de sur-promesse » ; leçon état de l'art `15` §2). **Seuil de commercialisation : borne basse ≥ 95 %.**
 - **Rappel** (usage interne) : % des piscines réelles qu'on a captées. On ne le promet jamais au client ("on ne garantit pas l'exhaustivité"), mais on le mesure sur 2–3 communes pour connaître notre couverture.
 - **Qualité d'adressage** : % d'adresses de la base qui correspondent bien à la parcelle contenant la piscine (et pas au voisin). C'est LE risque du pipeline (jointure spatiale piscine→parcelle→adresse). Cible : ≥ 97 % sur l'échantillon contrôlé.
 
 ## 2. Protocole de validation (avant toute vente)
 
-1. **Échantillon aléatoire** : tirer 100 lignes au hasard de la base départementale (`random_state` fixé et consigné, pour reproductibilité).
+1. **Échantillon aléatoire** : tirer au hasard un échantillon de la base départementale (`random_state` fixé et consigné, pour reproductibilité). 100 lignes est le minimum ; **agrandir à 200-400** si l'on veut resserrer l'intervalle assez pour que la borne basse dépasse 95 % (à n = 100, la borne basse est sévère — voir §2 bis).
 2. **Contrôle visuel humain** : pour chaque ligne, ouvrir l'adresse sur le Géoportail IGN (orthophoto la plus récente) et vérifier : (a) piscine visible, (b) piscine bien sur la parcelle de l'adresse, pas chez le voisin, (c) adresse plausible (pas un lieu-dit à 500 m).
    - C'est ~2 h de travail humain. Ne pas déléguer à un LLM sans vision fiable de l'orthophoto ; si un LLM le fait via captures d'écran, un humain re-vérifie 20 lignes derrière.
-3. **Consigner** : précision mesurée, erreurs typiques rencontrées, date, millésime des sources → tableau dans `08-ROADMAP.md` + fichier `data/validation/rapport-YYYYMMDD.md`.
-4. Si précision < 95 % : analyser les erreurs (piscines démontées depuis le millésime ? bassins d'ornement ? erreurs de jointure ?), corriger les filtres (surface min/max, distance max piscine→bâtiment…), relancer. Itérer.
+3. **Consigner** : taille de l'échantillon `n`, nombre de succès, estimation ponctuelle `p̂ = succès/n`, **et la borne basse de Wilson à 95 %** (= le taux annoncé, calculé par `common.borne_basse_wilson(succès, n)`), erreurs typiques, date, millésime des sources → tableau dans `08-ROADMAP.md` + fichier `data/validation/rapport-YYYYMMDD.md`.
+4. Si la **borne basse < 95 %** : analyser les erreurs (piscines démontées depuis le millésime ? bassins d'ornement ? erreurs de jointure ?), corriger les filtres (surface min/max, distance max piscine→bâtiment…), relancer. Itérer. Ne jamais annoncer le point pour « rattraper » un intervalle trop large — c'est agrandir `n` qui resserre l'intervalle, pas changer le chiffre annoncé.
+
+### 2 bis. Pourquoi la borne basse, et pourquoi `n` compte
+
+On mesure une précision sur un échantillon fini : l'estimation ponctuelle `p̂` n'est
+qu'un point, avec une incertitude d'autant plus grande que `n` est petit. Annoncer `p̂`
+(« 96 % ! ») serait une sur-promesse au sens du garde-fou n°7. On annonce donc la **borne
+basse** de l'intervalle de Wilson à 95 % : le chiffre en dessous duquel la vraie précision
+n'a que 2,5 % de chances de se trouver.
+
+Ordre de grandeur (via `common.borne_basse_wilson`) : 96/100 → ponctuel 96 %, borne
+basse ≈ 90 % ; 196/200 (même 98 % ponctuel) → borne basse ≈ 95 %. Conséquence pratique :
+pour **annoncer** ≥ 95 % de façon défendable, il faut un échantillon plus grand que 100, pas
+un meilleur discours. Wilson (et non Wald) parce qu'au voisinage de p = 1 et à petit `n`,
+l'approximation de Wald sous-couvre et peut sortir de [0, 1].
 
 ## 3. Filtres de qualité intégrés au pipeline (piscines)
 

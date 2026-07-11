@@ -91,3 +91,27 @@ def source_attribution(millesimes: dict[str, str]) -> str:
         + " ; ".join(parts)
         + f" — Licence Ouverte 2.0. Généré le {date.today().isoformat()}, pipeline {pipeline_version()}."
     )
+
+
+def borne_basse_wilson(succes: int, n: int, z: float = 1.96) -> float:
+    """Borne basse de l'intervalle de confiance de Wilson (score) — 95 % par défaut (z=1,96).
+
+    C'est le taux de précision qu'on ANNONCE au client, jamais l'estimation ponctuelle
+    succes/n (protocole docs/06-QUALITE-VALIDATION.md §2, garde-fou n°7 « pas de
+    sur-promesse »). Exemple : 96 succès sur 100 → ponctuel 96 %, borne basse Wilson
+    ≈ 90,1 % → on annonce 90 %.
+
+    Pourquoi Wilson plutôt que Wald (p ± z·√(p(1-p)/n)) : Wald se dégrade aux proportions
+    extrêmes et petits échantillons (il peut sortir de [0, 1] et sous-couvre près de p=1) —
+    exactement notre régime, une précision visée ≥ 95 %. Wilson reste dans [0, 1] et garde
+    une bonne couverture même à p proche de 1. Fonction pure et déterministe (testable).
+    """
+    if n <= 0:
+        raise ValueError("n doit être > 0 pour mesurer une précision.")
+    if not 0 <= succes <= n:
+        raise ValueError(f"succes ({succes}) doit être dans [0, n={n}].")
+    p = succes / n
+    denom = 1.0 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    demi = (z / denom) * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5)
+    return centre - demi
