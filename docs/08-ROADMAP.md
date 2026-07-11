@@ -287,24 +287,17 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 
 ## Phase B — Détection BD ORTHO (l'actif)
 
-- [ ] **B1.** `[OPUS — 🧑 DÉCISION REQUISE avant de lancer, sondé 2026-07-11]` Télécharger les
-  dalles BD ORTHO (RVB + IRC) d'UNE commune test. **Constats du sondage d'accès** :
-  - **Millésime disponible pour le D049 = 2022** (data.geopf.fr : `..._D049_2022-01-01...`
-    répond 200 ; 2023/2024/2025 = 404). Donc **pas de 2025** → le diff « nouvelles piscines »
-    2022→2025 (E2) n'est PAS mobilisable maintenant (seul 2022 est publié ; 2020 et 2013 en
-    archives anciennes sur le miroir).
-  - **Accès = archive départementale complète 7z multi-volumes uniquement** (~150 Go/spectre,
-    soit **~300 Go RVB+IRC**). Le miroir opendatarchives n'expose PAS de dalles JP2
-    décompressées → pas de téléchargement par dalle ; et 7z multi-volumes = extraction
-    sélective impossible sans TOUS les volumes présents.
-  - **Voie « par dalle » = services raster Géoplateforme (WMS/WMTS)** : techniquement
-    possible pour une commune, MAIS demande du **code d'ingestion neuf** (fetch + géoréf +
-    mosaïque) que `15_detect` (qui attend des JP2) n'a pas → tombe sous « pas de nouveau code
-    produit avant D0 » ET relève potentiellement de `[FABLE]`. NE PAS l'écrire unilatéralement.
-  - **Décision 🧑** : (a) autoriser ~300 Go de téléchargement de l'archive 2022 complète
-    (disque + temps), ou (b) approuver la voie WMS (= déroger à « pas de code produit » /
-    router `[FABLE]`), ou (c) différer toute la Phase B après D0 (cohérent avec le pre-mortem).
-    Ordre des bandes IRC (attendu 1=PIR,2=R,3=V) et calibrage seuils = à faire une fois l'accès tranché.
+- [x] **B1 (téléchargement). ✅ FAIT 2026-07-11.** 🧑 a autorisé le téléchargement complet
+  (disque externe **NOIR**, 2 To, 223 Go libres). **Correction de l'estimation doc** : les
+  archives réelles D049 2022 font **~31 Go/spectre (61 Go RVB+IRC)**, PAS ~150-170 Go/spectre
+  comme deepsearch ① l'estimait — 8 volumes .7z.001-008 chacun (dernier volume < 4 Go,
+  les autres pile 4 GiB = limite 7z), 712 dalles JP2 par spectre. Intégrité vérifiée (`7z t`
+  OK sur les deux archives). **Millésime confirmé = 2022** (seul publié pour le D049 ;
+  2023-2025 = 404 sur data.geopf.fr → diff « nouvelles » 2022→2025 (E2) pas mobilisable
+  pour l'instant). Stockage : `/Volumes/NOIR 1/maps-bdortho/D049_2022/` (HORS DU REPO,
+  disque externe — ne jamais copier ces archives dans data/ du Mac, pas la place).
+  Reste : extraire les dalles de Bouchemaine (49035), vérifier l'ordre des bandes IRC,
+  lancer B2-terrain.
 - [x] **B2-code.** ~~Implémenter `15_detect_piscines.py`~~ **Fait 2026-07-08**. Reste **B2-terrain** `[OPUS, avec les seuils — remonter à Fable si la précision plafonne]` : lancer sur la commune test, mesurer précision/rappel vs OSM, calibrer les seuils `detection:` de config.yaml, consigner les chiffres.
 - [x] **B3.** ~~Outil de tri visuel~~ **Fait 2026-07-08** (+ tri par incertitude 2026-07-11, PR #10).
 - [ ] **B4.** Décision A/B (modèle entraîné vs seuillage+tri) sur les chiffres de B2-terrain. Consigner la décision et les chiffres. `[FABLE si option A retenue — poids de départ : sp-swimming-pools CC-BY-4.0, voir DS5]`
