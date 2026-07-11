@@ -40,6 +40,16 @@ log = logging.getLogger("tri")
 
 # ---------------------------------------------------------------- vignettes
 
+def cle_incertitude(score: float) -> float:
+    """Distance au seuil d'indécision 0,5 : petite = cas limite, grande = évident.
+
+    Trier les vignettes par cette clé CROISSANTE fait voir à l'humain les cas
+    incertains d'abord (esprit frais), les évidences en rafale à la fin — leçon
+    de l'état de l'art (docs/15 §2) : on ne gaspille pas l'attention sur l'évident.
+    """
+    return abs(float(score) - 0.5)
+
+
 def indexer_dalles(ortho_dir: Path):
     """Index SPATIAL des emprises de dalles (STRtree) : la recherche linéaire
     coûterait dalles × candidats (7 100 × 100 000 à l'échelle du département)."""
@@ -185,6 +195,9 @@ def generer_planche(candidats: gpd.GeoDataFrame, ortho_dir: Path, cfg: dict, out
                     "ils resteront SANS décision (le --apply les signalera).", sans_dalle)
     if not items:
         raise SystemExit("Aucune vignette générée — mauvais dossier de dalles ?")
+
+    # Cas incertains d'abord (|score-0,5| croissant), évidences à la fin (docs/15 §2).
+    items.sort(key=lambda it: cle_incertitude(it["score"]))
 
     html = (HTML_TEMPLATE
             .replace("__DEPT__", cfg["dept"])

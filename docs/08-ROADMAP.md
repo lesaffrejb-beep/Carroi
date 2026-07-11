@@ -57,13 +57,16 @@ du cadre ; si quelque chose bloque ou surprend, le consigner ici et s'arrêter p
    modifier detection.py/solaire.py (seuils config UNIQUEMENT — si ça ne suffit pas,
    consigner et s'arrêter : c'est un déclencheur [FABLE]).
 
-6. `[OPUS — sans dépendance]` **Leçons de l'état de l'art** (doc 15 §2, deux petites
-   améliorations cadrées) : (a) 16_tri : trier les vignettes par incertitude
+6. `[OPUS — ✅ FAIT 2026-07-09, PR en cours]` **Leçons de l'état de l'art** (doc 15 §2, deux
+   petites améliorations cadrées) : (a) 16_tri : trier les vignettes par incertitude
    (|score − 0,5| croissant) au lieu de l'ordre du fichier — les cas limites d'abord,
    les évidences en rafale à la fin ; (b) protocole `06` §2 : remplacer le point simple
    « ≥ 95 % sur 100 » par l'intervalle de Wilson à 95 % (annoncer la borne BASSE de
    l'intervalle, jamais le point). Fini = les deux changements + tests verts.
    NE PAS : toucher à autre chose dans 16_tri ; changer les seuils.
+   → **Fait** : (a) `cle_incertitude()` + tri dans `16_tri_visuel.generer_planche` ;
+   (b) `common.borne_basse_wilson()` + protocole `06` §1/§2/§2 bis (annonce borne basse,
+   agrandir n pour dépasser 95 %). +7 tests, **104 verts**.
 
 7. `[OPUS — après A1]` **Généralisation cosmétique** (doc 09 §6) : 20_join `--source`
    (alias rétro-compatible de --source-piscines), 30_score `--produit` (lit
@@ -226,6 +229,7 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-08 | décisions op | Doc `16` : TOUT le reste est tranché — livrable (ZIP xlsx+csv+pdf+notices, pas de portail), stockage (local + backup chiffré, l'actif jamais sur git), flux de dossiers, grille tarifaire v1 (490 € lancement → 39-59 €/mois veille = l'indispensable), doctrine de recoupement (corrobore, ne crée jamais ; OSM exclu même du score), micro-entreprise, budget ~115 €/mois tenu | 4 tâches [OPUS] cadrées en découlent (n°8) ; 🧑 restent : nom commercial, forme juridique (avec avocat C3), RC pro, numéro dédié |
 | 2026-07-09 | C2 légal | 5 drafts rédigés (`docs/legal/` : LIA, AIPD, registre art. 30, politique de confidentialité + notice art. 14 complétée), chacun marqué « DRAFT — à valider avocat » | art. 14.5.b traité (mesures compensatoires publiques : politique publique + encart presse + opt-out en ligne AVANT tout courrier) ; 4 clauses `10` §5 portées par la LIA ; bloqueurs 🧑 = nom/forme/adresse/email/URL + avis avocat data sur la LIA (bloquant lancement) |
 | 2026-07-09 | C5 pack incident | Q&A presse (`docs/legal/qa_presse.md`) + procédure réclamation/opposition (`docs/legal/procedure_reclamation.md`), ≤ 1 page chacun | ligne fausse → remède 90 j + `data/validation/reclamations.csv` (étiquette négative) ; opposition art. 11 par adresse seule, propagation acheteurs via registre ; « à ne jamais dire » (fisc, 100 %) cadré |
+| 2026-07-09 | état de l'art (tâche 6) | (a) tri des vignettes par incertitude `|score-0,5|` ↑ (`16_tri`) ; (b) précision annoncée = borne basse Wilson 95 % (`common.borne_basse_wilson`, protocole `06`) | anti-sur-promesse mesuré : 96/100 → annonce 90 %, 196/200 → 95 % (il faut agrandir n, pas le discours) ; +7 tests, 104 verts |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 

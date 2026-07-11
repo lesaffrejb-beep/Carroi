@@ -46,6 +46,65 @@ def test_attribution_source_contient_millesimes_et_licence():
     assert "pipeline" in s
 
 
+# ------------------------------------------ précision annoncée (borne Wilson)
+# Garde-fou n°7 « pas de sur-promesse » : on annonce la borne basse, jamais le point.
+
+def test_wilson_valeurs_de_reference():
+    """Valeurs de référence de l'intervalle de Wilson à 95 % (docs/06 §2 bis)."""
+    assert common.borne_basse_wilson(96, 100) == pytest.approx(0.9016, abs=1e-3)
+    assert common.borne_basse_wilson(196, 200) == pytest.approx(0.9497, abs=1e-3)
+
+
+def test_wilson_annonce_toujours_moins_que_le_point():
+    """La borne basse est STRICTEMENT sous l'estimation ponctuelle (tant que p<1) :
+    c'est tout l'intérêt anti-sur-promesse."""
+    for succes, n in [(96, 100), (90, 100), (47, 50)]:
+        assert common.borne_basse_wilson(succes, n) < succes / n
+
+
+def test_wilson_reste_dans_0_1_meme_aux_extremes():
+    """Contrairement à Wald, Wilson ne sort jamais de [0, 1], même à p=1 ou p=0."""
+    assert 0.0 <= common.borne_basse_wilson(0, 100) < 1.0
+    haut = common.borne_basse_wilson(100, 100)
+    assert 0.0 < haut < 1.0, "à 100/100, la borne basse reste < 1 (incertitude d'échantillon)"
+
+
+def test_wilson_se_resserre_quand_n_grandit():
+    """Même proportion, plus d'échantillon → borne basse plus haute (intervalle resserré).
+    C'est POURQUOI il faut agrandir n pour annoncer ≥ 95 %, pas changer le discours."""
+    assert common.borne_basse_wilson(98, 100) < common.borne_basse_wilson(196, 200)
+
+
+def test_wilson_refuse_les_entrees_absurdes():
+    with pytest.raises(ValueError):
+        common.borne_basse_wilson(1, 0)
+    with pytest.raises(ValueError):
+        common.borne_basse_wilson(101, 100)
+    with pytest.raises(ValueError):
+        common.borne_basse_wilson(-1, 100)
+
+
+# ------------------------------------------- tri des vignettes par incertitude
+# Leçon état de l'art (docs/15 §2) : cas limites d'abord, évidences à la fin.
+
+def test_cle_incertitude_mesure_la_distance_au_seuil():
+    assert tri.cle_incertitude(0.5) == pytest.approx(0.0)
+    assert tri.cle_incertitude(0.9) == pytest.approx(0.4)
+    assert tri.cle_incertitude(0.1) == pytest.approx(0.4)
+
+
+def test_tri_par_incertitude_place_les_cas_limites_dabord():
+    """L'ordre de tri (celui appliqué dans generer_planche) fait remonter les
+    scores proches de 0,5 et repousse les évidences (proches de 0 ou 1) à la fin."""
+    items = [{"id": s, "score": s} for s in [0.95, 0.5, 0.8, 0.05, 0.55]]
+    items.sort(key=lambda it: tri.cle_incertitude(it["score"]))
+    cles = [tri.cle_incertitude(it["score"]) for it in items]
+    assert cles == sorted(cles), "les vignettes sont bien triées par incertitude croissante"
+    assert items[0]["score"] == 0.5, "le cas le plus incertain est vu en premier"
+    assert {items[-1]["score"], items[-2]["score"]} == {0.95, 0.05}, \
+        "les cas les plus évidents (0,05 et 0,95) sont vus en dernier"
+
+
 # ------------------------------------------------------- tri humain (--apply)
 
 def _candidats(n=10):
