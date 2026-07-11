@@ -26,15 +26,17 @@ log = logging.getLogger("score")
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--dev", action="store_true", help="source OSM de développement (ODbL) — ne peut pas produire la base vendable")
+    p.add_argument("--produit", default="piscines", help="section de config + préfixe de fichiers (défaut : piscines)")
     args = p.parse_args()
 
     cfg = load_config()
     ensure_dirs(cfg)
     dept = cfg["dept"]
-    pc = cfg["piscines"]
+    produit = args.produit
+    pc = cfg[produit]
     suffix = "_dev" if args.dev else ""
 
-    src = Path(cfg["paths"]["interim"]) / f"piscines_adressees_{dept}{suffix}.parquet"
+    src = Path(cfg["paths"]["interim"]) / f"{produit}_adressees_{dept}{suffix}.parquet"
     gdf = gpd.read_parquet(src)
     n0 = len(gdf)
 
@@ -87,16 +89,16 @@ def main() -> None:
     gdf = gdf[[c for c in cols if c in gdf.columns]]
 
     if args.dev:
-        out = interim / f"piscines_qualifiees_{dept}_dev.parquet"
+        out = interim / f"{produit}_qualifiees_{dept}_dev.parquet"
     else:
         if "_dev" in src.name:  # ceinture + bretelles : garde-fou licence ODbL
             raise SystemExit("Source _dev détectée sans --dev : refus d'écrire dans final/.")
-        out = Path(cfg["paths"]["final"]) / f"piscines_qualifiees_{dept}.parquet"
+        out = Path(cfg["paths"]["final"]) / f"{produit}_qualifiees_{dept}.parquet"
     gdf.to_parquet(out)
     log.info("Écrit : %s (%d lignes)", out, len(gdf))
     if not args.dev:
         # Point-zéro des millésimes (moat n°2) : copie datée avant tout écrasement futur.
-        archiver_copie_datee(out, "piscines", dept, cfg, log)
+        archiver_copie_datee(out, produit, dept, cfg, log)
         log.warning("Rappel : validation qualité (docs/06) + checklist légale (docs/03 §6) "
                     "obligatoires avant toute démo ou vente.")
 

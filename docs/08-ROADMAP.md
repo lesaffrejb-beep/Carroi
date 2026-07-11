@@ -15,9 +15,13 @@ sur le chemin cad_parcelles — mais tout ça reste du **dev non vendable** (OSM
 l'actif vendable dépend de la détection BD ORTHO. **B1 FAIT** (🧑 a autorisé le
 téléchargement, 61 Go réels sur disque NOIR, millésime 2022 confirmé) et **B2-terrain
 FAIT** sur Bouchemaine : seuils calibrés, ratio candidats/OSM ramené sous l'alerte
-(3,4:1), rappel 53 %. **Reste avant d'avoir un actif vendable** : 16_tri_visuel (tri
-humain, jamais fait), puis B5 (département), B6 (chaîne prod), C1 (validation qualité
-95 %). AUCUN prospect appelé — l'inversion de séquence (`10`) reste LE risque n°1. La
+(3,4:1), rappel 53 %. A3bis (corroboration cadastre SYM=65 : validée à 86 %) et
+l'item 7 (flags --source/--produit) sont aussi FAITS — **toutes les tâches machine
+débloquées sont épuisées**. **Reste avant d'avoir un actif vendable** : 🧑 le tri humain
+(la planche est PRÊTE : ouvrir `data/interim/tri/tri.html`, trier les 977 vignettes
+O/N/U ~20-30 min, exporter decisions.csv, puis `16_tri_visuel.py --candidats … --apply
+decisions.csv`), puis B5 (département), B6 (chaîne prod), C1 (validation qualité 95 %).
+AUCUN prospect appelé — l'inversion de séquence (`10`) reste LE risque n°1. La
 priorité absolue n'est toujours pas le code : c'est D0.
 
 **⚠ Incident du 2026-07-11 (17h30-17h45)** : la quasi-totalité de l'arbre de travail a été
@@ -101,10 +105,11 @@ s'arrêter proprement.**
    la version PR #10 fait foi.) Conséquence honnête inchangée : 97/100 → ~91,5 % annoncés
    (ne passe pas 95 %) ; agrandir n est le levier.
 
-7. `[OPUS — après A1]` **Généralisation cosmétique** (doc 09 §6) : 20_join `--source`
-   (alias rétro-compatible de --source-piscines), 30_score `--produit` (lit
-   `config[produit]`, défaut piscines). Fini = tests verts, aucun comportement changé
-   pour piscines. NE PAS : refactorer au-delà de ces deux flags.
+7. `[OPUS — ✅ FAIT 2026-07-11]` **Généralisation cosmétique** (doc 09 §6) : 20_join
+   `--source` (alias rétro-compatible, réconciliation dans la fonction pure
+   `resoudre_source` — refus bruyant si les deux flags divergent), 30_score `--produit`
+   (lit `cfg[produit]`, fichiers `{produit}_…`, défaut piscines, comportement piscines
+   strictement inchangé). +12 tests (`test_cli_flags.py`), **140 tests verts**.
 
 8. `[✅ FAIT 2026-07-11 — (a)+(b) mergés PR #11, (c) restauré]` **Décisions
    opérationnelles → code** (`16-DECISIONS-OPERATIONNELLES.md`) : (a) 40_export produit
@@ -281,7 +286,16 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
   **0 % → 96 % (dept)** ; (3) `id_ban` en doublon dans la BAN (0,02 %) → dédup au chargement.
   **% via cad_parcelles : 78 % (Bouchemaine) / 92 % (rural)** — bien > 50 %, PAS besoin du
   dataset « Adresses cadastre ». Vendables : 260 (Bouchemaine) / 85 (rural). +4 tests (test_join).
-- [ ] **A3bis.** `[OPUS — nouveau, deepsearch ③]` Extraire les piscines PCI Édigéo `SYM=65` (couche tsurf) des 2 communes ; consigner le taux de recouvrement avec OSM ; décision « corroboration au score » si > 50 %.
+- [x] **A3bis.** `[OPUS — ✅ FAIT 2026-07-11]` PCI Édigéo lu via driver GDAL natif (couche
+  exacte `TSURF_id`, attribut `SYM`, `SYM=="65"`, déjà en L93 ; archives .tar.bz2 par feuille
+  sur cadastre.data.gouv.fr/…/edigeo/feuilles/49/{INSEE}/). **238 piscines cadastrées**
+  (165 Bouchemaine + 73 St-Melaine) → `data/interim/piscines_pci_sym65_{INSEE}.parquet`.
+  **Recouvrement (buffer 5 m)** : 86,1 % des SYM=65 ont une piscine OSM (92,1 % à
+  Bouchemaine) ; dans l'autre sens, seulement 55 % des OSM sont cadastrées (piscines
+  non déclarées ou faux positifs OSM — non tranché). **Décision : > 50 % → corroboration
+  au score VALIDÉE** ; le branchement effectif dans 30_score (bonus de confiance si
+  SYM=65 à proximité, ne crée JAMAIS de ligne — doctrine `16`) = petite tâche `[OPUS]`
+  à faire avec le premier run production, pas avant.
 - [x] **A4.** `[OPUS — ✅ FAIT 2026-07-11 (proxy auto) + 🧑 œil Géoportail]` Proxy objectif
   « le point-adresse tombe-t-il dans la parcelle de la piscine ? » : global **78,5 %**, mais
   **94 % via cad_parcelles** (fiable, cohérent avec l'objectif ≥ 95 %) contre **23 % via
@@ -406,6 +420,9 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-11 | B1 sondage accès | BD ORTHO D049 : **millésime dispo = 2022** (pas de 2025 → pas de diff 2022→2025 pour l'instant) ; accès = **archive 7z ~300 Go RVB+IRC** uniquement (pas de dalle décompressée) ; voie WMS = code neuf (bloqué pré-D0/`[FABLE]`) | **🧑 décision requise** : 300 Go, ou WMS (dérogation), ou différer Phase B après D0 |
 | 2026-07-11 | B1 téléchargement | 🧑 a autorisé ; archives réelles **61 Go** (PAS ~300 Go estimé) sur disque externe NOIR ; dalles réelles = **5×5 km** (pas 1 km comme supposé), nommage `49-2022-XXXX-YYYY-...jp2`, index shapefile `dalles.shp` embarqué dans l'archive (bien plus fiable que calculer les bounds à la main) | corrige 2 hypothèses de la deepsearch ① (taille archive, taille dalle) |
 | 2026-07-11 | B2-terrain | Bande NIR confirmée = bande 1 (physique : réflectance végétation +13 % vs -14/-24 % bandes 2/3) ; seuils calibrés `surface_min_m2` 4→8, `score_min` 0,35→0,55 ; **ratio candidats/OSM 9,1:1→3,4:1**, rappel 58,0%→53,1% sur Bouchemaine (977 candidats) | rappel plafonne ~55-58 % quel que soit le seuil → si insuffisant après tri humain réel, réexaminer B4 (option A modèle) |
+| 2026-07-11 | A3bis PCI SYM=65 | 238 piscines cadastrées (165+73) ; couche `TSURF_id`, attr `SYM`, L93 natif ; **86,1 % des SYM=65 ont une OSM < 5 m** (sens inverse 55 %) → **corroboration au score validée**, branchement différé au 1er run prod | 2 feuilles 49308 sans couche TSURF (légitime) ; parquets en interim/ |
+| 2026-07-11 | item 7 flags | 20_join `--source` (alias, `resoudre_source` pure) + 30_score `--produit` ; +12 tests, **140 verts** | comportement piscines inchangé |
+| 2026-07-11 | tri visuel prêt | **Planche générée : `data/interim/tri/tri.html` (977 vignettes, Bouchemaine)** — raccourcis O/N/U, export decisions.csv puis `16 --apply` | **🧑 LE tri humain est LA prochaine action produit** : ~20-30 min, donne la vraie précision et débloque B4/C1 |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 
@@ -415,7 +432,7 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | Millésime BD ORTHO constaté (B1) | **2022** (seul dispo D049 ; pas de 2025) | diff « nouvelles » 2022→2025 pas mobilisable maintenant |
 | Ordre des bandes IRC vérifié (B1) | | attendu : 1=PIR, 2=R, 3=V (deepsearch ①) |
 | % jointures cad_parcelles (A3) | **78 % Bouchemaine / 92 % rural** (après correctif format) | > 50 % → PAS d'« Adresses cadastre » |
-| Recouvrement SYM=65 vs OSM (A3bis) | | > 50 % → corroboration au score |
+| Recouvrement SYM=65 vs OSM (A3bis) | **86,1 %** des SYM=65 ↔ OSM (sens inverse : 55 %) | > 50 % → corroboration au score VALIDÉE (branchement différé) |
 | Taux contrôle visuel 30 lignes (A4) | proxy auto **94 % via cad_parcelles / 23 % via nearest** | œil Géoportail 🧑 : a4_controle_visuel_49035.csv |
 | Candidats bruts 15_detect (B2) | **977** (Bouchemaine, après calibration) | avant calibration : 2614 |
 | Ratio candidats / piscines OSM | **3,4:1** | avant calibration : 9,1:1 (seuil d'alerte 4:1 dépassé) |

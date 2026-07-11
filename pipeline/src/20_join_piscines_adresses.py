@@ -167,21 +167,38 @@ def dist_batiment(piscines: gpd.GeoDataFrame, batiments: gpd.GeoDataFrame) -> gp
     return near[~near.index.duplicated(keep="first")].drop(columns=["index_right"], errors="ignore")
 
 
+def resoudre_source(source_piscines: str | None, source: str | None) -> str:
+    """Réconcilie --source-piscines (historique) et son alias --source.
+    Au moins un requis ; si les deux sont passés avec des valeurs différentes,
+    erreur claire plutôt que choix silencieux."""
+    valeurs = {v for v in (source_piscines, source) if v is not None}
+    if not valeurs:
+        raise SystemExit("Argument requis : --source-piscines (ou son alias --source).")
+    if len(valeurs) > 1:
+        raise SystemExit(
+            "Conflit : --source-piscines et --source ont des valeurs différentes "
+            f"({source_piscines!r} vs {source!r}). Passe-en un seul, ou la même valeur."
+        )
+    return valeurs.pop()
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--source-piscines", required=True)
+    p.add_argument("--source-piscines")
+    p.add_argument("--source", dest="source", help="alias rétro-compatible de --source-piscines")
     p.add_argument("--commune", help="code INSEE pour un run de test sur une commune")
     args = p.parse_args()
+    source = resoudre_source(args.source_piscines, args.source)
 
     cfg = load_config()
     ensure_dirs(cfg)
-    dev = "_dev" in Path(args.source_piscines).name
+    dev = "_dev" in Path(source).name
 
-    piscines = gpd.read_parquet(args.source_piscines).to_crs(cfg["crs_metric"])
+    piscines = gpd.read_parquet(source).to_crs(cfg["crs_metric"])
     piscines = piscines[piscines.geometry.notna() & ~piscines.geometry.is_empty].reset_index(drop=True)
     piscines["id_piscine"] = piscines.index
     piscines["surface_m2"] = piscines.geometry.area.round(1)
-    log.info("Source %s : %d polygones piscine.", args.source_piscines, len(piscines))
+    log.info("Source %s : %d polygones piscine.", source, len(piscines))
 
     parcelles, ban, batiments = charger(cfg, args.commune)
     if args.commune:
