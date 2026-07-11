@@ -7,6 +7,7 @@ Ne pas les contourner.
 from __future__ import annotations
 
 import logging
+import shutil
 import subprocess
 import sys
 from datetime import date
@@ -115,3 +116,24 @@ def borne_basse_wilson(succes: int, n: int, z: float = 1.96) -> float:
     centre = (p + z * z / (2 * n)) / denom
     demi = (z / denom) * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5)
     return centre - demi
+
+
+def archiver_copie_datee(fichier: Path, produit: str, dept: str, cfg: dict,
+                         logger: logging.Logger) -> Path:
+    """Copie datée de l'actif à chaque (re)génération de data/final/.
+
+    C'est le point-zéro des millésimes (moat n°2, docs/16 §3) : sans cette copie,
+    une re-génération écraserait la base précédente et le diff « nouvelles piscines »
+    (45_diff) n'aurait plus de référence. Destination :
+        data/final/archive/{produit}_{dept}_{AAAA-MM-JJ}.parquet
+    Idempotent : une re-génération le même jour réécrit la copie du jour (même clé).
+    """
+    fichier = Path(fichier)
+    if not fichier.exists():
+        raise FileNotFoundError(f"Rien à archiver : {fichier} n'existe pas.")
+    archive_dir = Path(cfg["paths"]["final"]) / "archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    dest = archive_dir / f"{produit}_{dept}_{date.today().isoformat()}.parquet"
+    shutil.copy2(fichier, dest)
+    logger.info("Archive datée de l'actif : %s", dest)
+    return dest
