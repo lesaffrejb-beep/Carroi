@@ -287,7 +287,24 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 
 ## Phase B — Détection BD ORTHO (l'actif)
 
-- [ ] **B1.** `[OPUS]` Télécharger les dalles BD ORTHO (RVB + IRC) d'UNE commune test. URLs/nommage/7z : `docs/02` §BD ORTHO (deepsearch ①). Consigner : millésime réel constaté (2022 ou 2025 ?), ordre des bandes IRC vérifié, méthode effective (miroir décompressé ? archive 7z ? sélection par emprise Géoplateforme ?).
+- [ ] **B1.** `[OPUS — 🧑 DÉCISION REQUISE avant de lancer, sondé 2026-07-11]` Télécharger les
+  dalles BD ORTHO (RVB + IRC) d'UNE commune test. **Constats du sondage d'accès** :
+  - **Millésime disponible pour le D049 = 2022** (data.geopf.fr : `..._D049_2022-01-01...`
+    répond 200 ; 2023/2024/2025 = 404). Donc **pas de 2025** → le diff « nouvelles piscines »
+    2022→2025 (E2) n'est PAS mobilisable maintenant (seul 2022 est publié ; 2020 et 2013 en
+    archives anciennes sur le miroir).
+  - **Accès = archive départementale complète 7z multi-volumes uniquement** (~150 Go/spectre,
+    soit **~300 Go RVB+IRC**). Le miroir opendatarchives n'expose PAS de dalles JP2
+    décompressées → pas de téléchargement par dalle ; et 7z multi-volumes = extraction
+    sélective impossible sans TOUS les volumes présents.
+  - **Voie « par dalle » = services raster Géoplateforme (WMS/WMTS)** : techniquement
+    possible pour une commune, MAIS demande du **code d'ingestion neuf** (fetch + géoréf +
+    mosaïque) que `15_detect` (qui attend des JP2) n'a pas → tombe sous « pas de nouveau code
+    produit avant D0 » ET relève potentiellement de `[FABLE]`. NE PAS l'écrire unilatéralement.
+  - **Décision 🧑** : (a) autoriser ~300 Go de téléchargement de l'archive 2022 complète
+    (disque + temps), ou (b) approuver la voie WMS (= déroger à « pas de code produit » /
+    router `[FABLE]`), ou (c) différer toute la Phase B après D0 (cohérent avec le pre-mortem).
+    Ordre des bandes IRC (attendu 1=PIR,2=R,3=V) et calibrage seuils = à faire une fois l'accès tranché.
 - [x] **B2-code.** ~~Implémenter `15_detect_piscines.py`~~ **Fait 2026-07-08**. Reste **B2-terrain** `[OPUS, avec les seuils — remonter à Fable si la précision plafonne]` : lancer sur la commune test, mesurer précision/rappel vs OSM, calibrer les seuils `detection:` de config.yaml, consigner les chiffres.
 - [x] **B3.** ~~Outil de tri visuel~~ **Fait 2026-07-08** (+ tri par incertitude 2026-07-11, PR #10).
 - [ ] **B4.** Décision A/B (modèle entraîné vs seuillage+tri) sur les chiffres de B2-terrain. Consigner la décision et les chiffres. `[FABLE si option A retenue — poids de départ : sp-swimming-pools CC-BY-4.0, voir DS5]`
@@ -376,13 +393,14 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-11 | A2 OSM dev | 43 095 piscines OSM région → **7 269 dans le 49** ; communes tests Bouchemaine 49035 (286) + St-Melaine-s-Aubance 49308 (87) | source `_dev` ODbL, jamais en final/ |
 | 2026-07-11 | A3 chaîne dev | 20→30→35 OK sur 2 communes ; **3 bugs réels corrigés** ; **cad_parcelles 0 %→96 %** après `normaliser_ref_cadastrale` ; vendables 260 / 85 | bugs : sjoin_nearest vs index id_piscine, format cad BAN≠Etalab (sép. `\|`+`,`, espacé 15 vs compact 14), id_ban doublons ; +4 tests (test_join) |
 | 2026-07-11 | A4 contrôle | Proxy « adresse dans la parcelle » : **94 % via cad_parcelles vs 23 % via nearest** (global 78,5 %) | confirme : cad_parcelles = fiable (→ haute confiance), nearest = fallback à ne pas vendre en haute ; œil Géoportail 🧑 sur 30 lignes exportées |
+| 2026-07-11 | B1 sondage accès | BD ORTHO D049 : **millésime dispo = 2022** (pas de 2025 → pas de diff 2022→2025 pour l'instant) ; accès = **archive 7z ~300 Go RVB+IRC** uniquement (pas de dalle décompressée) ; voie WMS = code neuf (bloqué pré-D0/`[FABLE]`) | **🧑 décision requise** : 300 Go, ou WMS (dérogation), ou différer Phase B après D0 |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 
 | Mesure | Valeur | Commentaire |
 |---|---|---|
 | Commune test (INSEE) | Bouchemaine 49035 (péri-urb.) + St-Melaine-s-Aubance 49308 (rural) | choisies par comptage OSM |
-| Millésime BD ORTHO constaté (B1) | | 2022 ou 2025 ? conditionne le diff « nouvelles » (E2) |
+| Millésime BD ORTHO constaté (B1) | **2022** (seul dispo D049 ; pas de 2025) | diff « nouvelles » 2022→2025 pas mobilisable maintenant |
 | Ordre des bandes IRC vérifié (B1) | | attendu : 1=PIR, 2=R, 3=V (deepsearch ①) |
 | % jointures cad_parcelles (A3) | **78 % Bouchemaine / 92 % rural** (après correctif format) | > 50 % → PAS d'« Adresses cadastre » |
 | Recouvrement SYM=65 vs OSM (A3bis) | | > 50 % → corroboration au score |
