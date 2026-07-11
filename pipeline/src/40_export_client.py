@@ -12,7 +12,8 @@ Usage :
 
 Entrée : data/final/piscines_qualifiees_{dept}.parquet (produit par 30_score_qualite.py)
 Sorties dans data/exports/{acheteur_slug}_{date}/ :
-    - {produit}_{zone}.csv          fichier livrable
+    - {produit}_{zone}.csv          fichier livrable (référence machine, UTF-8 BOM)
+    - {produit}_{zone}.xlsx         même contenu, fichier de travail Excel (docs/16 §1)
     - README_LIVRAISON.txt          mentions de source, millésimes, taux de précision
     - notice_art14.txt              copie de la notice RGPD acheteur (docs/templates/)
 Le PDF cartographique est généré séparément (voir 41_export_carte.py, à écrire).
@@ -46,6 +47,28 @@ COLONNES_LIVREES = [
 def slugify(s: str) -> str:
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+
+def ecrire_xlsx(df: pd.DataFrame, out_path: Path, feuille: str = "piscines") -> None:
+    """Livrable .xlsx, le fichier de travail de l'artisan (« un artisan vit dans
+    Excel », docs/16 §1). En-tête figé, filtres actifs, largeurs de colonnes ajustées.
+
+    Le CSV UTF-8 BOM reste la référence machine (routeur postal, logiciel métier) ;
+    ce xlsx est le confort humain, généré À CÔTÉ, sans rien changer au CSV. On passe
+    par pandas.to_excel (gestion propre des types) puis openpyxl pour la mise en forme.
+    """
+    from openpyxl import load_workbook
+    from openpyxl.utils import get_column_letter
+
+    df.to_excel(out_path, index=False, sheet_name=feuille, engine="openpyxl")
+    wb = load_workbook(out_path)
+    ws = wb[feuille]
+    ws.freeze_panes = "A2"                 # l'en-tête reste visible au défilement
+    ws.auto_filter.ref = ws.dimensions     # filtres actifs sur toute la plage
+    for i, col in enumerate(df.columns, start=1):
+        longueur = max([len(str(col))] + [len(str(v)) for v in df[col].tolist()])
+        ws.column_dimensions[get_column_letter(i)].width = min(longueur + 2, 60)
+    wb.save(out_path)
 
 
 def tatouer(df: pd.DataFrame, acheteur: str) -> pd.DataFrame:
@@ -161,6 +184,8 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_csv = out_dir / f"{args.produit}_{zone_label}.csv"
     df.to_csv(out_csv, index=False, encoding="utf-8-sig")  # BOM : ouverture propre dans Excel
+    out_xlsx = out_dir / f"{args.produit}_{zone_label}.xlsx"
+    ecrire_xlsx(df, out_xlsx, feuille=args.produit)  # même contenu, confort Excel (docs/16 §1)
 
     # Millésimes : écrits par les scripts amont dans data/interim/millesimes.yaml.
     import yaml

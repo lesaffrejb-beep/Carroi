@@ -18,7 +18,7 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 
-from common import ensure_dirs, load_config
+from common import archiver_copie_datee, ensure_dirs, load_config
 
 log = logging.getLogger("score")
 
@@ -93,6 +93,8 @@ def main() -> None:
     gdf.to_parquet(out)
     log.info("Écrit : %s (%d lignes)", out, len(gdf))
     if not args.dev:
+        # Point-zéro des millésimes (moat n°2) : copie datée avant tout écrasement futur.
+        archiver_copie_datee(out, "piscines", dept, cfg, log)
         log.warning("Rappel : validation qualité (docs/06) + checklist légale (docs/03 §6) "
                     "obligatoires avant toute démo ou vente.")
 

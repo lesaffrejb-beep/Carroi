@@ -73,14 +73,20 @@ du cadre ; si quelque chose bloque ou surprend, le consigner ici et s'arrêter p
    `config[produit]`, défaut piscines). Fini = 82+ tests verts, aucun comportement changé
    pour piscines. NE PAS : refactorer au-delà de ces deux flags.
 
-8. `[OPUS — sans dépendance]` **Décisions opérationnelles → code** (spec complète dans
-   `16-DECISIONS-OPERATIONNELLES.md`, ne rien improviser au-delà) : (a) 40_export : produire
-   AUSSI un .xlsx (openpyxl : colonnes figées, filtres actifs, largeurs auto) à côté du CSV ;
-   (b) 30_score : copie datée `data/final/archive/{produit}_{dept}_{AAAA-MM-JJ}.parquet` à
-   chaque écriture ; (c) `90_backup.py` : tar de final/exports/sales/optout/validation +
-   chiffrement (age ou gpg) + envoi rclone vers le stockage distant configuré dans
-   config.yaml (nouvelle clé `backup:`), idempotent, échec bruyant. Fini = 3 livrables +
-   tests des (a) et (b). NE PAS : sauvegarder data/raw ; toucher au tatouage.
+8. `[OPUS — (a)(b) ✅ FAIT 2026-07-09, PR en cours ; (c) EN ATTENTE 🧑]` **Décisions
+   opérationnelles → code** (spec complète dans `16-DECISIONS-OPERATIONNELLES.md`, ne rien
+   improviser au-delà) : (a) 40_export : produire AUSSI un .xlsx (openpyxl : colonnes figées,
+   filtres actifs, largeurs auto) à côté du CSV ; (b) 30_score : copie datée
+   `data/final/archive/{produit}_{dept}_{AAAA-MM-JJ}.parquet` à chaque écriture ;
+   (c) `90_backup.py` : tar de final/exports/sales/optout/validation + chiffrement (age ou
+   gpg) + envoi rclone vers le stockage distant configuré dans config.yaml (nouvelle clé
+   `backup:`), idempotent, échec bruyant. Fini = 3 livrables + tests des (a) et (b).
+   NE PAS : sauvegarder data/raw ; toucher au tatouage.
+   → **(a)+(b) faits** : `ecrire_xlsx()` dans 40_export (en-tête figé A2, filtres, largeurs) +
+   `common.archiver_copie_datee()` câblé dans 30_score (non-dev). openpyxl ajouté aux
+   requirements. +5 tests, **109 verts**. **(c) 90_backup NON fait** : choix à trancher par
+   l'humain (age vs gpg ; remote rclone ; schéma de la clé `backup:`) + non vérifiable en
+   cloud (pas de remote ni de secrets) — laissé volontairement pour une session avec ces choix.
 
 9. `[OPUS — après le premier re-run de détection sur un nouveau millésime]`
    **45_diff_millesimes.py** : CLI mince autour de `millesimes.py` (cœur fait et testé).
@@ -230,6 +236,7 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-09 | C2 légal | 5 drafts rédigés (`docs/legal/` : LIA, AIPD, registre art. 30, politique de confidentialité + notice art. 14 complétée), chacun marqué « DRAFT — à valider avocat » | art. 14.5.b traité (mesures compensatoires publiques : politique publique + encart presse + opt-out en ligne AVANT tout courrier) ; 4 clauses `10` §5 portées par la LIA ; bloqueurs 🧑 = nom/forme/adresse/email/URL + avis avocat data sur la LIA (bloquant lancement) |
 | 2026-07-09 | C5 pack incident | Q&A presse (`docs/legal/qa_presse.md`) + procédure réclamation/opposition (`docs/legal/procedure_reclamation.md`), ≤ 1 page chacun | ligne fausse → remède 90 j + `data/validation/reclamations.csv` (étiquette négative) ; opposition art. 11 par adresse seule, propagation acheteurs via registre ; « à ne jamais dire » (fisc, 100 %) cadré |
 | 2026-07-09 | état de l'art (tâche 6) | (a) tri des vignettes par incertitude `|score-0,5|` ↑ (`16_tri`) ; (b) précision annoncée = borne basse Wilson 95 % (`common.borne_basse_wilson`, protocole `06`) | anti-sur-promesse mesuré : 96/100 → annonce 90 %, 196/200 → 95 % (il faut agrandir n, pas le discours) ; +7 tests, 104 verts |
+| 2026-07-09 | décisions op (tâche 8 a+b) | (a) livrable `.xlsx` (`40_export.ecrire_xlsx` : en-tête figé, filtres, largeurs) ; (b) archive datée de l'actif (`common.archiver_copie_datee`, câblée dans `30_score`) | openpyxl ajouté ; +5 tests, 109 verts ; (c) `90_backup.py` laissé en attente (choix age/gpg + remote rclone + clé `backup:` à trancher 🧑, non testable en cloud) |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 
