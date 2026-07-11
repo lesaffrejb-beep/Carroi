@@ -7,9 +7,11 @@ Ne pas les contourner.
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import subprocess
 import sys
+import unicodedata
 from datetime import date
 from pathlib import Path
 
@@ -69,15 +71,68 @@ def load_optout(cfg: dict) -> pd.DataFrame:
     return df
 
 
+def normalise_adresse(s: object) -> str:
+    """Normalise une adresse pour le rapprochement opt-out (déterministe) : sans
+    accents, en minuscules, ponctuation → espaces, espaces compressés.
+
+    Le rapprochement par adresse est nécessaire au droit d'opposition « par adresse
+    seule » de l'art. 11 (une personne s'oppose sans connaître son id BAN — voir
+    docs/legal/procedure_reclamation.md), et immunise l'opposition contre un id BAN
+    qui changerait de valeur entre deux millésimes.
+    """
+    if s is None or (isinstance(s, float) and pd.isna(s)):
+        return ""
+    s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode()
+    s = re.sub(r"[^a-z0-9]+", " ", s.lower())
+    return re.sub(r"\s+", " ", s).strip()
+
+
 def apply_optout(df: pd.DataFrame, cfg: dict, logger: logging.Logger) -> pd.DataFrame:
-    """Soustrait les adresses opposées. Appelé par TOUT export. Obligation légale."""
+    """Soustrait les adresses opposées. Appelé par TOUT export. Obligation légale.
+
+    Le retrait se fait sur DEUX clés (union) : l'id BAN ET l'adresse normalisée. Une
+    opposition peut n'avoir que l'une des deux (art. 11 « par adresse seule »). On
+    refuse bruyamment plutôt que d'ignorer silencieusement une demande :
+      - toute ligne d'opposition sans AUCUNE clé exploitable (ni id_ban ni adresse) ;
+      - une opposition « par adresse » alors que la base n'a pas de colonne 'adresse'
+        (on ne saurait pas l'honorer → on bloque l'export).
+    """
     optout = load_optout(cfg)
     if optout.empty:
         logger.info("Opt-out : liste vide, 0 adresse retirée.")
         return df
+
+    ids = {str(x).strip() for x in optout["id_ban"] if pd.notna(x) and str(x).strip()}
+    adresses = set()
+    if "adresse" in optout.columns:
+        adresses = {a for a in optout["adresse"].map(normalise_adresse) if a}
+
+    # Refus bruyant : une opposition sans aucune clé est une demande qu'on ne peut honorer.
+    def _sans_cle(row) -> bool:
+        a_id = pd.notna(row.get("id_ban")) and bool(str(row.get("id_ban")).strip())
+        a_adr = bool(normalise_adresse(row.get("adresse")))
+        return not a_id and not a_adr
+
+    n_sans_cle = int(optout.apply(_sans_cle, axis=1).sum())
+    if n_sans_cle:
+        raise ValueError(
+            f"Opt-out : {n_sans_cle} ligne(s) d'opposition sans id_ban NI adresse "
+            "exploitable — impossible d'honorer la demande, refus d'exporter "
+            "(corriger data/optout/optout.csv)."
+        )
+
     before = len(df)
-    out = df[~df["id_ban"].isin(set(optout["id_ban"]))].copy()
-    logger.info("Opt-out : %d adresse(s) retirée(s).", before - len(out))
+    masque = df["id_ban"].astype(str).str.strip().isin(ids)
+    if adresses:
+        if "adresse" not in df.columns:
+            raise ValueError(
+                "Opt-out : des oppositions « par adresse » existent mais la base n'a "
+                "pas de colonne 'adresse' — on ne peut pas les honorer, refus d'exporter."
+            )
+        masque = masque | df["adresse"].map(normalise_adresse).isin(adresses)
+
+    out = df[~masque].copy()
+    logger.info("Opt-out : %d adresse(s) retirée(s) (clés id_ban + adresse).", before - len(out))
     return out
 
 

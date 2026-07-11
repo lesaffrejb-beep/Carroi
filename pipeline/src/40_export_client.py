@@ -31,7 +31,10 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
-from common import REPO_ROOT, apply_optout, ensure_dirs, load_config, source_attribution
+from common import (
+    REPO_ROOT, apply_optout, ensure_dirs, load_config, pipeline_version,
+    source_attribution,
+)
 
 log = logging.getLogger("export_client")
 
@@ -71,12 +74,34 @@ def ecrire_xlsx(df: pd.DataFrame, out_path: Path, feuille: str = "piscines") -> 
     wb.save(out_path)
 
 
-def tatouer(df: pd.DataFrame, acheteur: str) -> pd.DataFrame:
+def exiger_version_tracable(demo: bool) -> str:
+    """Garde-fou n°4 (traçabilité des millésimes, CLAUDE.md) : un livrable commercial
+    DOIT embarquer une version de pipeline traçable (`git describe`). Si git ne répond
+    pas (dossier hors dépôt, git absent), `pipeline_version()` renvoie "unknown" et on
+    REFUSE tout export non-démo — plutôt que de livrer un fichier non réattribuable.
+    Le mode --demo (extrait RDV, non vendu) reste autorisé.
+    """
+    version = pipeline_version()
+    if not demo and version == "unknown":
+        raise SystemExit(
+            "Version du pipeline inconnue (git describe a échoué) — garde-fou n°4 : "
+            "refus d'exporter un livrable commercial sans version traçable. "
+            "Vérifier que le dossier est bien un dépôt git à jour. "
+            "(Un export --demo reste autorisé.)"
+        )
+    return version
+
+
+def tatouer(df: pd.DataFrame, acheteur: str) -> tuple[pd.DataFrame, list[str]]:
     """Empreinte de formatage déterministe propre à l'acheteur (anti-revente).
 
     Aucune donnée n'est faussée : on ne varie que des détails de représentation.
     Mécanisme documenté dans docs/06-QUALITE-VALIDATION.md §5. L'empreinte est
     reconstructible depuis le nom d'acheteur => réattribution d'un fichier fuité.
+
+    Retourne (df tatoué, témoins) : les témoins sont jusqu'à 5 id_ban marqués (coord.
+    à précision réduite), consignés au registre des ventes (garde-fou n°5) pour prouver
+    la réattribution d'un fichier fuité.
     """
     df = df.copy()
     seed = int(hashlib.sha256(acheteur.encode()).hexdigest(), 16)
@@ -94,12 +119,20 @@ def tatouer(df: pd.DataFrame, acheteur: str) -> pd.DataFrame:
     for col in ("lat", "lon"):
         df[col] = df[col].astype(float).round(6)
         df.loc[marques, col] = df.loc[marques, col].round(5)
-    return df
+
+    temoins = df.loc[marques, "id_ban"].astype(str).head(5).tolist()
+    return df, temoins
 
 
-def registre_vente(cfg: dict, acheteur: str, produit: str, zone: str, n: int, fichier: Path) -> None:
+def registre_vente(cfg: dict, acheteur: str, produit: str, zone: str, n: int,
+                   fichier: Path, version: str, temoins: list[str]) -> None:
     """Registre des ventes (hors git) — requis pour exclusivités, propagation des
-    oppositions aux acheteurs passés, et réattribution du tatouage."""
+    oppositions aux acheteurs passés, et réattribution du tatouage (garde-fou n°5).
+
+    Consigne la version du pipeline (millésime du code ayant produit le fichier) et
+    les adresses-témoins du tatouage : sans elles, un fichier fuité serait
+    inattribuable.
+    """
     reg = REPO_ROOT / "sales" / "registre.csv"
     reg.parent.mkdir(exist_ok=True)
     ligne = pd.DataFrame([{
@@ -109,6 +142,8 @@ def registre_vente(cfg: dict, acheteur: str, produit: str, zone: str, n: int, fi
         "zone": zone,
         "nb_lignes": n,
         "fichier": str(fichier),
+        "version_pipeline": version,
+        "temoins_tatouage": "|".join(map(str, temoins)),
         "exclusivite": "",   # à remplir à la main si contrat d'exclusivité
     }])
     ligne.to_csv(reg, mode="a", header=not reg.exists(), index=False)
@@ -129,6 +164,9 @@ def main() -> None:
                         "(une adresse fausse sur cinq devant le prospect tue la réputation "
                         "locale — pre-mortem docs/10 §risque n°6)")
     args = p.parse_args()
+
+    # Garde-fou n°4 : pas de livrable commercial sans version de pipeline traçable.
+    version = exiger_version_tracable(args.demo)
 
     cfg = load_config()
     ensure_dirs(cfg)
@@ -177,7 +215,7 @@ def main() -> None:
     manquantes = [c for c in COLONNES_LIVREES if c not in df.columns]
     if manquantes:
         raise SystemExit(f"Colonnes attendues absentes de la base : {manquantes}")
-    df = tatouer(df[COLONNES_LIVREES], args.acheteur)
+    df, temoins = tatouer(df[COLONNES_LIVREES], args.acheteur)
 
     prefixe_demo = "DEMO-" if args.demo else ""
     out_dir = Path(cfg["paths"]["exports"]) / f"{prefixe_demo}{slugify(args.acheteur)}_{date.today().isoformat()}"
@@ -209,7 +247,8 @@ def main() -> None:
     else:
         log.warning("docs/templates/notice_art14.txt absent — À CRÉER avant toute livraison réelle (obligation légale).")
 
-    registre_vente(cfg, f"{prefixe_demo}{args.acheteur}", args.produit, zone_label, len(df), out_csv)
+    registre_vente(cfg, f"{prefixe_demo}{args.acheteur}", args.produit, zone_label,
+                   len(df), out_csv, version, temoins)
     log.info("Export prêt : %s", out_dir)
 
 

@@ -4,9 +4,9 @@
 
 ## ⚡ PROCHAINE SESSION : COMMENCER ICI (état au 2026-07-11 soir, session Fable — deepsearchs + incident)
 
-**Où on en est en une phrase** : le moteur est codé et testé (**118 tests verts** après
-l'incident du 2026-07-11 — voir journal : 3 correctifs d'audit + 6 tests PERDUS, à refaire,
-tâche 5bis), les drafts légaux C2/C5 sont rédigés (`docs/legal/`, à valider avocat), les
+**Où on en est en une phrase** : le moteur est codé et testé (**124 tests verts** — la
+tâche 5bis a REFAIT les 3 correctifs d'audit + 6 tests perdus dans l'incident du
+2026-07-11, voir journal), les drafts légaux C2/C5 sont rédigés (`docs/legal/`, à valider avocat), les
 **deepsearchs ①②③④⑤⑦⑨⑩ sont reçues, rangées et arbitrées** (`docs/deepsearch/` —
 B1 est DÉBLOQUÉ, SITADEL est viable, namR a fait faillite, aucun pivot), AUCUNE donnée
 réelle n'a encore été traitée, AUCUN prospect appelé — l'inversion de séquence (`10`)
@@ -75,14 +75,15 @@ s'arrêter proprement.**
    rempli. NE PAS : lancer le département entier ; modifier detection.py/solaire.py (seuils
    config UNIQUEMENT — si ça ne suffit pas, consigner et s'arrêter : déclencheur [FABLE]).
 
-5bis. `[OPUS — PRIORITAIRE, avant ou avec la tâche 5]` **Refaire les 3 correctifs d'audit
-   garde-fous perdus dans l'incident** (spec exacte = section « État au 2026-07-11 (audit) »
-   ci-dessous) : (1) `apply_optout` : double clé id_ban + adresse normalisée, refus bruyant
-   si ligne d'opposition sans aucune clé ou si la base n'a pas de colonne adresse ;
-   (2) 40_export REFUSE tout export non-demo si `pipeline_version()` est inconnue ;
-   (3) `tatouer()` retourne les témoins (≤ 5 id_ban marqués) + colonnes `version_pipeline`
-   et `temoins_tatouage` au registre des ventes. + les ~6 tests correspondants
-   (test_garde_fous). Fini = tests verts, commit, push.
+5bis. `[OPUS — ✅ FAIT 2026-07-11]` **Refait les 3 correctifs d'audit garde-fous perdus
+   dans l'incident** : (1) `common.apply_optout` : double clé id_ban + adresse normalisée
+   (`common.normalise_adresse`, pure/testable), refus bruyant si ligne d'opposition sans
+   aucune clé ou si la base n'a pas de colonne adresse ; (2) `40_export.exiger_version_tracable`
+   REFUSE tout export non-demo si `pipeline_version()` == "unknown" (démo autorisée) ;
+   (3) `tatouer()` retourne `(df, temoins)` (≤ 5 id_ban marqués) + colonnes
+   `version_pipeline` et `temoins_tatouage` au registre des ventes. **+6 tests**
+   (test_garde_fous, dont opposition art. 11 par adresse seule). **124 tests verts**,
+   commit/push faits.
 
 6. `[✅ FAIT 2026-07-11, mergé PR #10 — implémentation cloud]` **Leçons de l'état de
    l'art** (doc 15 §2) : (a) tri des vignettes par incertitude (`cle_incertitude`, 16_tri) ;
@@ -188,9 +189,9 @@ retenues). **118 tests verts** après restauration (`.venv/bin/python -m pytest`
 
 ## État au 2026-07-11 (session Fable — audit des modules jamais audités)
 
-> **⚠ POST-INCIDENT : les 3 correctifs de code décrits ci-dessous ont été PERDUS
-> (jamais poussés). La spec reste valable — c'est la tâche 5bis. Les constats (a)-(e)
-> restent valables.**
+> **✅ RÉSOLU 2026-07-11 (tâche 5bis) : les 3 correctifs de code décrits ci-dessous,
+> perdus dans l'incident, ont été REFAITS et testés (124 tests verts, commit/push).
+> Les constats (a)-(e) restent valables.**
 
 Le journal du 2026-07-08 notait : « l'agent d'audit externe a été interrompu ; audit refait
 à la main sur 10/16/20/25/30/35 ». Les modules restants (15, 40, common, contrat, detection,
@@ -201,7 +202,7 @@ chaîne des garde-fous légaux. Audit fait ; verdicts :
   de propagation — tout vérifié), geometrie.py (pile monotone correcte, reset par ligne),
   terrasses.py, detection.py, millesimes.py, 15_detect (partition des zones intérieures
   exacte pour chevauchement pair — 128 px l'est).
-- **3 failles de garde-fous corrigées** (correctifs PERDUS dans l'incident → tâche 5bis) :
+- **3 failles de garde-fous corrigées** (✅ REFAITES le 2026-07-11, tâche 5bis) :
   1. `apply_optout` ne matchait QUE sur id_ban → une opposition art. 11 « par adresse
      seule » (prévue par procedure_reclamation.md et C4) était silencieusement ignorée ;
      un id BAN changeant de millésime démariait l'opposition. Correctif : double clé
@@ -214,8 +215,8 @@ chaîne des garde-fous légaux. Audit fait ; verdicts :
      id_ban marqués), colonnes `version_pipeline` + `temoins_tatouage` au registre.
 - **Constats non bloquants, consignés sans correction** (à reprendre si besoin) :
   (a) ~~le dossier de travail n'est PAS un dépôt git~~ → RÉSOLU le 2026-07-11 (remote
-  `lesaffrejb-beep/maps`, origin/main restauré) — le refus d'export sans version git
-  redevient opérationnel dès la 5bis refaite ; (b) detection/forme garde des candidats
+  `lesaffrejb-beep/maps`, origin/main restauré) — le refus d'export sans version git est
+  opérationnel (5bis refaite) ; (b) detection/forme garde des candidats
   jusqu'à 400 m² dont les formes allongées (> 25,6 m) peuvent dépasser le chevauchement de
   fenêtre — auto-réparé par fusionner_adjacentes dans la quasi-totalité des cas, à
   surveiller en B2-terrain ; (c) millesimes.py : `set(ja)` reconstruit par élément (perf,
@@ -346,6 +347,7 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-11 | items 6+8 | Implémentations CLOUD mergées : PR #10 (cle_incertitude + borne_basse_wilson + docs/06) et PR #11 (ecrire_xlsx + archiver_copie_datee) ; 90_backup.py (8c) écrit localement (survivant) + clé `backup:` réajoutée | les variantes locales décrites avant l'incident (qualite.py, test_tri/export/archive) sont perdues et caduques — versions cloud font foi |
 | 2026-07-11 | deepsearch | ①②③④⑤⑦⑨⑩ reçues, rangées (`docs/deepsearch/`), arbitrées : B1 débloqué, SITADEL viable (tâche 10), PCI SYM=65 en corroboration (A3bis), crue LiDAR 2024 = piège P2, datasets AGPL/Google interdits, chiffres brokers/leads pour kit `11` | vérifs web : namR liquidation CONFIRMÉE (01/07/2026) ; millésime ortho 2025 et crue 7/3/2024 PLAUSIBLES non confirmés (B1 / 1er run P2 tranchent) ; ⑥ et ⑧ restent à lancer |
 | 2026-07-11 | ⚠ INCIDENT | Arbre de travail quasi intégralement supprimé en cours de session (concomitant git init+fetch ; cause exacte non établie) ; restauré via `git reset --hard origin/main` + survivants | perdu : correctifs audit (→ 5bis) ; **118 tests verts** post-restauration ; leçon : COMMIT+PUSH après chaque tâche |
+| 2026-07-11 | 5bis garde-fous | Refait les 3 correctifs perdus + 6 tests : opt-out double clé id_ban+adresse (art. 11 par adresse seule), refus d'export non-démo sans version git, témoins+version au registre des ventes | `common.normalise_adresse` (pure), `40_export.exiger_version_tracable`, `tatouer()→(df,temoins)` ; **124 tests verts** ; répond à « faut-il refaire ? » = c'était la seule perte de code de l'incident |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 
