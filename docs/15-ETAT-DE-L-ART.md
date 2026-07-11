@@ -1,8 +1,7 @@
 # État de l'art — ce que font les géants, et ce qu'on en retient à notre échelle
 
-> **2026-07-08.** Deux recherches web ciblées vérifiées (sources en bas) + analyse.
-> Le reste (acteurs US, namR/KelFoncier, pratiques de pipeline) est consigné en prompts
-> deepsearch ⑨-⑩ dans `13-DEEPSEARCH.md` — à compléter quand l'humain les lance.
+> **2026-07-08**, complété **2026-07-11** (deepsearchs ⑨-⑩ reçues et analysées —
+> rapports bruts + synthèses dans `docs/deepsearch/`).
 > **Verdict global : nos choix d'architecture sont alignés avec ce que les géants ont
 > appris à leurs dépens.** Deux chiffres le prouvent, et trois leçons en découlent.
 
@@ -40,8 +39,9 @@ précision / 85 % de rappel** en pur modèle. Traduction :
 | Précision annoncée ≠ précision mesurée (le fisc l'a payé en presse) | garde-fou n°7 + protocole 06 | ✅ déjà aligné |
 | Détection = commodité, la VALEUR est la donnée consolidée + fraîcheur | doc 09 §5 (moats : actif temporel) | ✅ déjà aligné |
 | Étiquettes accumulées → réentraînement continu | clics du tri conservés (ids stables) | ✅ prévu, à exploiter en option A |
-| **Tri par incertitude (active learning « du pauvre »)** : présenter d'abord les candidats au score intermédiaire, valider en masse les scores extrêmes | pas encore : le tri présente tout dans l'ordre | 🔧 amélioration à 20 lignes, tâche [OPUS] ajoutée |
-| **Intervalle de confiance sur la précision mesurée** (Wilson) plutôt qu'un point sur 100 adresses | protocole 06 = point simple | 🔧 à ajouter au protocole C1 (formule dans la tâche) |
+| **Tri par incertitude (active learning « du pauvre »)** : présenter d'abord les candidats au score intermédiaire, valider en masse les scores extrêmes | `cle_incertitude` dans 16_tri (PR #10) | ✅ fait 2026-07-11 ; DS4 chiffre le gain (30-70 % d'annotations en moins vs aléatoire) |
+| **Intervalle de confiance sur la précision mesurée** (Wilson) plutôt qu'un point sur 100 adresses | `common.borne_basse_wilson` + protocole 06 §2 (PR #10) | ✅ fait 2026-07-11 |
+| Masquage par données exogènes pour tuer des familles de faux positifs (Google : eau/altitude) | masque bâti BD TOPO ; si les étangs polluent B2-terrain → brancher la couche hydro BD TOPO | ✅ aligné, extension identifiée (DS4) |
 | COG/STAC/Dask, infra cloud | mono-machine, fenêtrage, index spatiaux | ✅ NE PAS adopter — overkill documenté pour 1-3 départements ; réévaluer à 10+ |
 
 ## 2 bis. Trois faits de la seconde passe (2026-07-08, recherches ciblées)
@@ -63,6 +63,17 @@ retraité = donnée vendable » est un business model prouvé ; et leur cible gr
 laisse les artisans locaux — notre terrain — totalement libres.
 ([namR](https://namr.com/fr/nos-solutions/nos-attributs/), [Le Moniteur](https://www.lemoniteur.fr/article/la-start-up-qui-connait-tout-du-bati-francais.2139049))
 
+> **⚠ CORRECTION 2026-07-11 — namR est en liquidation judiciaire** (prononcée le
+> 01/07/2026 par le tribunal de Paris, vérifié sur les communiqués réglementaires ;
+> redressement fin 2025, perte nette 8,2 M€ en 2024 pour 2,9 M€ de CA ; la cession
+> d'actifs à Addactis ~4,2 M€ ne semble pas s'être concrétisée avant la liquidation).
+> Lecture révisée : namR valide la thèse TECHNIQUE (open data retraité = vendable) et
+> **invalide le modèle commercial généraliste** — lac de données sans finalité opérationnelle,
+> grands comptes à cycles > 18 mois, R&D continue à coûts fixes lourds. Notre modèle est
+> l'inverse exact (donnée activable, artisan local, cycle court, coûts ~115 €/mois, batch
+> tous les 3 ans) : la faillite de namR RENFORCE nos choix `00`/`09`/`16` au lieu de les
+> menacer. Analyse complète : `docs/deepsearch/DS5-CONCURRENCE-SOLAIRE-GEANTS.md`.
+
 **⚠ La concurrence sur P1 est RÉELLE et nominative.** [Cartégie](https://www.cartegie.com/en/data/btoc-basics/swimming-pool-owners)
 loue un fichier de 1 M+ de propriétaires de piscines avec ~200 000 téléphones ;
 [Easyfichiers](https://www.easyfichiers.com/fr/fichier-proprietaires-piscine) et d'autres
@@ -77,13 +88,24 @@ Le risque n°8 du pre-mortem est confirmé nommément. Conséquences appliquées
 - ça renforce l'arbitrage `14` : les cibles ①② (ombrières, foncier) n'ont pas de broker
   installé équivalent, le trio gros-ticket monte encore d'un cran en priorité relative.
 
-## 3. Ce qui reste à apprendre (prompts ⑨-⑩ de `13-DEEPSEARCH.md`)
+## 3. Deepsearchs ⑨-⑩ reçues (2026-07-11) — l'essentiel
 
-Cape Analytics/Nearmap/Betterview (pricing et attributs vendus aux assureurs US),
-namR/Kermap (santé économique des équivalents français — namR vend des attributs issus
-d'open data retraité : c'est NOTRE thèse, leur trajectoire est un signal), KelFoncier
-(pricing réel, réputation), et les pratiques publiées des pipelines Microsoft Building
-Footprints / Google Open Buildings (dédup, post-traitement à l'échelle).
+Rapports bruts et synthèses critiques dans `docs/deepsearch/` (DS4 pipelines, DS5 géants).
+À retenir en plus des sections ci-dessus :
+- **Cape Analytics/EagleView** : la valeur = intégration dans le flux de travail du client
+  + ROI chiffrable (inspection évitée à 35 $) + human-in-the-loop sous seuil de confiance.
+  Transposé chez nous : formuler le ROI en « coût d'un lead évité » (les plateformes vendent
+  le lead piscine 30-150 €, mutualisé à 3-5 artisans — chiffres pour le kit `11` §4).
+- **Brokers** (Cartégie & co) : 0,15-0,80 €/contact en LOCATION + minimums 350-650 € ;
+  données déclaratives périmées. Contre-objection chiffrée → kit `11` §4.
+- **KelFoncier** : hyper-spécialisation + ROI immédiat = le modèle qui marche en France.
+- **Kermap** : ~550 k€ de CA, dépendance B2G/subventions — pas notre voie.
+- **Pipelines Microsoft/Google (DS4)** : chevauchement de fenêtres, fusion aux frontières,
+  seuils de confiance (0,90 → 90-94 % précision / ~70 % rappel), débit humain 1 000-1 200
+  vignettes/h — tous nos choix confirmés, rien à adopter de plus à notre échelle.
+- **Datasets piscines (DS5)** : si l'option A se déclenche → partir de `sp-swimming-pools`
+  (CC-BY-4.0, poids initiaux) + fine-tuning sur BD ORTHO annotée main ; JAMAIS
+  `osm-swimming-pools` (AGPL contaminante) ni BH-POOLS (images Google, CGU).
 
 ## Sources
 

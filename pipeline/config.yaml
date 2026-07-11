@@ -70,3 +70,8 @@ tri_visuel:
 export:
   rayon_defaut_km: 30
   confiances_vendues: ["haute", "moyenne"]  # la basse confiance ne sort jamais
+
+backup:                      # 90_backup.py (docs/16 §2) — 🧑 à renseigner avant 1er usage
+  chiffrement: age           # age (défaut) ou gpg — clé PUBLIQUE, pas de passphrase
+  destinataire: ""           # 🧑 clé publique age (age1…) ou identité gpg
+  rclone_remote: ""          # 🧑 remote rclone configuré (ex. "storagebox:maps-backups")

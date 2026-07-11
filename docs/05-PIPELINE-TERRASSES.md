@@ -42,7 +42,7 @@ La preuve en RDV est moins immédiate que pour les piscines (on ne "voit" pas le
 
 ## Étapes d'exécution (pour la session LLM qui prendra ce chantier)
 
-1. Vérifier la disponibilité des dalles **MNS LiDAR HD** dérivées pour le 49 sur cartes.gouv.fr (téléchargement IGNF_MNS-LIDAR-HD). Si des dalles manquent : rasteriser soi-même le nuage de points LAZ (PDAL, `pdal pipeline` writers.gdal, 0,5 m) — prévoir le stockage (plusieurs centaines de Go pour le département brut ; d'où le ciblage par communes).
+1. Vérifier la disponibilité des dalles **MNS LiDAR HD** dérivées pour le 49 sur cartes.gouv.fr (téléchargement IGNF_MNS-LIDAR-HD). Accès scripté (deepsearch ②, `docs/deepsearch/DS1`) : racine `https://diffusion-lidarhd.ign.fr/mnx/` + tableaux d'assemblage WFS `data.geopf.fr/wfs/ows` (couches `IGNF_MNS_LIDAR-HD:dalle` / `IGNF_MNH_LIDAR-HD:dalle`, BBOX → URLs des dalles). Si des dalles manquent : rasteriser soi-même le nuage de points LAZ (PDAL, `pdal pipeline` writers.gdal, 0,5 m) — prévoir le stockage (plusieurs centaines de Go pour le département brut ; d'où le ciblage par communes).
 2. Prototyper sur **une commune** (suggestion : une commune péri-urbaine d'Angers, mix maisons récentes/anciennes) : téléchargement dalles, r.sun aux 3 dates, scores, carte de contrôle.
 3. Calibration terrain : 20 adresses scorées `plein-soleil` vérifiées sur orthophoto + Street-level si dispo légalement (pas de scraping Google — se contenter de l'orthophoto IGN).
 4. Validation qualité selon `06-QUALITE-VALIDATION.md` (précision ≥ 90 % acceptable pour ce produit — c'est un score, pas un fait binaire ; l'annoncer comme tel au client).
@@ -50,7 +50,9 @@ La preuve en RDV est moins immédiate que pour les piscines (on ne "voit" pas le
 
 ## Pièges connus (ne pas les redécouvrir)
 
-- **Millésime LiDAR vs réalité** : le LiDAR du 49 date de ~2021-2023 ; les arbres poussent, des maisons neuves apparaissent. Croiser avec le millésime BD TOPO le plus récent ; signaler le millésime dans l'export.
+- **Millésime LiDAR vs réalité** : le LiDAR du 49 date de ~2021-2024 ; les arbres poussent, des maisons neuves apparaissent. Croiser avec le millésime BD TOPO le plus récent ; signaler le millésime dans l'export.
+- **⚠ Crue du 7 mars 2024 pendant l'acquisition** (deepsearch ②, plausible — à vérifier au 1er run) : dans les lits majeurs (Sarthe, Loir, Basses Vallées Angevines, Authion), le MNT = surface de l'eau en crue → **MNH sous-estimé** de la hauteur de la lame d'eau (le masque « canopée » de `terrasses.py` devient moins protecteur, les ombres MNS restent correctes en absolu). Vérif empirique : grandes zones de pente nulle hors plans d'eau BD TOPO le long des rivières. Parade si confirmé : dégrader la confiance (jamais `plein_soleil` en démo) des parcelles en lit majeur (croisement surfaces hydro BD TOPO + zones planes anormales). PAS d'hybridation RGE ALTI (overkill pour un score de jardins). Acquisition hivernale « leaf-off » : la canopée d'été est sous-estimée par le MNS → biais OPTIMISTE des heures de soleil sous les feuillus, à mentionner dans la notice de livraison.
+- **ZICAD** (zones militaires, Saumur…) : NoData définitif dans MNS/MNH — trou de couverture assumé, à signaler dans l'export plutôt qu'à « boucher ».
 - **r.sun et la latitude/turbidité** : utiliser les coefficients de turbidité Linke par défaut mensuel (~3 en Anjou) ; ce qui compte est le *classement relatif* des parcelles, pas la valeur absolue en kWh.
 - **CRS** : MNS IGN en Lambert-93 — rester en 2154 de bout en bout.
 - **Ne pas vendre "heures de soleil garanties"** : vendre un score comparatif. Le contrat/README de livraison le formule ainsi.

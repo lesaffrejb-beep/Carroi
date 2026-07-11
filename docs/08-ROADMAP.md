@@ -2,112 +2,226 @@
 
 > **Ce fichier est le journal du projet.** Chaque session LLM qui termine une tâche met à jour le statut, la date, et surtout ce qui a été **appris/mesuré** (les chiffres réels valent plus que le plan). La session suivante ne sait que ce qui est écrit ici.
 
-## ⚡ PROCHAINE SESSION : COMMENCER ICI (état au 2026-07-08, fin des sessions Fable)
+## ⚡ PROCHAINE SESSION : COMMENCER ICI (état au 2026-07-11 soir, session Fable — deepsearchs + incident)
 
-**Où on en est en une phrase** : tout le moteur est codé et testé (45 tests verts — détection
-piscines 1b complète, tri humain, moteur solaire, détecteur terrasses P2, export avec --demo) ;
-les **drafts légaux C2 sont rédigés** (LIA, AIPD, registre art. 30, politique de confidentialité,
-notice art. 14 — `docs/legal/`, à valider par avocat) ; AUCUNE donnée réelle n'a encore été
-traitée, AUCUN prospect appelé — et le pre-mortem (`10`) a établi que l'inversion de séquence
-reste LE risque n°1. La priorité absolue n'est plus le code.
+**Où on en est en une phrase** : le moteur est codé et testé (**118 tests verts** après
+l'incident du 2026-07-11 — voir journal : 3 correctifs d'audit + 6 tests PERDUS, à refaire,
+tâche 5bis), les drafts légaux C2/C5 sont rédigés (`docs/legal/`, à valider avocat), les
+**deepsearchs ①②③④⑤⑦⑨⑩ sont reçues, rangées et arbitrées** (`docs/deepsearch/` —
+B1 est DÉBLOQUÉ, SITADEL est viable, namR a fait faillite, aucun pivot), AUCUNE donnée
+réelle n'a encore été traitée, AUCUN prospect appelé — l'inversion de séquence (`10`)
+reste LE risque n°1. La priorité absolue n'est toujours pas le code : c'est D0.
+
+**⚠ Incident du 2026-07-11 (17h30-17h45)** : la quasi-totalité de l'arbre de travail a été
+supprimée pendant une session (cause exacte inconnue — concomitant avec le `git init` +
+fetch du dépôt `github.com/lesaffrejb-beep/maps`, probablement une étape de re-clonage
+restée inachevée). Restauré depuis `origin/main` (eafbbcf, PR #11) + fichiers survivants
+(D1, 90_backup, deepsearchs). Perdu et NON récupérable : les 3 correctifs d'audit
+garde-fous + 6 tests (jamais poussés — refaire, tâche 5bis) et la variante locale des
+tâches 6/8 (les versions cloud PR #10/#11, fonctionnellement équivalentes, font foi).
+**Leçon : commit + push après CHAQUE tâche, sans exception.**
 
 **File d'attente — chaque tâche est autonome et cadrée ; une session Opus prend LA PREMIÈRE
-non cochée de son niveau, la fait EN ENTIER, consigne, et s'arrête. Ne pas improviser au-delà
-du cadre ; si quelque chose bloque ou surprend, le consigner ici et s'arrêter proprement.**
+non cochée de son niveau, la fait EN ENTIER, consigne, commit/push, et s'arrête. Ne pas
+improviser au-delà du cadre ; si quelque chose bloque ou surprend, le consigner ici et
+s'arrêter proprement.**
 
 1. `[HUMAIN — en cours, RDV imminents]` **D0** : appels de pré-vente avec le kit `11`,
    réponses dans `sales/prospection_d0.csv`, puis dérouler l'arbre `12`.
+   Munitions nouvelles (deepsearch ⑦, `docs/deepsearch/DS5`) : brokers = 0,15-0,80 €/contact
+   en LOCATION + minimums 350-650 € + données déclaratives périmées ; leads = 30-150 €/pièce
+   revendus à 3-5 concurrents. Et si le millésime BD ORTHO 2025 se confirme (B1), le diff
+   2022→2025 rend les « nouvelles piscines » vendables dès le lancement.
 
-2. `[OPUS — ✅ FAIT 2026-07-09, PR en cours]` **C2 : drafts légaux.**
+2. `[OPUS — ✅ FAIT 2026-07-09, mergé PR #8]` **C2 : drafts légaux.**
    Livrables : `docs/legal/LIA.md`, `docs/legal/AIPD.md`, `docs/legal/registre_art30.md`,
    `docs/legal/politique_confidentialite.md`, `docs/templates/notice_art14.txt` complétée.
-   Cadre : suivre `03-LEGAL-RGPD.md` + intégrer OBLIGATOIREMENT le raisonnement art. 14.5.b
-   « stock invendu » (`10` §4 : mesures compensatoires publiques) et les 4 clauses contrat
-   (`10` §5). Structure des templates CNIL (outil PIA). Marquer chaque document « DRAFT —
-   à valider par avocat ». Fini = les 5 fichiers existent, roadmap cochée, PR mergée.
-   NE PAS : inventer des positions juridiques hors de `03`/`10` ; toucher au code.
    → **Fait** : 5 fichiers créés, chacun marqué DRAFT, art. 14.5.b traité dans LIA §4.4 +
    AIPD §4, les 4 clauses `10` §5 intégrées en LIA §4.5 / registre fiche n°2. **Bloqueurs
    🧑 à renseigner avant usage réel** (placeholders `[...]` dans les 5 docs) : nom commercial
    (`16` §6.2), forme juridique, adresse postale, email `opposition@<domaine>`, URL du
    formulaire (C4). **Reste 🧑** : avis avocat data sur la LIA (bloquant lancement, `03` §5.8).
 
-3. `[OPUS — ✅ FAIT 2026-07-09, PR en cours]` **C5 : pack incident.** Livrables :
-   `docs/legal/qa_presse.md` (1 page, spec `10` §9 : sources publiques, opt-out 1 clic,
-   AUCUNE référence au fisc) et `docs/legal/procedure_reclamation.md` (ligne fausse →
-   remplacement/avoir 90 j + entrée `data/validation/reclamations.csv` comme étiquette
-   négative ; opposition sans identité → process art. 11). Fini = 2 fichiers + roadmap.
-   NE PAS : dépasser 1 page chacun. → **Fait** : 2 fichiers ≤ 1 page ; schéma
-   `reclamations.csv` défini ; porte-parole/URL en placeholders 🧑.
+3. `[OPUS — ✅ FAIT 2026-07-09, mergé PR #9]` **C5 : pack incident.** →
+   `docs/legal/qa_presse.md` + `docs/legal/procedure_reclamation.md` (≤ 1 page chacun ;
+   schéma `reclamations.csv` défini ; porte-parole/URL en placeholders 🧑).
 
-4. `[OPUS — sans dépendance]` **D1 : liste de prospects.** Livrable :
-   `sales/prospects_49.csv` (hors git) via SIRENE open data (méthode `07` §1, codes NAF
-   listés là-bas) : ≥ 30 lignes {raison_sociale, naf, ville, tel_si_public, site_web,
-   priorite}. Écrire le script d'extraction dans `pipeline/src/50_prospects_sirene.py`
-   (réutilisable, --dept paramétré, mêmes conventions que les autres scripts).
-   NE PAS : collecter d'autres données que l'établissement (pas de dirigeants).
+4. `[OPUS — ✅ FAIT 2026-07-11]` **D1 : liste de prospects.** → Cœur pur
+   `pipeline/src/prospects.py` + CLI `50_prospects_sirene.py` + `tests/test_prospects.py`
+   (9 verts). Source = API publique **« Recherche d'entreprises » (DINUM)** (SIRENE sans
+   clé, NAF pointés `43.99C`). Méthode **hybride NAF + mot-clé** (fidèle à `07` §1 — les
+   pisciniers se dispersent hors des 4 NAF : trouvés aussi en 43.99D, 41.20B, 70.10Z,
+   47.52A/B, 81.30Z via `q=piscine`). **969 prospects** dans `sales/prospects_49.csv`
+   (hors git), dont **43 « haute »** (pisciniers avérés, 142 communes). Garde-fous :
+   `dirigeants` jamais lu ; non-diffusibles écartés ; 451 EI identifiables par un nom de
+   personne écartés. Colonnes tel/site vides (absentes de SIRENE). **Reste 🧑** : triage
+   manuel du haut de liste (site web actif + avis Google, `07` §12) avant les appels D0/D3.
+   ⚠ Ces fichiers ont survécu à l'incident mais ne sont PAS commités → commit/push
+   en tête de la prochaine session Opus.
 
-5. `[OPUS — dès résultats deepsearch ① collés ici]` **A1-A4 puis B1 + B2-terrain.**
-   Ordre strict : A1 (10_download ; si le miroir BD TOPO échoue → --bdtopo-url), A2 (OSM
-   2 communes), A3 (20→35 en --dev ; consigner % cad_parcelles vs nearest), A4 (contrôle
-   visuel 30 lignes Géoportail, consigner le taux), B1 (dalles ortho 1 commune), B2-terrain
-   (15_detect sur la commune ; consigner ratio candidats/piscines-OSM, précision, rappel ;
-   calibrer les seuils `detection:` de config.yaml en consignant AVANT/APRÈS chaque seuil).
-   Fini = tableau de mesures ci-dessous rempli. NE PAS : lancer le département entier ;
-   modifier detection.py/solaire.py (seuils config UNIQUEMENT — si ça ne suffit pas,
-   consigner et s'arrêter : c'est un déclencheur [FABLE]).
+5. `[OPUS — DÉBLOQUÉ par deepsearch ①/③, specs dans docs/deepsearch/DS3 et docs/02]`
+   **A1-A4 puis B1 + B2-terrain.** Ordre strict : A1 (10_download ; si le miroir BD TOPO
+   échoue → --bdtopo-url), A2 (OSM 2 communes), A3 (20→35 en --dev ; consigner %
+   cad_parcelles vs nearest), **A3bis (nouveau, deepsearch ③)** : extraire les piscines
+   PCI Édigéo `SYM=65` (couche tsurf) sur les 2 communes tests et consigner le taux de
+   recouvrement avec OSM — si > 50 %, brancher SYM=65 comme couche de corroboration au
+   score (doctrine `16` : corrobore, ne crée JAMAIS de ligne), A4 (contrôle visuel 30
+   lignes Géoportail, consigner le taux), B1 (dalles ortho 1 commune — URLs/nommage/7z
+   dans `docs/02` §BD ORTHO ; consigner le MILLÉSIME RÉEL constaté [2022 ou 2025 ?] et
+   l'ordre des bandes IRC vérifié), B2-terrain (15_detect sur la commune ; consigner ratio
+   candidats/piscines-OSM, précision, rappel ; calibrer les seuils `detection:` de
+   config.yaml en consignant AVANT/APRÈS chaque seuil ; si les étangs/plans d'eau polluent,
+   brancher la couche hydro BD TOPO en masque — DS4). Fini = tableau de mesures ci-dessous
+   rempli. NE PAS : lancer le département entier ; modifier detection.py/solaire.py (seuils
+   config UNIQUEMENT — si ça ne suffit pas, consigner et s'arrêter : déclencheur [FABLE]).
 
-6. `[OPUS — ✅ FAIT 2026-07-09, PR en cours]` **Leçons de l'état de l'art** (doc 15 §2, deux
-   petites améliorations cadrées) : (a) 16_tri : trier les vignettes par incertitude
-   (|score − 0,5| croissant) au lieu de l'ordre du fichier — les cas limites d'abord,
-   les évidences en rafale à la fin ; (b) protocole `06` §2 : remplacer le point simple
-   « ≥ 95 % sur 100 » par l'intervalle de Wilson à 95 % (annoncer la borne BASSE de
-   l'intervalle, jamais le point). Fini = les deux changements + tests verts.
-   NE PAS : toucher à autre chose dans 16_tri ; changer les seuils.
-   → **Fait** : (a) `cle_incertitude()` + tri dans `16_tri_visuel.generer_planche` ;
-   (b) `common.borne_basse_wilson()` + protocole `06` §1/§2/§2 bis (annonce borne basse,
-   agrandir n pour dépasser 95 %). +7 tests, **104 verts**.
+5bis. `[OPUS — PRIORITAIRE, avant ou avec la tâche 5]` **Refaire les 3 correctifs d'audit
+   garde-fous perdus dans l'incident** (spec exacte = section « État au 2026-07-11 (audit) »
+   ci-dessous) : (1) `apply_optout` : double clé id_ban + adresse normalisée, refus bruyant
+   si ligne d'opposition sans aucune clé ou si la base n'a pas de colonne adresse ;
+   (2) 40_export REFUSE tout export non-demo si `pipeline_version()` est inconnue ;
+   (3) `tatouer()` retourne les témoins (≤ 5 id_ban marqués) + colonnes `version_pipeline`
+   et `temoins_tatouage` au registre des ventes. + les ~6 tests correspondants
+   (test_garde_fous). Fini = tests verts, commit, push.
+
+6. `[✅ FAIT 2026-07-11, mergé PR #10 — implémentation cloud]` **Leçons de l'état de
+   l'art** (doc 15 §2) : (a) tri des vignettes par incertitude (`cle_incertitude`, 16_tri) ;
+   (b) précision annoncée = borne basse de Wilson 95 % (`common.borne_basse_wilson`),
+   protocole `06` §2 récrit, +7 tests dans test_garde_fous. (La variante locale
+   `qualite.py`/test_tri/test_qualite décrite avant l'incident est perdue et caduque —
+   la version PR #10 fait foi.) Conséquence honnête inchangée : 97/100 → ~91,5 % annoncés
+   (ne passe pas 95 %) ; agrandir n est le levier.
 
 7. `[OPUS — après A1]` **Généralisation cosmétique** (doc 09 §6) : 20_join `--source`
    (alias rétro-compatible de --source-piscines), 30_score `--produit` (lit
-   `config[produit]`, défaut piscines). Fini = 82+ tests verts, aucun comportement changé
+   `config[produit]`, défaut piscines). Fini = tests verts, aucun comportement changé
    pour piscines. NE PAS : refactorer au-delà de ces deux flags.
 
-8. `[OPUS — (a)(b) ✅ FAIT 2026-07-09, PR en cours ; (c) EN ATTENTE 🧑]` **Décisions
-   opérationnelles → code** (spec complète dans `16-DECISIONS-OPERATIONNELLES.md`, ne rien
-   improviser au-delà) : (a) 40_export : produire AUSSI un .xlsx (openpyxl : colonnes figées,
-   filtres actifs, largeurs auto) à côté du CSV ; (b) 30_score : copie datée
-   `data/final/archive/{produit}_{dept}_{AAAA-MM-JJ}.parquet` à chaque écriture ;
-   (c) `90_backup.py` : tar de final/exports/sales/optout/validation + chiffrement (age ou
-   gpg) + envoi rclone vers le stockage distant configuré dans config.yaml (nouvelle clé
-   `backup:`), idempotent, échec bruyant. Fini = 3 livrables + tests des (a) et (b).
-   NE PAS : sauvegarder data/raw ; toucher au tatouage.
-   → **(a)+(b) faits** : `ecrire_xlsx()` dans 40_export (en-tête figé A2, filtres, largeurs) +
-   `common.archiver_copie_datee()` câblé dans 30_score (non-dev). openpyxl ajouté aux
-   requirements. +5 tests, **109 verts**. **(c) 90_backup NON fait** : choix à trancher par
-   l'humain (age vs gpg ; remote rclone ; schéma de la clé `backup:`) + non vérifiable en
-   cloud (pas de remote ni de secrets) — laissé volontairement pour une session avec ces choix.
+8. `[✅ FAIT 2026-07-11 — (a)+(b) mergés PR #11, (c) restauré]` **Décisions
+   opérationnelles → code** (`16-DECISIONS-OPERATIONNELLES.md`) : (a) 40_export produit
+   un .xlsx client à côté du CSV (`ecrire_xlsx`, en-tête figé A2, filtres, largeurs ;
+   openpyxl aux requirements) ; (b) 30_score : copie datée
+   `data/final/archive/{produit}_{dept}_{AAAA-MM-JJ}.parquet` (`archiver_copie_datee`) ;
+   (c) `90_backup.py` (tar de final/exports/sales/optout/validation, chiffrement age|gpg
+   clé publique, rclone, idempotent, JAMAIS raw/interim) + clé `backup:` de config.yaml
+   (réajoutée post-incident, placeholders 🧑). ⚠ 90_backup.py non commité (survivant de
+   l'incident) → commit/push prochaine session. **🧑 avant usage de (c)** : installer
+   `age` (ou gpg) + `rclone`, créer un remote rclone (Hetzner Storage Box, `16` §2),
+   renseigner `config.yaml` §backup.
 
-9. `[OPUS — après le premier re-run de détection sur un nouveau millésime]`
+9. `[OPUS — après le premier re-run de détection sur un nouveau millésime, OU dès que
+   B2-terrain tourne si le millésime 2025 est confirmé (diff 2022→2025, voir docs/02)]`
    **45_diff_millesimes.py** : CLI mince autour de `millesimes.py` (cœur fait et testé).
    Args : --avant X.parquet --apres Y.parquet [--tolerance-m 8]. Sorties :
-   `{produit}_nouvelles_{dept}.parquet` (contrat couche 1 intact — les nouvelles
-   repartent dans 20→30→40 comme n'importe quelle source) + log des conservées/disparues
-   + REFUS d'écrire si > 50 % de « nouvelles » (recalage suspect, voir warning du cœur).
-   Mêmes conventions que les autres CLI (config, ensure_dirs, échec bruyant).
+   `{produit}_nouvelles_{dept}.parquet` (contrat couche 1 intact) + log des
+   conservées/disparues + REFUS d'écrire si > 50 % de « nouvelles » (recalage suspect).
    NE PAS : toucher à millesimes.py ; vendre les « disparues ».
 
-10. `[FABLE — seulement si déclenché]` : option A détection (déclencheur : B2-terrain
-   plafonne < 95 % après calibration ; noter — doc 15 : l'option A améliore le rappel
-   et le débit, PAS la précision finale, le tri humain reste) ; détecteur P3 pans de
-   toiture (déclencheur : branche D de l'arbre `12`, ou 5 ventes P1).
+10. `[OPUS — APRÈS D0 uniquement (règle « pas de code produit avant »)]` **Ingestion
+   SITADEL** (spec complète dans `docs/02` §SITADEL, issue de la deepsearch ③) : filtres
+   ANN_COD_ANNEXE=1 × particulier × OCTROI, jointure parcelle → PCI → BAN via 20_join,
+   sortie compatible couche 1. Auditer les noms de colonnes réels AVANT de coder
+   (transition SITADEL 3). C'est le moteur de l'« abonnement fraîcheur » (grille `16`).
+
+11. `[FABLE — seulement si déclenché]` : option A détection (déclencheur : B2-terrain
+   plafonne < 95 % après calibration ; noter — doc 15 + DS5 : partir des poids
+   `sp-swimming-pools` CC-BY-4.0 + annotation manuelle BD ORTHO ; JAMAIS AGPL/images
+   Google ; l'option A améliore rappel et débit, PAS la précision finale, le tri humain
+   reste) ; détecteur P3 pans de toiture (déclencheur : branche D de l'arbre `12`, ou
+   5 ventes P1 — noter DS5 : les cadastres solaires publics du 49 sont consultation
+   unitaire, pas de listes → P3 non menacé ; la couche Cerema « potentiel solaire »
+   téléchargeable = intrant possible).
 
 **Interdit tant que D0/D3 n'ont pas parlé : tout nouveau code produit** (`10` §Règles ;
-dérogation moteur du 2026-07-08 close — le moteur est fini).
+dérogation moteur du 2026-07-08 close — le moteur est fini). La tâche 5bis (restauration
+de garde-fous EXISTANTS) et la tâche 5 (runs sur données réelles, pas de nouveau code)
+ne tombent pas sous cette interdiction.
 
-**Deepsearchs demandées à l'humain (résultats à coller ici)** : ① URLs/format/millésime
-BD ORTHO 49 RVB+IRC + date du prochain survol ; ② SITADEL : adresse précise des DP piscine ?
-licence ? ; ③ cadastre solaire public couvrant le 49 (concurrence gratuite de P3) ?
+**Deepsearchs** : ①②③④⑤⑦⑨⑩ **reçues le 2026-07-11**, rangées dans `docs/deepsearch/`
+(synthèse + arbitrages en tête de chaque fiche), `13-DEEPSEARCH.md` supprimé. **Restent
+à lancer par l'humain (prompts conservés ici)** :
+
+> **⑥ Routeurs postaux — coût réel de l'offre « campagne clé en main » (branche B1 de `12`)** :
+> Pour envoyer des campagnes de courrier adressé B2C en France (500 à 5 000 plis par
+> campagne, format lettre ou carte postale) : quels prestataires/routeurs acceptent les
+> petits volumes en 2026 (Merci Facteur pro, Maileva, Mediapost, imprimeurs-routeurs
+> régionaux Pays de la Loire) ? Prix indicatif TOUT COMPRIS par pli (impression couleur +
+> mise sous pli + affranchissement) aux volumes 500 / 2 000 / 5 000, délais, et minimum
+> de commande. API disponible ?
+
+> **⑧ Loi APER (ombrières de parkings) + données parkings/PLU — cible n°1 de `14`** :
+> 1. Loi APER (10 mars 2023, art. 40) et décrets : obligations EXACTES d'équipement en
+> ombrières PV des parkings extérieurs existants en 2026 — seuil (1 500 m² ? places ?),
+> part à couvrir, échéances par taille, exemptions, sanctions ? Assouplissements/reports
+> depuis 2023 ? 2. Parkings en open data : couche BD TOPO (thème, attributs de surface) ?
+> Sinon OSM (amenity=parking, couverture France) ou autre source ouverte avec emprise ?
+> 3. Géoportail de l'urbanisme : téléchargement en masse du zonage PLU (zones U/AU) d'un
+> département (format, URL d'API/atom, licence) ?
+
+## État au 2026-07-11 soir (session Fable — deepsearchs, incident, restauration)
+
+**Deepsearchs ①②③④⑤⑦⑨⑩ reçues et arbitrées** (détail : `docs/deepsearch/README.md`).
+Les arbitrages, en bref — **AUCUN pivot, 4 ajustements** :
+1. **B1 débloqué** (①) : URLs/nommage/format BD ORTHO complets dans `docs/02`. Millésime 49
+   = probablement 2025 (non confirmé — B1 tranche). Prochain survol 2028. Si 2025 confirmé :
+   **diff 2022→2025 possible dès le lancement** → « nouvelles piscines » sans attendre 2028.
+2. **SITADEL viable** (③) → l'« abonnement fraîcheur » 39-59 €/mois de `16` a sa recette
+   technique (docs/02 §SITADEL) ; script = tâche 10, APRÈS D0. Bonus : **PCI Édigéo SYM=65**
+   = couche piscines cadastrées, corroboration idéale (tâche 5/A3bis).
+3. **P2 : biais crue 7 mars 2024 sur MNT/MNH** (②, plausible) + ZICAD → pièges consignés
+   dans `05`. Pas bloquant (P2 est en phase 2), mais à vérifier au premier run P2.
+4. **namR EN LIQUIDATION (vérifié : prononcée le 01/07/2026)** (⑨) → doc `15` corrigé :
+   la thèse technique tient, le modèle « lac de données générique grands comptes » est
+   mort ; notre modèle (activable, local, coûts fixes ~115 €/mois) est le contre-modèle
+   exact. ④⑤⑦⑩ : confirmations (cadastres solaires = pas de concurrence sur les listes ;
+   datasets : CC-BY-4.0 OK / AGPL et Google interdits ; chiffres brokers/leads pour le
+   kit `11` ; pratiques pipelines = nos choix validés).
+
+**Incident de perte de données** (17h30-17h45) : arbre de travail quasi intégralement
+supprimé pendant la session (concomitant du `git init` + fetch de
+`github.com/lesaffrejb-beep/maps` — vraisemblablement un re-clonage 🧑 inachevé ; cause
+exacte non établie). Restauration : `git reset --hard origin/main` (eafbbcf) + survivants
+non commités (prospects.py, 50_prospects_sirene.py, 90_backup.py, test_prospects.py,
+sales/prospects_49.csv, docs/deepsearch/). Perdu définitivement : les 3 correctifs d'audit
++ 6 tests (→ tâche 5bis) et la variante locale des tâches 6/8 (versions cloud PR #10/#11
+retenues). **118 tests verts** après restauration (`.venv/bin/python -m pytest`).
+
+## État au 2026-07-11 (session Fable — audit des modules jamais audités)
+
+> **⚠ POST-INCIDENT : les 3 correctifs de code décrits ci-dessous ont été PERDUS
+> (jamais poussés). La spec reste valable — c'est la tâche 5bis. Les constats (a)-(e)
+> restent valables.**
+
+Le journal du 2026-07-08 notait : « l'agent d'audit externe a été interrompu ; audit refait
+à la main sur 10/16/20/25/30/35 ». Les modules restants (15, 40, common, contrat, detection,
+geometrie, millesimes, solaire, terrasses) n'avaient JAMAIS été audités — dont toute la
+chaîne des garde-fous légaux. Audit fait ; verdicts :
+
+- **corrects tels quels** : solaire.py (formules d'azimut, pas diagonal `res/|drow|`, ordre
+  de propagation — tout vérifié), geometrie.py (pile monotone correcte, reset par ligne),
+  terrasses.py, detection.py, millesimes.py, 15_detect (partition des zones intérieures
+  exacte pour chevauchement pair — 128 px l'est).
+- **3 failles de garde-fous corrigées** (correctifs PERDUS dans l'incident → tâche 5bis) :
+  1. `apply_optout` ne matchait QUE sur id_ban → une opposition art. 11 « par adresse
+     seule » (prévue par procedure_reclamation.md et C4) était silencieusement ignorée ;
+     un id BAN changeant de millésime démariait l'opposition. Correctif : double clé
+     id_ban + adresse normalisée ; refus bruyant si ligne d'opposition sans aucune clé
+     ou si la base n'a pas de colonne adresse.
+  2. `pipeline_version()` retournait « unknown » sans bloquer → garde-fou n°4 contournable.
+     Correctif : 40_export REFUSE tout export non-demo si la version est inconnue.
+  3. Le registre des ventes ne consignait ni adresses-témoins du tatouage ni version
+     (exigés par le garde-fou n°5). Correctif : `tatouer()` retourne les témoins (≤ 5
+     id_ban marqués), colonnes `version_pipeline` + `temoins_tatouage` au registre.
+- **Constats non bloquants, consignés sans correction** (à reprendre si besoin) :
+  (a) ~~le dossier de travail n'est PAS un dépôt git~~ → RÉSOLU le 2026-07-11 (remote
+  `lesaffrejb-beep/maps`, origin/main restauré) — le refus d'export sans version git
+  redevient opérationnel dès la 5bis refaite ; (b) detection/forme garde des candidats
+  jusqu'à 400 m² dont les formes allongées (> 25,6 m) peuvent dépasser le chevauchement de
+  fenêtre — auto-réparé par fusionner_adjacentes dans la quasi-totalité des cas, à
+  surveiller en B2-terrain ; (c) millesimes.py : `set(ja)` reconstruit par élément (perf,
+  cosmétique) ; (d) contrat.py : le motif interdit « age » matche en sous-chaîne (une
+  future colonne `ombrage`/`village` casserait le pipeline — comportement voulu, juste le
+  savoir) ; (e) DeprecationWarning numpy 2.5 dans 15_detect (rasterio `.read`), sans effet.
 
 ## État au 2026-07-07 (session fondation)
 
@@ -121,7 +235,7 @@ Fait par la session d'architecture :
 Stratégie d'orchestration décidée : les tâches à haute complexité algorithmique/architecturale
 sont traitées par les sessions Fable 5 ; les tâches d'exécution mécanique (téléchargements,
 débogage de chaîne sur données réelles, drafts de documents, scripts simples) sont **réservées
-aux sessions Opus 4.8** — elles sont marquées `[OPUS]` ci-dessous.
+aux sessions Opus 4.8** — elles sont marquées `[OPUS]` ci-dessus.
 
 Fait par cette session :
 - **B2 (code) + B3 : étape 1b implémentée et testée.** `detection.py` (cœur pur : masque HSV+IRC,
@@ -130,11 +244,8 @@ Fait par cette session :
   zones intérieures = zéro doublon par construction, masque bâti BD TOPO, appariement RVB/IRC
   par emprise, échecs bruyants), `16_tri_visuel.py` (vignettes + page de tri HTML autonome
   O/N/U + application des décisions avec refus des tris incomplets >2 %).
-- **25 tests** (`pipeline/tests/`, `python -m pytest pipeline/tests/`) : détection sur scènes
-  synthétiques (piscine trouvée à ±20 % de surface, végétation bleutée rejetée par l'IRC,
-  bâche marine rejetée par la teinte, fossé rejeté par la compacité), propriétés du fenêtrage,
-  intégration bout-en-bout sur dalles GeoTIFF fabriquées (15 → 16 → --apply), garde-fous
-  (opt-out, traçabilité, incertains jamais vendus). Tous verts au 2026-07-08.
+- **25 tests** (`pipeline/tests/`) : détection sur scènes synthétiques, propriétés du
+  fenêtrage, intégration bout-en-bout, garde-fous. Tous verts au 2026-07-08.
 - Config `detection:` + `tri_visuel:` ajoutées à `config.yaml` (seuils **non calibrés** sur
   données réelles — valeurs physiquement raisonnables à ajuster en B2-terrain).
 - requirements.txt : + rasterio, scikit-image ≥ 0.26, scipy, pillow, pytest.
@@ -143,27 +254,28 @@ Fait par cette session :
 
 Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à ce stade.
 
-- [ ] **A1.** `[OPUS]` `pip install -r pipeline/requirements.txt` ; lancer `10_download.py` (cadastre, BAN, BD TOPO 49). Corriger les surprises d'URL/format et **consigner ici les URLs réelles utilisées + millésimes**.
+- [ ] **A1.** `[OPUS]` `pip install -r pipeline/requirements.txt` (ou `.venv/` existant) ; lancer `10_download.py` (cadastre, BAN, BD TOPO 49). Corriger les surprises d'URL/format et **consigner ici les URLs réelles utilisées + millésimes**.
 - [ ] **A2.** `[OPUS]` Extraire les piscines OSM (commandes dans `04` étape 1a). Choisir 2 communes bien couvertes (compter les piscines OSM par commune ; viser une péri-urbaine d'Angers + une rurale).
-- [ ] **A3.** `[OPUS]` Lancer `20` puis `30 --dev` puis `35 --dev` sur ces communes. Déboguer. Consigner : % de jointures via `cad_parcelles` vs `nearest` (si `cad_parcelles` < 50 %, activer le dataset "Adresses extraites du cadastre" en complément — voir `02`).
+- [ ] **A3.** `[OPUS]` Lancer `20` puis `30 --dev` puis `35 --dev` sur ces communes. Déboguer. Consigner : % de jointures via `cad_parcelles` vs `nearest` (si `cad_parcelles` < 50 %, activer le dataset "Adresses extraites du cadastre" — voir `02`).
+- [ ] **A3bis.** `[OPUS — nouveau, deepsearch ③]` Extraire les piscines PCI Édigéo `SYM=65` (couche tsurf) des 2 communes ; consigner le taux de recouvrement avec OSM ; décision « corroboration au score » si > 50 %.
 - [ ] **A4.** `[OPUS]` Contrôle visuel de 30 lignes sur le Géoportail : l'adresse tombe-t-elle sur la bonne parcelle ? Consigner le taux et les erreurs types.
 
 ## Phase B — Détection BD ORTHO (l'actif)
 
-- [ ] **B1.** `[OPUS]` Télécharger les dalles BD ORTHO (RVB + IRC) d'UNE commune test. Consigner l'URL/format réel. (Une deepsearch Gemini a été demandée pour les URLs/formats exacts — voir journal.)
-- [x] **B2-code.** ~~Implémenter `15_detect_piscines.py`~~ **Fait 2026-07-08** (+ `detection.py` + 25 tests sur imagerie synthétique). Reste **B2-terrain** `[OPUS, avec les seuils — remonter à Fable si la précision plafonne]` : lancer sur la commune test, mesurer précision/rappel vs OSM, calibrer les seuils `detection:` de config.yaml, consigner ici les chiffres.
-- [x] **B3.** ~~Outil de tri visuel~~ **Fait 2026-07-08** (`16_tri_visuel.py` : planche `tri.html` autonome, O/N/U, export `decisions.csv`, `--apply` avec garde-fous).
-- [ ] **B4.** Décision A/B (modèle entraîné vs seuillage+tri) sur les chiffres de B2-terrain. Consigner la décision et les chiffres. `[FABLE si option A retenue : architecture d'entraînement]`
-- [ ] **B5.** `[OPUS]` Industrialiser sur le département par lots de dalles + tri humain. Sortie : `piscines_detectees_49.parquet`.
+- [ ] **B1.** `[OPUS]` Télécharger les dalles BD ORTHO (RVB + IRC) d'UNE commune test. URLs/nommage/7z : `docs/02` §BD ORTHO (deepsearch ①). Consigner : millésime réel constaté (2022 ou 2025 ?), ordre des bandes IRC vérifié, méthode effective (miroir décompressé ? archive 7z ? sélection par emprise Géoplateforme ?).
+- [x] **B2-code.** ~~Implémenter `15_detect_piscines.py`~~ **Fait 2026-07-08**. Reste **B2-terrain** `[OPUS, avec les seuils — remonter à Fable si la précision plafonne]` : lancer sur la commune test, mesurer précision/rappel vs OSM, calibrer les seuils `detection:` de config.yaml, consigner les chiffres.
+- [x] **B3.** ~~Outil de tri visuel~~ **Fait 2026-07-08** (+ tri par incertitude 2026-07-11, PR #10).
+- [ ] **B4.** Décision A/B (modèle entraîné vs seuillage+tri) sur les chiffres de B2-terrain. Consigner la décision et les chiffres. `[FABLE si option A retenue — poids de départ : sp-swimming-pools CC-BY-4.0, voir DS5]`
+- [ ] **B5.** `[OPUS]` Industrialiser sur le département par lots de dalles + tri humain. Sortie : `piscines_detectees_49.parquet`. (Pré-requis git ✅ résolu 2026-07-11.)
 - [ ] **B6.** `[OPUS]` Chaîne complète 20→30 en mode production ; `35 --dept` pour le chiffre total.
 
 ## Phase C — Qualité & légal (bloquants avant vente)
 
-- [ ] **C1.** Protocole de validation `06` §2 (100 adresses aléatoires, ≥ 95 %). Consigner le rapport.
-- [x] **C2.** ~~Checklist légale `03` §6 : rédiger LIA + AIPD + registre + politique de confidentialité + compléter `docs/templates/notice_art14.txt`~~ **Fait 2026-07-09** (`docs/legal/`, 5 drafts marqués « à valider avocat » ; bloqueurs 🧑 = nom/forme/adresse/email/URL + avis avocat).
+- [ ] **C1.** Protocole de validation `06` §2 (100 adresses aléatoires ; annoncer la borne basse de Wilson 95 %). Consigner le rapport.
+- [x] **C2.** ~~Checklist légale `03` §6~~ **Fait 2026-07-09** (`docs/legal/`, 5 drafts « à valider avocat » ; bloqueurs 🧑 = nom/forme/adresse/email/URL + avis avocat).
 - [ ] **C3.** Contrat de licence draft + **relecture avocat** (action humaine, à planifier tôt : compter 2 semaines de délai).
-- [ ] **C4.** Canal d'opposition opérationnel (email DÉDIÉ — pas le gmail perso, non sérieux en contrôle — + page web statique avec formulaire) + test du filtre opt-out avec une adresse factice + process art. 11 écrit (opposition sans identité : matching par adresse seule).
-- [x] **C5.** ~~`[OPUS]` « Pack incident » (pre-mortem `10` §9) : Q&A presse 1 page + procédure de réclamation~~ **Fait 2026-07-09** (`docs/legal/qa_presse.md` + `docs/legal/procedure_reclamation.md` ; opposition art. 11 sans identité + schéma `reclamations.csv`).
+- [ ] **C4.** Canal d'opposition opérationnel (email DÉDIÉ + page web statique avec formulaire) + test du filtre opt-out avec une adresse factice + process art. 11 écrit (opposition sans identité : matching par adresse seule — nécessite la 5bis).
+- [x] **C5.** ~~« Pack incident » (pre-mortem `10` §9)~~ **Fait 2026-07-09**.
 
 ## Phase D — Vente
 
@@ -175,8 +287,8 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 - [ ] **D0. [HUMAIN, cette semaine]** Pré-vente avant la base : appeler 5 pisciniers du 49
   avec le pitch (`00` + `07`). Objectif : tester le prix réel (« à 800 € vous prenez ? ») et
   l'appétence pour une offre « fichier + mailing clé en main ». Consigner chaque réponse ici.
-  C'est le test des deux hypothèses les plus dangereuses du plan (`10` §hypothèses).
-- [ ] **D1.** `[OPUS]` Liste de prospects B2B (SIRENE + annuaire — méthode dans `07` §1). Cible : 30 pisciniers/vendeurs 49.
+- [x] **D1.** ~~Liste de prospects B2B~~ **Fait 2026-07-11** (`sales/prospects_49.csv`, 969
+  prospects dont 43 pisciniers avérés ; voir tâche 4). Enrichissement tel/site + triage = 🧑.
 - [ ] **D2.** `41_export_carte.py` (PDF carte pour RDV) — à écrire, simple (matplotlib + contextily).
 - [ ] **D3.** 4-5 RDV de preuve (protocole `07` §3). Consigner objections réelles et prix acceptés.
 - [ ] **D4.** Premières ventes ; registre des ventes tenu ; ajuster la grille tarifaire de `00` avec les prix réels.
@@ -185,25 +297,18 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 
 - **`docs/09-MOTEUR-PROSPECTION.md` créé** : le repo est officiellement un moteur de
   prospection multi-produits (5 couches, seule la couche « détecteur » est spécifique à un
-  produit ; couches tri/adressage/qualité/export mutualisées et porteuses des garde-fous).
-  Portefeuille de produits scoré (P1 piscines → P7) + **critères de pivot chiffrés décidés à
-  froid** (Go/No-Go P1 : 10 RDV, < 2 ventes ou < 300 €/extrait ⇒ pivot P2 ou P3).
-- **Cœur du produit 2 écrit et testé : `pipeline/src/solaire.py`** (position solaire,
-  ombres portées vectorisées sur MNS, heures de soleil direct aux 3 dates contractuelles).
-  12 tests physiques verts (37 au total). Décision consignée : moteur natif remplace GRASS
-  r.sun (voir docs/05 §3 et l'en-tête du module). Réutilisable tel quel pour P3 (toitures PV).
-- ~~Reste `[FABLE]` : 25_terrasses.py~~ → **fait (3e passe, 2026-07-08)** : détecteur produit 2
-  complet (`terrasses.py` + `25_terrasses.py`, mosaïque inter-dalles pour les ombres, masque
-  MNH « la canopée d'un arbre ensoleillé n'est pas une terrasse », classes sur surface
-  contiguë). 8 tests dont bout-en-bout (jardin sud dégagé → plein_soleil, cour emmurée →
-  ombrage). **45 tests verts au total.** Le produit 2 n'attend plus que les dalles MNS/MNH
-  réelles `[OPUS]` — mais reste bloqué par la règle « P1 vendu d'abord » (docs/05).
-- Reste `[OPUS]` : généralisation cosmétique de 20/30 (voir 09 §6).
+  produit). Portefeuille de produits scoré (P1 piscines → P7) + **critères de pivot chiffrés
+  décidés à froid** (Go/No-Go P1 : 10 RDV, < 2 ventes ou < 300 €/extrait ⇒ pivot P2 ou P3).
+- **Cœur du produit 2 écrit et testé : `pipeline/src/solaire.py`** (12 tests physiques
+  verts). Moteur natif remplace GRASS r.sun (docs/05 §3). Réutilisable pour P3 (toitures PV).
+- **Détecteur produit 2 complet** (`terrasses.py` + `25_terrasses.py`, mosaïque inter-dalles
+  pour les ombres, masque MNH, classes sur surface contiguë). Le produit 2 n'attend plus que
+  les dalles MNS/MNH réelles `[OPUS]` — mais reste bloqué par « P1 vendu d'abord » (docs/05).
 
 ## Phase E — Extension (après premières ventes)
 
-- [ ] **E1.** Produit 2 Terrasses (architecture prête : `05`) — prototype 1 commune.
-- [ ] **E2.** Diff de millésimes → produit "nouvelles piscines" (prospects chauds).
+- [ ] **E1.** Produit 2 Terrasses (architecture prête : `05` ; ⚠ pièges crue 2024/ZICAD ajoutés) — prototype 1 commune.
+- [ ] **E2.** Diff de millésimes → produit "nouvelles piscines" (prospects chauds). ⚠ Possible dès le lancement si millésime 2025 confirmé en B1 (diff 2022→2025).
 - [ ] **E3.** Réplication département voisin (44 ou 85) : re-dérouler A→D avec `dept` changé dans config.
 
 ## Journal des mesures
@@ -218,35 +323,42 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-08 | orchestration | Répartition modèles : tâches `[OPUS]` = exécution ; Fable = algorithmique/architecture | deepsearch Gemini demandée à l'humain : URLs/format BD ORTHO 49 (RVB+IRC) |
 | 2026-07-08 | architecture | Repo = moteur multi-produits (doc 09) ; critères de pivot chiffrés | un pivot = un détecteur + une doc, l'aval est mutualisé |
 | 2026-07-08 | P2 (cœur) | solaire.py natif remplace GRASS r.sun ; 12 tests physiques verts | même cœur réutilisable P3 toitures PV ; kWh non nécessaires (classement) |
-| 2026-07-08 | pre-mortem | 2 analyses indépendantes (investisseur/concurrent + juriste/ops) → `docs/10-PREMORTEM.md` | risque n°1 : inversion de séquence (code avant vente/légal) ; kill-switch 15/10/2026 adopté |
-| 2026-07-08 | pre-mortem | Abonnement « annuel » impossible (BD ORTHO ~3 ans) — sur-promesse corrigée dans `00` | parade : SITADEL (permis piscine, mensuel) ajouté à `02` ; millésime 49 à vérifier (deepsearch) |
-| 2026-07-08 | pre-mortem | `40_export_client.py --demo` : les extraits de RDV = confiance haute uniquement | le maillon fragile en démo est la jointure d'adresse, pas la détection |
-| 2026-07-08 | vente | Kit D0 complet (`11`) : cold call, cold email, RDV sans base, objections, grille prix, grille de consignation | positionnement honnête « je finalise la carte » (la base n'existe pas encore) |
-| 2026-07-08 | stratégie | Arbre de décision terrain (`12`) : branches D0 et post-RDV décidées à froid + 7 options gros ticket scorées | franchises siège 5-30 k€, PAC, clé en main ×3-5, marque blanche ; assureurs GELÉ (RGPD aggravé) |
-| 2026-07-08 | orchestration | CLAUDE.md : ordre de lecture + routage [OPUS]/[FABLE]/[HUMAIN] ; bloc « prochaine session » en tête de roadmap | la tour de contrôle est transmise — les sessions suivantes ont tout |
-| 2026-07-08 | R&D moteur | contrat.py (validation couche 1 + scan anti-nominatif automatisé) ; ombres_rapide ×59 mesuré ; ids stables ; tri en fichiers | 82 tests verts ; le moteur est clos — dérogation « code avant vente » terminée |
-| 2026-07-08 | audit pièges | 5 pièges corrigés : BAN sans x/y, --bdtopo-url manquant, millésimes non datés, 2 scans linéaires (tri dalles, parcelles/dalle) → index spatiaux | l'agent d'audit externe a été interrompu ; audit refait à la main sur 10/16/20/25/30/35 |
-| 2026-07-08 | cibles moteur | Doc `14` : recensement attribut→acheteur, top 3 arbitré (① ombrières APER, ② foncier divisible, ③ grandes toitures) | acheteurs pros de la donnée, tickets 10-100× ; s'active via l'arbre `12`, ne double PAS D0-pisciniers |
-| 2026-07-08 | R&D géométrie | `geometrie.py` : rectangle libre maximal à orientation libre (histogramme + rotations), cœur commun ombrières/foncier — 8 tests | 90 tests verts au total ; deepsearch ⑧ (APER/parkings/PLU) ajoutée à `13` |
-| 2026-07-08 | état de l'art | Doc `15` : Foncier innovant = 94 % annoncé + polémique faux positifs ; DL brut ≈ 80/85 % précision/rappel | nos choix validés (tri humain = LA différence) ; 2 améliorations [OPUS] (tri par incertitude, Wilson) ; prompts ⑨⑩ dans `13` |
-| 2026-07-08 | état de l'art 2 | APER : assouplie (Huwart) mais échéances 2026/2028 MAINTENUES, bon de commande avant le 31/12/2026 → cible ① brûlante | namR (coté, open data retraité) valide la thèse ; artisans locaux = angle mort des gros |
-| 2026-07-08 | concurrence P1 | ⚠ Cartégie/Easyfichiers louent déjà des fichiers piscines NOMINATIFS (1 M+, téléphones) — risque n°8 du pre-mortem confirmé | repositionnement P1 (achat + vérifiable + zéro risque RGPD + exclusivité) dans kit `11` ; le segment imprenable = « nouvelles » locales |
-| 2026-07-08 | R&D millésimes | `millesimes.py` : diff par appariement spatial un-pour-un (les ids stables ne survivent pas au recalage inter-millésimes) — 7 tests, 97 verts au total | garde-fou : > 50 % de « nouvelles » = recalage suspect, refus de vendre ; CLI 45 spécifiée [OPUS] |
-| 2026-07-08 | décisions op | Doc `16` : TOUT le reste est tranché — livrable (ZIP xlsx+csv+pdf+notices, pas de portail), stockage (local + backup chiffré, l'actif jamais sur git), flux de dossiers, grille tarifaire v1 (490 € lancement → 39-59 €/mois veille = l'indispensable), doctrine de recoupement (corrobore, ne crée jamais ; OSM exclu même du score), micro-entreprise, budget ~115 €/mois tenu | 4 tâches [OPUS] cadrées en découlent (n°8) ; 🧑 restent : nom commercial, forme juridique (avec avocat C3), RC pro, numéro dédié |
-| 2026-07-09 | C2 légal | 5 drafts rédigés (`docs/legal/` : LIA, AIPD, registre art. 30, politique de confidentialité + notice art. 14 complétée), chacun marqué « DRAFT — à valider avocat » | art. 14.5.b traité (mesures compensatoires publiques : politique publique + encart presse + opt-out en ligne AVANT tout courrier) ; 4 clauses `10` §5 portées par la LIA ; bloqueurs 🧑 = nom/forme/adresse/email/URL + avis avocat data sur la LIA (bloquant lancement) |
-| 2026-07-09 | C5 pack incident | Q&A presse (`docs/legal/qa_presse.md`) + procédure réclamation/opposition (`docs/legal/procedure_reclamation.md`), ≤ 1 page chacun | ligne fausse → remède 90 j + `data/validation/reclamations.csv` (étiquette négative) ; opposition art. 11 par adresse seule, propagation acheteurs via registre ; « à ne jamais dire » (fisc, 100 %) cadré |
-| 2026-07-09 | état de l'art (tâche 6) | (a) tri des vignettes par incertitude `|score-0,5|` ↑ (`16_tri`) ; (b) précision annoncée = borne basse Wilson 95 % (`common.borne_basse_wilson`, protocole `06`) | anti-sur-promesse mesuré : 96/100 → annonce 90 %, 196/200 → 95 % (il faut agrandir n, pas le discours) ; +7 tests, 104 verts |
-| 2026-07-09 | décisions op (tâche 8 a+b) | (a) livrable `.xlsx` (`40_export.ecrire_xlsx` : en-tête figé, filtres, largeurs) ; (b) archive datée de l'actif (`common.archiver_copie_datee`, câblée dans `30_score`) | openpyxl ajouté ; +5 tests, 109 verts ; (c) `90_backup.py` laissé en attente (choix age/gpg + remote rclone + clé `backup:` à trancher 🧑, non testable en cloud) |
+| 2026-07-08 | pre-mortem | 2 analyses indépendantes → `docs/10-PREMORTEM.md` | risque n°1 : inversion de séquence ; kill-switch 15/10/2026 adopté |
+| 2026-07-08 | pre-mortem | Abonnement « annuel » impossible (BD ORTHO ~3 ans) — corrigé dans `00` | parade : SITADEL ajouté à `02` ; millésime 49 à vérifier (deepsearch) |
+| 2026-07-08 | pre-mortem | `40_export_client.py --demo` : extraits RDV = confiance haute uniquement | le maillon fragile en démo est la jointure d'adresse, pas la détection |
+| 2026-07-08 | vente | Kit D0 complet (`11`) | positionnement honnête « je finalise la carte » |
+| 2026-07-08 | stratégie | Arbre de décision terrain (`12`) : branches décidées à froid + 7 options gros ticket scorées | franchises siège 5-30 k€, PAC, clé en main ×3-5, marque blanche ; assureurs GELÉ |
+| 2026-07-08 | orchestration | CLAUDE.md : ordre de lecture + routage [OPUS]/[FABLE]/[HUMAIN] | la tour de contrôle est transmise |
+| 2026-07-08 | R&D moteur | contrat.py + ombres_rapide ×59 + ids stables + tri en fichiers | 82 tests verts ; le moteur est clos |
+| 2026-07-08 | audit pièges | 5 pièges corrigés (BAN sans x/y, --bdtopo-url, millésimes non datés, 2 scans linéaires → index spatiaux) | audit refait à la main sur 10/16/20/25/30/35 |
+| 2026-07-08 | cibles moteur | Doc `14` : attribut→acheteur, top 3 arbitré (① ombrières APER, ② foncier divisible, ③ grandes toitures) | tickets 10-100× ; s'active via l'arbre `12`, ne double PAS D0-pisciniers |
+| 2026-07-08 | R&D géométrie | `geometrie.py` : rectangle libre maximal à orientation libre — 8 tests | 90 tests verts ; deepsearch ⑧ (APER/parkings/PLU) demandée |
+| 2026-07-08 | état de l'art | Doc `15` : Foncier innovant = 94 % annoncé + polémique faux positifs ; DL brut ≈ 80/85 % | nos choix validés (tri humain = LA différence) |
+| 2026-07-08 | état de l'art 2 | APER : assouplie (Huwart) mais échéances 2026/2028 MAINTENUES, bon de commande avant le 31/12/2026 → cible ① brûlante | namR (coté) valide la thèse ; artisans locaux = angle mort des gros |
+| 2026-07-08 | concurrence P1 | ⚠ Cartégie/Easyfichiers louent déjà des fichiers piscines NOMINATIFS (1 M+, téléphones) | repositionnement P1 dans kit `11` ; segment imprenable = « nouvelles » locales |
+| 2026-07-08 | R&D millésimes | `millesimes.py` : diff par appariement spatial un-pour-un — 7 tests | garde-fou : > 50 % de « nouvelles » = recalage suspect, refus de vendre |
+| 2026-07-08 | décisions op | Doc `16` : livrable ZIP xlsx+csv+pdf+notices, stockage local + backup chiffré, grille tarifaire v1 (490 € lancement → 39-59 €/mois veille), doctrine de recoupement, micro-entreprise, budget ~115 €/mois | 🧑 restent : nom commercial, forme juridique, RC pro, numéro dédié |
+| 2026-07-09 | C2 légal | 5 drafts rédigés (`docs/legal/`), art. 14.5.b traité, 4 clauses `10` §5 portées par la LIA | bloqueurs 🧑 = nom/forme/adresse/email/URL + avis avocat data (bloquant lancement) |
+| 2026-07-09 | C5 pack incident | Q&A presse + procédure réclamation/opposition ≤ 1 page chacun | remède 90 j + `reclamations.csv` ; opposition art. 11 par adresse seule ; « à ne jamais dire » cadré |
+| 2026-07-11 | audit garde-fous | 3 failles corrigées (opt-out par adresse art. 11, refus d'export sans version git, témoins de tatouage au registre) + 6 tests | ⚠ **correctifs PERDUS dans l'incident du 2026-07-11 (jamais poussés) → tâche 5bis** ; les constats (a)-(e) restent valables |
+| 2026-07-11 | D1 prospects | `prospects.py` + CLI + 9 tests → `sales/prospects_49.csv` : **969 prospects, 43 « haute »** | API « Recherche d'entreprises » DINUM (SIRENE sans clé, NAF pointé) ; hybride NAF+mot-clé ; garde-fous non-nominatifs (451 EI écartés) ; survivants de l'incident, À COMMITER |
+| 2026-07-11 | env | venv projet `.venv/` avec tout requirements.txt + `7z` (brew p7zip) | le Python système n'a pas les deps géo → `.venv/bin/python -m pytest` |
+| 2026-07-11 | items 6+8 | Implémentations CLOUD mergées : PR #10 (cle_incertitude + borne_basse_wilson + docs/06) et PR #11 (ecrire_xlsx + archiver_copie_datee) ; 90_backup.py (8c) écrit localement (survivant) + clé `backup:` réajoutée | les variantes locales décrites avant l'incident (qualite.py, test_tri/export/archive) sont perdues et caduques — versions cloud font foi |
+| 2026-07-11 | deepsearch | ①②③④⑤⑦⑨⑩ reçues, rangées (`docs/deepsearch/`), arbitrées : B1 débloqué, SITADEL viable (tâche 10), PCI SYM=65 en corroboration (A3bis), crue LiDAR 2024 = piège P2, datasets AGPL/Google interdits, chiffres brokers/leads pour kit `11` | vérifs web : namR liquidation CONFIRMÉE (01/07/2026) ; millésime ortho 2025 et crue 7/3/2024 PLAUSIBLES non confirmés (B1 / 1er run P2 tranchent) ; ⑥ et ⑧ restent à lancer |
+| 2026-07-11 | ⚠ INCIDENT | Arbre de travail quasi intégralement supprimé en cours de session (concomitant git init+fetch ; cause exacte non établie) ; restauré via `git reset --hard origin/main` + survivants | perdu : correctifs audit (→ 5bis) ; **118 tests verts** post-restauration ; leçon : COMMIT+PUSH après chaque tâche |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 
 | Mesure | Valeur | Commentaire |
 |---|---|---|
 | Commune test (INSEE) | | |
+| Millésime BD ORTHO constaté (B1) | | 2022 ou 2025 ? conditionne le diff « nouvelles » (E2) |
+| Ordre des bandes IRC vérifié (B1) | | attendu : 1=PIR, 2=R, 3=V (deepsearch ①) |
 | % jointures cad_parcelles (A3) | | seuil d'alerte : < 50 % → activer « Adresses cadastre » (doc 02) |
+| Recouvrement SYM=65 vs OSM (A3bis) | | > 50 % → corroboration au score |
 | Taux contrôle visuel 30 lignes (A4) | | |
 | Candidats bruts 15_detect (B2) | | |
 | Ratio candidats / piscines OSM | | seuil d'alerte : > 4:1 → tri humain intenable au dept (doc 10 §8) |
-| Précision après tri (échantillon) | | objectif ≥ 95 % |
+| Précision après tri (échantillon) | | objectif ≥ 95 % (borne basse Wilson) |
 | Rappel vs OSM | | |
 | Seuils modifiés (avant → après) | | |
