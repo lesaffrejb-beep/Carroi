@@ -202,54 +202,141 @@ def dessiner_surimpression(img: np.ndarray, cx: float, cy: float, cote_m: float,
 HTML_TEMPLATE = """<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><title>Tri piscines — __DEPT__</title>
 <style>
- body{font-family:system-ui,sans-serif;margin:0;background:#111;color:#eee;display:flex;flex-direction:column;height:100vh}
- header{padding:10px 16px;background:#1c1c1c;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
- #compteur{font-variant-numeric:tabular-nums}
- main{flex:1;display:flex;align-items:center;justify-content:center;position:relative}
- img{max-height:80vh;max-width:90vw;image-rendering:pixelated;outline:2px solid #333}
- .badge{position:absolute;top:12px;right:12px;font-size:2rem;font-weight:bold;padding:4px 14px;border-radius:8px}
- .oui{background:#1b5e20}.non{background:#b71c1c}.incertain{background:#e65100}
- .cadbadge{position:absolute;top:12px;left:12px;font-size:1.1rem;font-weight:bold;padding:4px 12px;border-radius:8px;background:#0d47a1;color:#fff;box-shadow:0 0 0 2px #fff3}
+ body{font-family:system-ui,sans-serif;margin:0;background:#111;color:#eee}
+ header{position:sticky;top:0;z-index:10;background:#1c1c1c;padding:10px 16px;box-shadow:0 2px 10px #000c}
+ h1{font-size:1.25rem;margin:0 0 6px}
+ h1 .rouge{color:#ff2d55}
+ #barre{display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:.95rem}
+ #compteur{font-variant-numeric:tabular-nums;font-weight:bold}
  #corrobore_count{color:#64b5f6}
- footer{padding:8px 16px;background:#1c1c1c;font-size:.9rem;color:#aaa}
+ #jauge-fond{flex:1;min-width:140px;height:10px;background:#333;border-radius:5px;overflow:hidden}
+ #jauge{height:100%;width:0;background:#4caf50;transition:width .15s}
+ #touches{margin-top:6px;font-size:.85rem;color:#bbb}
  button{background:#333;color:#eee;border:1px solid #555;border-radius:6px;padding:6px 12px;cursor:pointer}
+ #btn-export{background:#1565c0;border-color:#1e88e5;font-weight:bold}
+ #btn-reset{font-size:.78rem;color:#999;background:none;border:none;text-decoration:underline}
  kbd{background:#333;border-radius:4px;padding:1px 6px;border:1px solid #555}
+ details#regles{margin:12px 16px;background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:10px 16px;max-width:900px}
+ details#regles summary{cursor:pointer;font-weight:bold;font-size:1.05rem}
+ details#regles li{margin:5px 0;line-height:1.4}
+ #galerie{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;padding:14px 16px}
+ .carte{margin:0;position:relative;border:3px solid #333;border-radius:8px;overflow:hidden;cursor:pointer;background:#000}
+ .carte img{display:block;width:100%;image-rendering:pixelated}
+ .carte figcaption{padding:4px 8px;font-size:.8rem;color:#aaa;background:#1c1c1c}
+ .carte.focus{border-color:#fff;box-shadow:0 0 0 3px #fff5}
+ .carte.dec-oui{border-color:#2e7d32}.carte.dec-non{border-color:#c62828}.carte.dec-incertain{border-color:#ef6c00}
+ .marque{position:absolute;top:8px;right:8px;font-weight:bold;font-size:1rem;padding:2px 10px;border-radius:6px;color:#fff}
+ .dec-oui .marque{background:#2e7d32}.dec-non .marque{background:#c62828}.dec-incertain .marque{background:#ef6c00}
+ .cad{position:absolute;top:8px;left:8px;font-size:.85rem;font-weight:bold;padding:2px 8px;border-radius:6px;background:#0d47a1;color:#fff;box-shadow:0 0 0 2px #fff3}
 </style></head><body>
 <header>
- <strong>Tri piscines __DEPT__</strong>
- <span id="compteur"></span>
- <span id="corrobore_count"></span>
- <button onclick="exporter()">Exporter decisions.csv</button>
- <button onclick="if(confirm('Effacer toutes les décisions ?')){localStorage.removeItem(CLE);location.reload()}">Réinitialiser</button>
+ <h1>Y a-t-il une piscine dans le <span class="rouge">CONTOUR ROUGE</span> ?</h1>
+ <div id="barre">
+  <span id="compteur"></span>
+  <div id="jauge-fond"><div id="jauge"></div></div>
+  <span id="corrobore_count"></span>
+  <button id="btn-export" onclick="exporter()">Exporter decisions.csv</button>
+  <button id="btn-reset" onclick="if(confirm('Effacer TOUTES les décisions et repartir de zéro ?')){localStorage.removeItem(CLE);location.reload()}">réinitialiser le tri</button>
+ </div>
+ <div id="touches"><kbd>O</kbd> = piscine · <kbd>N</kbd> = pas une piscine ·
+  <kbd>U</kbd> = incertain (sera ÉCARTÉ de la vente) · <kbd>Z</kbd> ou <kbd>←</kbd> = annuler la dernière décision
+  — cliquer une vignette déjà triée pour la corriger.</div>
 </header>
-<main><img id="vue" alt="vignette"><div id="cadastre" class="cadbadge" hidden>⌂ cadastré</div><div id="badge" class="badge" hidden></div></main>
-<footer><kbd>O</kbd> piscine &nbsp; <kbd>N</kbd> pas piscine &nbsp; <kbd>U</kbd> incertain &nbsp;
- <kbd>←</kbd>/<kbd>→</kbd> naviguer — les décisions sont sauvegardées localement à chaque touche ;
- exporter le CSV à la fin puis lancer <code>16_tri_visuel.py --apply</code>.</footer>
+<details id="regles">
+ <summary>Règles du jeu (à lire avant de trier)</summary>
+ <p>Vous validez l'<strong>EXISTENCE</strong> de la piscine, pas son adresse (l'adresse est calculée ailleurs, par le cadastre).</p>
+ <ul>
+  <li><strong>O (oui)</strong> : bassin manifeste dans le contour rouge — enterré, semi-enterré ou hors-sol rigide, même bâché ou hors d'eau.</li>
+  <li><strong>N (non)</strong> : bâche/pergola, trampoline, toit ou store bleu, bassin d'ornement/étang, ombre, véhicule…</li>
+  <li><strong>U (incertain)</strong> : vous hésitez vraiment. L'incertain n'est JAMAIS vendu — dans le doute, on écarte. Mais si vous êtes sûr à ~90 %, répondez O ou N.</li>
+  <li><strong>Piscine du voisin</strong> visible au bord de l'image : IGNOREZ-la, jugez uniquement le contour rouge (elle a sa propre vignette ailleurs).</li>
+  <li><strong>Le contour rouge ne couvre qu'un morceau</strong> d'une vraie piscine : O quand même (la géométrie est recollée ailleurs).</li>
+  <li><strong>Badge ⌂ cadastré</strong> : le cadastre connaît une piscine ici — quasi certain, allez vite (O sauf contre-évidence flagrante).</li>
+  <li><strong>Les traits jaunes</strong> sont les limites de parcelles cadastrales, pour situer.</li>
+ </ul>
+</details>
+<div id="galerie"></div>
 <script>
 const ITEMS = __ITEMS__;
 const CLE = "tri_piscines___DEPT__";
 let dec = JSON.parse(localStorage.getItem(CLE) || "{}");
-let i = ITEMS.findIndex(it => !(it.id in dec)); if (i < 0) i = 0;
+let histo = [];  // pile d'annulation (session courante)
+let i = -1;
+
+// Panneau règles : ouvert par défaut à la PREMIÈRE visite, état mémorisé ensuite.
+const regles = document.getElementById("regles");
+regles.open = localStorage.getItem(CLE + "_regles") !== "ferme";
+regles.addEventListener("toggle",
+  () => localStorage.setItem(CLE + "_regles", regles.open ? "ouvert" : "ferme"));
+
+// Galerie : une carte par candidat, chargement paresseux des vignettes.
+const gal = document.getElementById("galerie"), cartes = {};
+ITEMS.forEach((it, k) => {
+  const fig = document.createElement("figure");
+  fig.className = "carte";
+  fig.dataset.id = it.id;
+  fig.dataset.corrobore = it.corrobore ? "1" : "0";
+  fig.innerHTML =
+    `<img loading="lazy" src="${it.png}" alt="candidat ${it.id}">` +
+    (it.corrobore ? '<span class="cad">⌂ cadastré</span>' : '') +
+    `<span class="marque"></span>` +
+    `<figcaption>${it.surface.toFixed(0)} m² · score ${it.score.toFixed(2)} · ${it.id}</figcaption>`;
+  fig.addEventListener("click", () => focaliser(k));
+  gal.appendChild(fig);
+  cartes[it.id] = fig;
+});
 const N_CORR = ITEMS.filter(it => it.corrobore).length;
 document.getElementById("corrobore_count").textContent =
   `${ITEMS.length} candidats dont ${N_CORR} corroborés cadastre`;
-function maj(){
-  const it = ITEMS[i];
-  const vue = document.getElementById("vue");
-  vue.src = it.png;
-  vue.dataset.corrobore = it.corrobore ? "1" : "0";
-  document.getElementById("cadastre").hidden = !it.corrobore;
-  const d = dec[it.id], b = document.getElementById("badge");
-  b.hidden = !d; if(d){b.textContent = d.toUpperCase(); b.className = "badge " + d;}
-  const faits = Object.keys(dec).length;
-  document.getElementById("compteur").textContent =
-    `${i+1}/${ITEMS.length} — ${faits} décidé(s) (${(100*faits/ITEMS.length).toFixed(1)} %)` +
-    ` — id ${it.id}, ${it.surface} m², score ${it.score}`;
+
+function premierNonTrie(depuis){
+  for (let k = depuis; k < ITEMS.length; k++) if (!(ITEMS[k].id in dec)) return k;
+  for (let k = 0; k < depuis; k++) if (!(ITEMS[k].id in dec)) return k;
+  return Math.max(0, Math.min(depuis, ITEMS.length - 1));
 }
-function decider(v){ dec[ITEMS[i].id] = v; localStorage.setItem(CLE, JSON.stringify(dec));
-  if (i < ITEMS.length - 1) i++; maj(); }
+function marquer(id){
+  const c = cartes[id], d = dec[id];
+  c.classList.remove("dec-oui", "dec-non", "dec-incertain");
+  c.querySelector(".marque").textContent = d ? d.toUpperCase() : "";
+  if (d) c.classList.add("dec-" + d);
+}
+function focaliser(k, defiler = true){
+  if (i >= 0) cartes[ITEMS[i].id].classList.remove("focus");
+  i = k;
+  const c = cartes[ITEMS[i].id];
+  c.classList.add("focus");
+  if (defiler) c.scrollIntoView({block: "center", behavior: "smooth"});
+  maj();
+}
+function maj(){
+  const faits = Object.keys(dec).length, reste = ITEMS.length - faits;
+  document.getElementById("compteur").textContent =
+    `Reste ${reste} à trier / ${ITEMS.length} total`;
+  document.getElementById("jauge").style.width = (100 * faits / ITEMS.length) + "%";
+  document.getElementById("btn-export").textContent = reste
+    ? `Exporter decisions.csv (il reste ${reste} non triés — l'application refusera au-delà de 2 %)`
+    : "Exporter decisions.csv";
+}
+function decider(v){
+  const it = ITEMS[i];
+  histo.push({id: it.id, avant: dec[it.id]});
+  dec[it.id] = v;
+  localStorage.setItem(CLE, JSON.stringify(dec));
+  marquer(it.id);
+  focaliser(premierNonTrie(i + 1));
+}
+function annuler(){
+  const h = histo.pop();
+  if (!h) return;
+  if (h.avant === undefined) delete dec[h.id]; else dec[h.id] = h.avant;
+  localStorage.setItem(CLE, JSON.stringify(dec));
+  marquer(h.id);
+  focaliser(ITEMS.findIndex(it => it.id === h.id));
+}
 function exporter(){
+  const reste = ITEMS.length - Object.keys(dec).length;
+  if (reste) alert(`Il reste ${reste} vignette(s) non triée(s) — l'application (--apply) ` +
+                   `refusera au-delà de 2 %. Le CSV est exporté quand même.`);
   let csv = "id_detection,decision\\n";
   for (const [id, v] of Object.entries(dec)) csv += `${id},${v}\\n`;
   const a = document.createElement("a");
@@ -260,23 +347,48 @@ document.addEventListener("keydown", e => {
   if (e.key === "o" || e.key === "O") decider("oui");
   else if (e.key === "n" || e.key === "N") decider("non");
   else if (e.key === "u" || e.key === "U") decider("incertain");
-  else if (e.key === "ArrowRight" && i < ITEMS.length - 1) { i++; maj(); }
-  else if (e.key === "ArrowLeft" && i > 0) { i--; maj(); }
+  else if (e.key === "z" || e.key === "Z" || e.key === "ArrowLeft") annuler();
+  else if (e.key === "ArrowRight") focaliser(premierNonTrie(i + 1));
 });
-maj();
+// Reprise : restaurer les marques puis sauter à la première vignette non triée.
+for (const id of Object.keys(dec)) if (id in cartes) marquer(id);
+focaliser(premierNonTrie(0), Object.keys(dec).length > 0);
 </script></body></html>
 """
 
 
-def generer_planche(candidats: gpd.GeoDataFrame, ortho_dir: Path, cfg: dict, out_dir: Path) -> Path:
+def rendre_html(items: list[dict], dept: str) -> str:
+    """Injecte les candidats et le département dans le gabarit. Pure et testable :
+    le contrat d'export (id_detection,decision ∈ oui/non/incertain) est porté par
+    le JS de ce gabarit, les tests vérifient la présence des blocs clés."""
+    return (HTML_TEMPLATE
+            .replace("__DEPT__", dept)
+            .replace("__ITEMS__", json.dumps(items)))
+
+
+def generer_planche(candidats: gpd.GeoDataFrame, ortho_dir: Path, cfg: dict, out_dir: Path,
+                    reutiliser_vignettes: bool = False) -> Path:
     tri_cfg = cfg["tri_visuel"]
     cote_m, out_px = tri_cfg["vignette_m"], tri_cfg["vignette_px"]
     index = indexer_dalles(ortho_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    vign_dir = out_dir / "vignettes"
+    vign_dir.mkdir(parents=True, exist_ok=True)
+
+    # --reutiliser-vignettes : ne re-rendre que les PNG manquants (régénérer le
+    # HTML seul prend quelques secondes au lieu de ~6 min pour 977 vignettes).
+    if reutiliser_vignettes:
+        a_rendre = {str(i) for i in candidats["id_detection"]
+                    if not (vign_dir / f"{i}.png").exists()}
+        log.info("Réutilisation des vignettes existantes : %d PNG à (re)rendre.", len(a_rendre))
+    else:
+        a_rendre = {str(i) for i in candidats["id_detection"]}
+
     # Surimpression cadastrale : limites de parcelles (le trieur voit si la piscine
     # est chez le voisin) + badge « corroboré » (piscine cadastrée PCI à proximité).
-    parcelles = charger_parcelles(cfg)
+    # Les parcelles (lourdes) ne sont chargées que si des vignettes sont à rendre.
+    parcelles = charger_parcelles(cfg) if a_rendre else None
     if parcelles is not None and len(parcelles):
         # Restreindre à l'emprise des candidats (+ marge) : inutile d'indexer les
         # 1,2 M de parcelles du département pour une planche communale.
@@ -289,10 +401,8 @@ def generer_planche(candidats: gpd.GeoDataFrame, ortho_dir: Path, cfg: dict, out
 
     # Vignettes en FICHIERS séparés (pas de base64 embarqué : à l'échelle d'un
     # département — 50-100 k candidats — un HTML monolithique ferait plusieurs Go
-    # et tuerait le navigateur ; l'interface n'affiche qu'une image à la fois,
-    # le navigateur ne charge donc que la vignette courante).
-    vign_dir = out_dir / "vignettes"
-    vign_dir.mkdir(parents=True, exist_ok=True)
+    # et tuerait le navigateur ; les <img loading="lazy"> de la galerie ne chargent
+    # que les vignettes visibles à l'écran).
     items, sans_dalle, n_corr = [], 0, 0
     for _, row in candidats.iterrows():
         pt = row.geometry.representative_point()
@@ -300,12 +410,13 @@ def generer_planche(candidats: gpd.GeoDataFrame, ortho_dir: Path, cfg: dict, out
         if dalle is None:
             sans_dalle += 1
             continue
-        img = extraire_vignette(dalle, pt.x, pt.y, cote_m, out_px)
-        img = dessiner_surimpression(img, pt.x, pt.y, cote_m, out_px, row.geometry, parcelles)
+        id_det = str(row["id_detection"])
+        if id_det in a_rendre:
+            img = extraire_vignette(dalle, pt.x, pt.y, cote_m, out_px)
+            img = dessiner_surimpression(img, pt.x, pt.y, cote_m, out_px, row.geometry, parcelles)
+            (vign_dir / f"{id_det}.png").write_bytes(png_bytes(img))
         corrobore = corrobore_cadastre(row.geometry, pci)
         n_corr += int(corrobore)
-        id_det = str(row["id_detection"])
-        (vign_dir / f"{id_det}.png").write_bytes(png_bytes(img))
         items.append(
             {
                 "id": id_det,
@@ -324,9 +435,7 @@ def generer_planche(candidats: gpd.GeoDataFrame, ortho_dir: Path, cfg: dict, out
     # Cas incertains d'abord (|score-0,5| croissant), évidences à la fin (docs/15 §2).
     items.sort(key=lambda it: cle_incertitude(it["score"]))
 
-    html = (HTML_TEMPLATE
-            .replace("__DEPT__", cfg["dept"])
-            .replace("__ITEMS__", json.dumps(items)))
+    html = rendre_html(items, cfg["dept"])
     out = out_dir / "tri.html"
     out.write_text(html, encoding="utf-8")
     log.info("Planche de tri : %s (%d vignettes dont %d corroborées cadastre, "
@@ -384,6 +493,8 @@ def main() -> None:
     p.add_argument("--candidats", required=True, help="parquet de 15_detect_piscines.py")
     p.add_argument("--ortho-dir", help="dalles RVB (mode génération)")
     p.add_argument("--apply", help="decisions.csv exporté depuis tri.html")
+    p.add_argument("--reutiliser-vignettes", action="store_true",
+                   help="ne re-rendre que les PNG manquants (régénération HTML rapide)")
     args = p.parse_args()
 
     cfg = load_config()
@@ -400,7 +511,8 @@ def main() -> None:
                  "20_join_piscines_adresses.py --source-piscines %s", out, len(valides), out)
     elif args.ortho_dir:
         out_dir = Path(cfg["paths"]["interim"]) / "tri"
-        generer_planche(candidats, Path(args.ortho_dir), cfg, out_dir)
+        generer_planche(candidats, Path(args.ortho_dir), cfg, out_dir,
+                        reutiliser_vignettes=args.reutiliser_vignettes)
     else:
         raise SystemExit("Préciser --ortho-dir (générer la planche) ou --apply (appliquer le tri).")
 

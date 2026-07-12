@@ -104,3 +104,65 @@ def test_dessiner_surimpression_sans_parcelles_ne_plante_pas():
     img = np.zeros((300, 300, 3), dtype=np.uint8)
     out = tri.dessiner_surimpression(img, 0.0, 0.0, 60.0, 300, Point(0, 0).buffer(5), None)
     assert out.shape == img.shape
+
+
+# ------------------------------------------------------- HTML de la planche
+# Le front doit être auto-explicatif et transmissible à un tiers : on vérifie
+# côté Python que le HTML généré contient les blocs clés (pas de test JS).
+
+def _items():
+    return [
+        {"id": "pisc_a", "png": "vignettes/pisc_a.png", "surface": 30.0,
+         "score": 0.8, "corrobore": 1},
+        {"id": "pisc_b", "png": "vignettes/pisc_b.png", "surface": 12.0,
+         "score": 0.5, "corrobore": 0},
+    ]
+
+
+def test_rendre_html_bandeau_question_et_touches():
+    """Bandeau d'accueil : la question en gros, le compteur, la jauge de
+    progression et le rappel des touches (dont Z/← pour annuler)."""
+    html = tri.rendre_html(_items(), "49")
+    assert "CONTOUR ROUGE" in html
+    assert 'id="compteur"' in html and 'id="jauge"' in html
+    assert "Reste ${reste} à trier" in html  # gabarit JS du compteur dynamique
+    assert "<kbd>O</kbd>" in html and "<kbd>N</kbd>" in html and "<kbd>U</kbd>" in html
+    assert "<kbd>Z</kbd>" in html and "annuler la dernière décision" in html
+    assert "function annuler()" in html and "histo.pop()" in html
+
+
+def test_rendre_html_regles_du_jeu():
+    """Panneau repliable « règles du jeu » avec le texte de consigne exact."""
+    html = tri.rendre_html(_items(), "49")
+    assert 'id="regles"' in html and "<summary>" in html
+    assert "EXISTENCE" in html and "pas son adresse" in html
+    assert "n'est JAMAIS vendu" in html
+    assert "IGNOREZ-la, jugez uniquement le contour rouge" in html
+    assert "O quand même (la géométrie est recollée ailleurs)" in html
+    assert "⌂ cadastré" in html and "limites de parcelles cadastrales" in html
+
+
+def test_rendre_html_items_persistance_et_export():
+    """Les candidats sont embarqués (avec corrobore pour le badge/data-attribute),
+    la persistance localStorage est par département, et l'export garde le contrat
+    CSV id_detection,decision. L'export prévient s'il reste des non-triés
+    (seuil 2 %) mais exporte quand même."""
+    html = tri.rendre_html(_items(), "49")
+    assert '"id": "pisc_a"' in html and '"corrobore": 1' in html
+    assert "dataset.corrobore" in html
+    assert 'tri_piscines_49' in html  # clé localStorage : reprise par département
+    assert "localStorage.setItem(CLE" in html
+    assert 'id="btn-export"' in html and "Exporter decisions.csv" in html
+    assert "id_detection,decision" in html
+    assert "refusera au-delà de 2 %" in html
+    assert "exporté quand même" in html
+
+
+def test_rendre_html_navigation_et_correction():
+    """Après décision, saut à la prochaine non triée ; les cartes triées restent
+    marquées (classes dec-*) et re-cliquables pour corriger."""
+    html = tri.rendre_html(_items(), "49")
+    assert "premierNonTrie" in html and "scrollIntoView" in html
+    assert ".dec-oui" in html and ".dec-non" in html and ".dec-incertain" in html
+    assert 'addEventListener("click"' in html
+    assert 'loading="lazy"' in html  # 977 vignettes : chargement paresseux obligatoire
