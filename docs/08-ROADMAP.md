@@ -33,6 +33,17 @@ les visibles : **85,8 %**). **B4 volet rappel tranché : pas de modèle IA** ; l
 est la fusion source cadastre SYM=65 (rappel potentiel 76,6 %, tâche 12, post-D0).
 Doctrine `16` §5 amendée en conséquence. 10bis (perfs) clos : mesuré non bloquant.
 
+**Nouveau (2026-07-12 soir, session Fable — arbitrage open source) : DÉCOUVERTE CoSIA.**
+L'IGN publie la détection de piscines par IA (classe « Piscine », vecteur, Licence
+Ouverte, D49 en millésimes 2020/2022/2025 — fiche `02`, arbitrage complet `15` §4).
+Mesuré sur Bouchemaine : **rappel 88,1 % vs OSM, 68 % des piscines couvertes vues,
+CoSIA ∪ SYM=65 = 89,2 % sans notre détecteur**. Décisions : CoSIA = source principale
+de candidats (tâche 12 amendée, doctrine `16` §5) ; option A (modèle maison) enterrée
+définitivement ; samgeo/Label Studio/Download-BDOrtho21 écartés (`15` §4). **Tâche 13
+[OPUS] prête : valider CoSIA à l'échelle du département (mesures seules, pas de code).**
+⚠ Diff CoSIA 2022→2025 piégé (changement de modèle entre millésimes) : E2 exige une
+validation visuelle par ligne. Archives déjà sur NOIR (`COSIA_D049/`).
+
 **⚡ PROCHAINE ACTION = 🧑 TRIER.** Soi-même (ouvrir `handoff/tri_bouchemaine_49035.html`
 ou générer la planche via `16_tri_visuel.py`) OU faire trier par un ami/bénévole via
 `handoff/` (voir `ONBOARDING.md` parcours A). Puis **appliquer les décisions**
@@ -184,17 +195,38 @@ s'arrêter proprement.**
    unitaire, pas de listes → P3 non menacé ; la couche Cerema « potentiel solaire »
    téléchargeable = intrant possible).
 
-12. `[OPUS — APRÈS D0 (code produit), à brancher au moment de B5]` **Fusion source
-   cadastre SYM=65** (décision B4 du 2026-07-12, amendement doctrine `16` §5) :
-   dans 15_detect ou juste après, AJOUTER aux candidats les polygones PCI SYM=65
-   sans candidat détecté à < 5 m, avec `origine='cadastre'` (les détectés gardent
-   `origine='detection'` ; un SYM=65 proche d'une détection reste une corroboration,
-   pas une ligne). Ces candidats passent le MÊME tri visuel humain (règle d'écran :
+12. `[OPUS — APRÈS D0 (code produit), à brancher au moment de B5 — AMENDÉE 2026-07-12
+   soir : CoSIA ajouté]` **Fusion de sources de candidats : CoSIA ∪ SYM=65 ∪ détection**
+   (décisions B4 + arbitrage open source du 2026-07-12, doctrine `16` §5) : construire
+   la couche 1 candidats comme l'UNION dédupliquée (appariement spatial < 5 m,
+   priorité de géométrie : cosia > detection > cadastre) des trois sources, colonne
+   `origine` ∈ {cosia, detection, cadastre} + colonnes booléennes de corroboration
+   croisée. Tous les candidats passent le MÊME tri visuel humain (règle d'écran :
    « eau visible OU couverture/abri de piscine manifeste » = O) et le même verrou
-   parcellaire. Effet mesuré (Bouchemaine) : rappel 54,9 % → 76,6 % potentiel.
-   NE PAS : vendre une ligne cadastre non validée par un humain sur photo ;
-   toucher aux seuils de détection. Pré-requis : extraire SYM=65 sur tout le 49
-   (A3bis ne l'a fait que sur les 2 communes tests).
+   parcellaire. Filtre commercial ≥ 8 m² appliqué à toutes les sources. Effet mesuré
+   (Bouchemaine, vs OSM) : détection seule 54,9 % → ∪ SYM=65 76,6 % → ∪ CoSIA **89,5 %**.
+   NE PAS : vendre une ligne non validée par un humain sur photo ; toucher aux seuils
+   de détection. Pré-requis : tâche 13 (mesure CoSIA département) + SYM=65 sur tout
+   le 49 (A3bis ne l'a fait que sur les 2 communes tests).
+
+13. `[OPUS — exécutable MAINTENANT : mesures uniquement, AUCUN code produit]`
+   **CoSIA à l'échelle du département — valider avant de brancher.** Les archives sont
+   déjà téléchargées (`/Volumes/NOIR 1/maps-bdortho/COSIA_D049/COSIA_D049_{2022,2025}.7z`,
+   dalles GPKG 10 km, couche unique, colonnes `numero`/`classe`/`geometry`, L93 natif).
+   Mode opératoire (reproduire la méthode de `data/validation/eval_cosia.py`) :
+   (a) extraire les dalles 2022 du 49 entier, filtrer `classe='Piscine'` (where SQL au
+   read_file, PAS de chargement complet), concaténer → consigner : total brut, total
+   ≥ 8 m², par commune (top 20) ; (b) croiser avec `piscines_osm_dev.parquet` (7 269
+   OSM dans le 49) : rappel CoSIA vs OSM au département (Bouchemaine a donné 88,1 % —
+   si le chiffre départemental s'effondre < 75 %, s'arrêter et consigner) ; (c) refaire
+   (a) sur 2025, consigner le delta global par classe (à Bouchemaine : -30 % de
+   polygones toutes classes = changement de modèle, PAS la réalité) ; (d) échantillonner
+   30 « nouvelles » (2025 sans 2022 à < 8 m, ≥ 8 m²) réparties sur 5+ communes,
+   générer les vignettes ortho 2022 (12_extraire + code planche de l'autopsie) et
+   compter à l'œil : vraie nouvelle / déjà là en 2022 (raté modèle 2022) / faux positif
+   → ce taux décide si E2 « nouvelles piscines » est vendable dès maintenant. Consigner
+   tout ici + artefacts dans `data/validation/`. NE PAS : modifier le pipeline,
+   committer des données, dépasser ce cadre.
 
 **Interdit tant que D0/D3 n'ont pas parlé : tout nouveau code produit** (`10` §Règles ;
 dérogation moteur du 2026-07-08 close — le moteur est fini). La tâche 5bis (restauration
@@ -498,6 +530,7 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-12 | fixes d'intégrité | Empreinte `hash12` des candidats dans la planche (`data-planche`, nom d'export `decisions_{dept}_{commune}_{hash12}.csv`, **refus à l'apply si mismatch** sauf `--force`) ; clé localStorage **par planche** ; fusion par **timestamp du nom de fichier** (pas mtime) ; flag `--embarquer` pour régénérer la planche autonome | motivé par 3 scénarios de perte/invalidation identifiés (décisions collées à la mauvaise planche, écrasement de localStorage, ordre de fusion faux). **193+ tests verts** |
 | 2026-07-12 | autopsie rappel (B4) | Bouchemaine, 286 OSM : 129 manquées = **103 sans signal eau 2022** (bâches/abris clairs — hue méd. 0,167, sat 0,044 —, vides, post-2022 ; 46/103 pourtant au cadastre SYM=65), 16 signal < 8 m², **10 seules récupérables par seuils**. Rappel sur visibles : **85,8 %**. Détection ∪ SYM=65 : **76,6 %** (+8 hors OSM). → **B4 rappel = option B maintenue, pas de modèle** ; fusion cadastre = tâche 12 ; doctrine `16` §5 amendée | méthode : rejouer `masque_eau` exact aux emplacements OSM manqués (scripts + CSV + planche contact dans `data/validation/autopsie_*`) ; ⚠ rappel brut vs OSM = métrique structurellement biaisée (risque R10 de `17`) |
 | 2026-07-12 | 10bis mesuré | Banc d'essai run départemental simulé (43 095 polygones, données 49 entières) : jointures **< 2 s au total**, chargements ~1 s — les « hotspots » de la lecture de code ne se reproduisent pas | 10bis CLOS sans refonte ; règle : pas d'optimisation sans mesure > 10 min sur run réel |
+| 2026-07-12 | découverte CoSIA (arbitrage OSS) | Survey open source vérifié → **CoSIA IGN** (absent du survey) : classe Piscine, vecteur GPKG L93, LO 2.0, D49 2020/2022/2025 (~1 Go). Bouchemaine : **rappel 88,1 %** vs OSM, **68 % des couvertes** vues, 98,7 % de nos détections couvertes, **∪ SYM=65 = 89,2 % sans notre HSV** ; 53 CoSIA-seules ≥ 8 m² = majoritairement vraies hors-sol (planche) ; 2025 : -30 % de polygones toutes classes (modèle changé) → diff naïf interdit, 52 « nouvelles » brutes à valider à l'œil | → tâche 12 amendée (union 3 sources, 89,5 % potentiel), tâche 13 [OPUS] (mesure dept), option A enterrée, samgeo/LabelStudio/Download-BDOrtho21 écartés (`15` §4), `02` corrigé (« fait établi n°1 » périmé) ; artefacts `data/validation/cosia_*`, archives sur NOIR |
 | 2026-07-12 | identité trieur + bilan | Planche `16` : modal « Qui trie ? » (JB/Azan/pseudo, clé localStorage globale), décisions stockées `{d,t,ts}` (migration chaîne→objet), CSV export 4 col `id_detection,decision,trieur,horodatage` (format 2 col **toujours accepté**, rétro-compat stricte apply+fusion) ; nouveau `18_bilan_tri.py` → dataset d'entraînement `tri_labels_*.parquet` (features × décision, roadmap B4 option A) + rapport calibration réelle (taux « oui » par bucket score/surface, effet corroboration cadastre, compte par trieur, implications prudentes) | **243 tests verts** ; planches régénérées `data-planche=49_49035_2d460d3dc74e` (inchangé) ; vérifié en navigateur (modal, objet {d,t,ts}, compteur par trieur, migration) |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
@@ -516,4 +549,5 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | Rappel vs OSM | **53,1 %** | avant calibration : 58,0 % ; plafond ~55-58 % quel que soit le seuil (sweep) |
 | Rappel sur piscines VISIBLES 2022 (autopsie B4) | **85,8 %** (157/183) | 103/286 OSM sans signal eau dans l'ortho 2022 (couvertes/vides/post-2022) — plafond physique, pas algorithmique |
 | Rappel détection ∪ cadastre SYM=65 (potentiel) | **76,6 %** (219/286) | fusion source = tâche 12 (post-D0) ; + 8 SYM=65 hors OSM |
+| Rappel CoSIA 2022 vs OSM | **88,1 %** (252/286) | voit 68 % des couvertes ; ∪ SYM=65 = 89,2 % ; ∪ tout = **89,5 %** |
 | Seuils modifiés (avant → après) | `surface_min_m2` 4→8 ; `score_min` 0,35→0,55 | `hsv`/`irc`/`compacite`/`solidite` inchangés |

@@ -125,6 +125,7 @@ La détection ortho reste LA source de vérité (vérifiable en RDV). Les recoup
 | PCI/cadastre bâti | corroboration faible (piscines parfois en « détails topo ») | source principale (incohérent par commune, cf. `02`) |
 | **OSM** | UNIQUEMENT mesure de rappel interne (jamais publié) | tout attribut livré influencé par OSM — l'ODbL contaminerait le produit ; on tranche : même pas pour le score de confiance |
 | Réclamations clients | étiquettes négatives (`data/validation/`) → recalibration | ignorer une réclamation |
+| **CoSIA (IGN, classe Piscine)** *(ajout 2026-07-12)* | **source de candidats** (`origine='cosia'`, même tri humain + verrou parcellaire que le reste) + corroboration au score | vendre une ligne CoSIA non validée par un humain sur photo ; diff inter-millésimes CoSIA sans validation visuelle (le modèle change entre millésimes, cf. `02`) |
 
 🔧 tâche [OPUS] (après deepsearch ③) : colonne `corroboration` (sitadel/millesime/aucune)
 dans 30_score, bonus de confiance si corroboré. Spec ci-dessus, ne pas improviser au-delà.

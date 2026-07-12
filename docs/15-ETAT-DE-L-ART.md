@@ -107,6 +107,37 @@ Rapports bruts et synthèses critiques dans `docs/deepsearch/` (DS4 pipelines, D
   (CC-BY-4.0, poids initiaux) + fine-tuning sur BD ORTHO annotée main ; JAMAIS
   `osm-swimming-pools` (AGPL contaminante) ni BH-POOLS (images Google, CGU).
 
+## 4. Survey open source arbitré (2026-07-12, session Fable — vérifié + mesuré)
+
+Un survey LLM du paysage open source a été passé au crible. Verdict global confirmé :
+l'open source ne couvre QUE la détection (notre « commodité ») ; rien n'existe sur le
+tri humain léger, la jointure adresse RGPD-propre, le diff objet, la consolidation —
+le moat est intact. Arbitrages pièce par pièce :
+
+- **⭐ CoSIA (IGN) — LA découverte, absente du survey** : l'État publie la détection
+  par IA (classe « Piscine », France entière, vecteur, Licence Ouverte 2.0, plusieurs
+  millésimes). **Mesuré sur Bouchemaine : rappel 88,1 % vs OSM, 68 % des piscines
+  couvertes vues, quasi-sur-ensemble de notre HSV (98,7 %).** Décision : CoSIA devient
+  source principale de candidats aux côtés de SYM=65 (fiche complète `02`, doctrine
+  `16` §5, exécution tâche 13 de `08`). Conséquence stratégique : l'option A (modèle
+  maison) est **définitivement enterrée** — l'État entraîne et publie mieux que ce
+  qu'on ferait, gratuitement, sur nos propres dalles.
+- **samgeo / segment-geospatial (MIT, SAM + prompts texte)** : écarté. Les retours
+  publiés confirment « masques de qualité pour piscines à l'eau claire » — même mode
+  d'échec que notre HSV sur les bâches (l'autopsie du rappel a montré que c'est LE
+  problème), GPU ≥ 8 Go requis, et dominé par CoSIA sur toute la ligne.
+- **Download-BDOrtho21** : rien à prendre — notre `12_extraire_dalles_ortho.py` fait
+  mieux (index `dalles.shp` embarqué dans l'archive, extraction ciblée sans tout
+  décompresser).
+- **Label Studio / CVAT** : NON. Variante AGPL (contamination), lourds à installer —
+  notre planche zéro-install double-clic est précisément le différenciateur d'usage
+  (un bénévole trie sans rien installer). Le format d'export 4 colonnes actuel suffit ;
+  on pourra s'inspirer de l'active learning (tri par incertitude : déjà fait, PR #10).
+- **Jonas1312 / cv2-pool-detection / NAIP** : pédagogiques, inférieurs à l'existant. Rien.
+- **Détecteurs custom (ex-option A, `sp-swimming-pools` CC-BY-4.0)** : la note DS5
+  ci-dessus reste exacte mais est rendue CADUQUE par CoSIA — ne réévaluer que si CoSIA
+  était retiré ou sa qualité s'effondrait sur un autre département.
+
 ## Sources
 
 - [impots.gouv.fr — Généralisation du Foncier innovant](https://www.impots.gouv.fr/actualite/generalisation-du-foncier-innovant)
@@ -115,3 +146,5 @@ Rapports bruts et synthèses critiques dans `docs/deepsearch/` (DS4 pipelines, D
 - [collectivites-locales.gouv.fr — Le Foncier innovant](https://www.collectivites-locales.gouv.fr/animer-les-territoires/environnement-et-urbanisme/le-cadastre/le-foncier-innovant)
 - [Periopsis — Swimming Pool Detection via Deep Learning](https://www.periopsis.com/blog/pool-finder/) (précision ~80 % / rappel ~85 %)
 - [satellite-image-deep-learning/techniques (GitHub)](https://github.com/satellite-image-deep-learning/techniques)
+- [CoSIA — Géoplateforme, ressource de téléchargement](https://data.geopf.fr/telechargement/resource/COSIA) · [fiche data.gouv.fr](https://www.data.gouv.fr/datasets/cosia) · [modèles FLAIR (IGNF, Hugging Face)](https://huggingface.co/IGNF)
+- [opengeos/segment-geospatial (samgeo)](https://github.com/opengeos/segment-geospatial) · [retour d'expérience piscines (granular.ai)](https://www.granular.ai/resources/blog/detecting-pools-in-urban-areas-using-sam-geo)

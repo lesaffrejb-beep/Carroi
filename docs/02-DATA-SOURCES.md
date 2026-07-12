@@ -10,6 +10,18 @@
 
 **Conséquence architecturale : le produit Piscines = détection maison sur orthophoto IGN + jointure adresse.** Détail dans `04-PIPELINE-PISCINES.md`.
 
+> **⚠ CORRECTION MAJEURE 2026-07-12 (session Fable, vérifiée sur données réelles) : ce
+> « fait établi » est PÉRIMÉ.** L'IGN publie désormais **CoSIA** (voir section dédiée
+> ci-dessous) : couverture du sol par IA dérivée de la BD ORTHO, **avec une classe
+> « Piscine » explicite**, en vecteur GPKG Lambert-93, par département, Licence Ouverte
+> 2.0, plusieurs millésimes (D49 : 2020, 2022, 2025). Mesuré sur Bouchemaine : rappel
+> 88,1 % vs OSM, dont 68 % des piscines couvertes invisibles pour notre détecteur
+> colorimétrique. La conséquence architecturale change : **la détection maison devient
+> une source COMPLÉMENTAIRE, CoSIA + PCI SYM=65 deviennent les sources principales de
+> candidats.** Ce qui ne change PAS : le moat (tri humain, jointure adresse, verrou
+> parcellaire, cadre RGPD, vente) — la détection était déjà classée « commodité »
+> (`15`), l'État vient de le confirmer en la publiant.
+
 ## Sources utilisées
 
 ### BD ORTHO / ORTHO HR (IGN) — la matière première de la détection
@@ -35,6 +47,34 @@
   comme source principale » ci-dessus) mais excellente **couche de corroboration** au sens de
   la doctrine `16` (corrobore le score, ne crée jamais de ligne) et booster du mode `--demo`
   (détection + SYM=65 = confiance maximale). À tester sur la commune pilote en phase A.
+
+### CoSIA (IGN) — la classe « Piscine » par IA, France entière (découverte 2026-07-12)
+
+- **Couverture du Sol par IA** : segmentation deep learning (famille de modèles FLAIR de
+  l'IGN) de la BD ORTHO, 16 classes dont **« Piscine »**, prédiction à 20 cm/pixel,
+  livrée en **vecteur GPKG Lambert-93** par département, en dalles de 10×10 km
+  (`D0XX_AAAA_XXX_YYYY_vecto.gpkg`, attributs `numero`/`classe`/`geometry`).
+- Téléchargement (Géoplateforme, arborescence Atom) :
+  `https://data.geopf.fr/telechargement/download/COSIA/COSIA_1-0__GPKG_LAMB93_D049_{2020|2022|2025}-01-01/….7z`
+  (~1 Go l'archive D49 2022 ; catalogue via `…/telechargement/resource/COSIA`).
+  Copies locales : `/Volumes/NOIR 1/maps-bdortho/COSIA_D049/`.
+- **Licence Ouverte 2.0** → commercialisable avec mention de source IGN.
+- **Mesuré sur Bouchemaine 49035 (2026-07-12, artefacts `data/validation/cosia_*`)** :
+  568 polygones Piscine bruts (385 à ≥ 8 m²) vs 286 OSM / 977 candidats maison / 165 SYM=65.
+  **Rappel vs OSM : 88,1 %** (notre HSV : 54,9 %) ; voit **98,7 %** de ce que nous
+  détectons (quasi-sur-ensemble) et **68 %** des piscines couvertes/vides que le
+  colorimétrique ne peut pas voir. **CoSIA ∪ SYM=65 : 89,2 % sans notre détecteur.**
+  Les 53 « CoSIA-seules » ≥ 8 m² sont majoritairement de vraies petites piscines
+  hors-sol (planche `data/validation/cosia_seules_49035.png`), avec quelques faux
+  positifs → passe par le MÊME tri humain que le reste (doctrine `16` §5 amendée).
+- **⚠ Piège du diff inter-millésimes** : entre D49 2022 et 2025, le modèle CoSIA change
+  (~30 % de polygones en moins sur TOUTES les classes à couverture identique — moins de
+  sur-segmentation). Un diff naïf 2022→2025 confond évolution du modèle et réalité
+  terrain : chaque « nouvelle » doit être validée visuellement (2022 absente / 2025
+  présente) avant toute vente. Mesuré : 52 « nouvelles » brutes sur Bouchemaine, dont
+  34 inconnues d'OSM. Le millésime CoSIA 2025 du 49 existe alors que la BD ORTHO 2025
+  n'est pas encore publiée → E2 partiellement débloqué (validation visuelle limitée tant
+  que l'ortho 2025 n'est pas accessible, flux WMTS « ortho la plus récente » à vérifier).
 
 ### BAN (Base Adresse Nationale) — l'adresse livrable
 - CSV par département : `https://adresse.data.gouv.fr/data/ban/adresses/latest/csv/adresses-49.csv.gz`.
