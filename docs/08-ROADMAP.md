@@ -131,6 +131,15 @@ s'arrêter proprement.**
    conservées/disparues + REFUS d'écrire si > 50 % de « nouvelles » (recalage suspect).
    NE PAS : toucher à millesimes.py ; vendre les « disparues ».
 
+9bis. `[OPUS — avec le kit de vente, pas de code]` **Grille de lecture client A+/A/B**
+   (idée 🧑 2026-07-11) : traduire nos niveaux internes en langage acheteur —
+   **A+** = existence validée par un humain (100 % des lignes vendues, par construction) ×
+   confiance d'ADRESSE **A** (haute : adresse corroborée dans la parcelle, ~94 % mesuré) /
+   **B** (moyenne) ; « basse » et « incertain » ne sont JAMAIS vendus. Usage client à
+   documenter dans `07`/`11` : porte-à-porte sur A, courrier sur B, coût d'acquisition
+   pondéré par le risque de faux positif. Chaque niveau annoncé avec sa précision MESURÉE
+   (borne basse de Wilson, `06` §2) — jamais de % inventé.
+
 10. `[OPUS — APRÈS D0 uniquement (règle « pas de code produit avant »)]` **Ingestion
    SITADEL** (spec complète dans `docs/02` §SITADEL, issue de la deepsearch ③) : filtres
    ANN_COD_ANNEXE=1 × particulier × OCTROI, jointure parcelle → PCI → BAN via 20_join,
