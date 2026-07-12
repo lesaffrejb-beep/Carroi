@@ -26,6 +26,13 @@ planche, fusion par timestamp du nom de fichier, flag `--embarquer` pour régén
 planche autonome. **Extraction ciblée** de dalles BD ORTHO depuis les archives 7z :
 `12_extraire_dalles_ortho.py` (par `--commune`/`--bbox`, index `dalles.shp` embarqué).
 
+**Nouveau (2026-07-12, session Fable — autopsie du rappel)** : le plafond de rappel
+(~53-55 % vs OSM) est ÉLUCIDÉ — 80 % des manquées sont des piscines **couvertes/vides/
+postérieures à 2022**, invisibles pour tout algorithme sur cette image (rappel réel sur
+les visibles : **85,8 %**). **B4 volet rappel tranché : pas de modèle IA** ; le levier
+est la fusion source cadastre SYM=65 (rappel potentiel 76,6 %, tâche 12, post-D0).
+Doctrine `16` §5 amendée en conséquence. 10bis (perfs) clos : mesuré non bloquant.
+
 **⚡ PROCHAINE ACTION = 🧑 TRIER.** Soi-même (ouvrir `handoff/tri_bouchemaine_49035.html`
 ou générer la planche via `16_tri_visuel.py`) OU faire trier par un ami/bénévole via
 `handoff/` (voir `ONBOARDING.md` parcours A). Puis **appliquer les décisions**
@@ -156,22 +163,17 @@ s'arrêter proprement.**
    sortie compatible couche 1. Auditer les noms de colonnes réels AVANT de coder
    (transition SITADEL 3). C'est le moteur de l'« abonnement fraîcheur » (grille `16`).
 
-10bis. `[OPUS ou FABLE — déclencheur : B5 échoue/rame sur le département entier]`
-   **Fragilités de scalabilité identifiées** (audit 2026-07-12, non corrigées — simple
-   constat, à traiter si B5 le révèle bloquant) :
-   - `20_join_piscines_adresses.py::charger()` (l.39-48) charge `parcelles_49.parquet`
-     (1,2 M lignes/290 Mo), `ban` et `batiments` EN ENTIER avant de filtrer par
-     commune — un run `--commune` paie le coût département complet à chaque fois.
-   - `20_join::corroborer_adresse_parcelle()` (l.131) et `joindre_parcelle()` (l.63-65) :
-     boucles `.apply(axis=1)` row-wise pur Python/shapely — linéaire en nb de
-     candidats, hotspot net à l'échelle département (~100k candidats estimés).
-   - `16_tri_visuel.py::charger_parcelles()` (l.134) : même chargement complet +
-     sindex sur 1,2M parcelles (~5 min mesuré) ; boucle `for _, row in
-     candidats.iterrows()` (l.407) avec `corrobore_cadastre()` → `sindex.query`
-     PAR CANDIDAT (l.418) plutôt qu'un sjoin vectorisé.
-   Piste commune si ça bloque : restreindre parcelles/ban/batiments à l'AOI (bbox
-   des candidats) AVANT indexation, et remplacer les `.apply(axis=1)` par des
-   `sjoin`/`sjoin_nearest` vectorisés (déjà le pattern utilisé ailleurs dans 20_join).
+10bis. `[✅ CLOS 2026-07-12 — MESURÉ NON BLOQUANT, ne pas « optimiser »]`
+   **Les fragilités de scalabilité listées ici (audit 2026-07-12) ont été BANC-D'ESSAYÉES
+   sur données réelles avant toute refonte — verdict : fausse alerte.** Run départemental
+   complet simulé (43 095 polygones OSM région, parcelles/BAN/bâtiments du 49 entiers,
+   machine de dev) : `joindre_parcelle` **0,6 s**, `joindre_adresse` + corroboration
+   **1,1 s**, chargement parcelles 1,2 M lignes **1,0 s**, sindex **0,3 s** (le
+   « ~5 min » du constat initial ne se reproduit pas). Les `.apply(axis=1)` row-wise
+   ne portent que sur les lignes jointes — même ×10 candidats, on parle de secondes.
+   **Décision : AUCUNE refonte. Ne pas dépenser de session là-dessus tant qu'un run B5
+   réel n'a pas montré > 10 min sur un poste de travail.** (Leçon de méthode : mesurer
+   avant d'optimiser — le constat initial était une lecture de code, pas une mesure.)
 
 11. `[FABLE — seulement si déclenché]` : option A détection (déclencheur : B2-terrain
    plafonne < 95 % après calibration ; noter — doc 15 + DS5 : partir des poids
@@ -181,6 +183,18 @@ s'arrêter proprement.**
    5 ventes P1 — noter DS5 : les cadastres solaires publics du 49 sont consultation
    unitaire, pas de listes → P3 non menacé ; la couche Cerema « potentiel solaire »
    téléchargeable = intrant possible).
+
+12. `[OPUS — APRÈS D0 (code produit), à brancher au moment de B5]` **Fusion source
+   cadastre SYM=65** (décision B4 du 2026-07-12, amendement doctrine `16` §5) :
+   dans 15_detect ou juste après, AJOUTER aux candidats les polygones PCI SYM=65
+   sans candidat détecté à < 5 m, avec `origine='cadastre'` (les détectés gardent
+   `origine='detection'` ; un SYM=65 proche d'une détection reste une corroboration,
+   pas une ligne). Ces candidats passent le MÊME tri visuel humain (règle d'écran :
+   « eau visible OU couverture/abri de piscine manifeste » = O) et le même verrou
+   parcellaire. Effet mesuré (Bouchemaine) : rappel 54,9 % → 76,6 % potentiel.
+   NE PAS : vendre une ligne cadastre non validée par un humain sur photo ;
+   toucher aux seuils de détection. Pré-requis : extraire SYM=65 sur tout le 49
+   (A3bis ne l'a fait que sur les 2 communes tests).
 
 **Interdit tant que D0/D3 n'ont pas parlé : tout nouveau code produit** (`10` §Règles ;
 dérogation moteur du 2026-07-08 close — le moteur est fini). La tâche 5bis (restauration
@@ -367,7 +381,25 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
   plafond s'avère insuffisant après tri humain réel (16_tri_visuel, non fait cette
   session — candidats prêts dans `data/interim/piscines_candidates_49_49035.parquet`).
 - [x] **B3.** ~~Outil de tri visuel~~ **Fait 2026-07-08** (+ tri par incertitude 2026-07-11, PR #10).
-- [ ] **B4.** Décision A/B (modèle entraîné vs seuillage+tri) sur les chiffres de B2-terrain. Consigner la décision et les chiffres. `[FABLE si option A retenue — poids de départ : sp-swimming-pools CC-BY-4.0, voir DS5]`
+- [x] **B4 (volet rappel). ✅ TRANCHÉ 2026-07-12 (session Fable — autopsie du rappel).**
+  **Décision : PAS de modèle entraîné (option B maintenue). Le levier de rappel est la
+  fusion de sources, pas l'algorithme.** Preuve (Bouchemaine, 286 piscines OSM,
+  artefacts `data/validation/autopsie_rappel_49035.{csv,png}` + scripts) :
+  - Sur les 129 manquées : **103 (80 %) n'ont AUCUN signal eau dans l'ortho 2022** —
+    la planche contact montre massivement des **piscines couvertes** (bâches/abris
+    clairs : teinte médiane 0,167 hors fenêtre cyan, saturation médiane 0,044 ≈ gris),
+    plus quelques vides/eau verte/postérieures à 2022. 16 ont un signal < 8 m²,
+    seulement **10 sont récupérables par réglage** de seuils/filtres.
+  - **Rappel sur les piscines réellement visibles en 2022 : 85,8 %** (157/183). Le
+    détecteur colorimétrique est près de son plafond PHYSIQUE ; un modèle entraîné sur
+    la même image 2022 ne peut pas voir de l'eau sous une bâche — il n'achèterait que
+    quelques points, au prix de l'annotation + contraintes licence (DS5).
+  - Les couvertes ne sont pas perdues : **46/103 sont déjà dans PCI SYM=65**.
+    **Rappel détection ∪ SYM=65 = 76,6 %** (219/286, +21,7 pts gratuits, licence
+    Etalab propre) + 8 piscines SYM=65 hors OSM et hors détection (stock net).
+    → tâche 12 ci-dessous (fusion source cadastre) + amendement doctrine `16` §5.
+  - ⚠ Volet PRÉCISION toujours ouvert : si le tri humain révèle une précision
+    irrécupérable < 95 %, ré-examiner l'option A — mais pour la précision, pas le rappel.
 - [ ] **B5.** `[OPUS]` Industrialiser sur le département par lots de dalles + tri humain. Sortie : `piscines_detectees_49.parquet`. (Pré-requis git ✅ résolu 2026-07-11.)
 - [ ] **B6.** `[OPUS]` Chaîne complète 20→30 en mode production ; `35 --dept` pour le chiffre total.
 
@@ -464,6 +496,8 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-12 | partage sans install | `handoff/` (planche autonome `tri_bouchemaine_49035.html` ~27 Mo double-clic, `soumettre_tri.sh`, `appliquer_decisions_recues.py`, ZÉRO PII) + `bootstrap.sh` (venv+requirements+outils brew+tests) + `ONBOARDING.md` (parcours A trier / B contribuer) + routage express en tête de `CLAUDE.md` | un ami peut trier sans rien installer ; `12_extraire_dalles_ortho.py` extrait les dalles ciblées depuis les archives 7z (`--commune`/`--bbox`, index `dalles.shp`) |
 | 2026-07-12 | outil 17 vérif adresse | `17_verification_adresse.py` : 2e outil de tri humain — vérification de l'adresse assignée par clic sur la carte des adresses BAN alentour, pour les cas de confiance non-haute | **7 cas à vérifier** détectés sur le dev Bouchemaine |
 | 2026-07-12 | fixes d'intégrité | Empreinte `hash12` des candidats dans la planche (`data-planche`, nom d'export `decisions_{dept}_{commune}_{hash12}.csv`, **refus à l'apply si mismatch** sauf `--force`) ; clé localStorage **par planche** ; fusion par **timestamp du nom de fichier** (pas mtime) ; flag `--embarquer` pour régénérer la planche autonome | motivé par 3 scénarios de perte/invalidation identifiés (décisions collées à la mauvaise planche, écrasement de localStorage, ordre de fusion faux). **193+ tests verts** |
+| 2026-07-12 | autopsie rappel (B4) | Bouchemaine, 286 OSM : 129 manquées = **103 sans signal eau 2022** (bâches/abris clairs — hue méd. 0,167, sat 0,044 —, vides, post-2022 ; 46/103 pourtant au cadastre SYM=65), 16 signal < 8 m², **10 seules récupérables par seuils**. Rappel sur visibles : **85,8 %**. Détection ∪ SYM=65 : **76,6 %** (+8 hors OSM). → **B4 rappel = option B maintenue, pas de modèle** ; fusion cadastre = tâche 12 ; doctrine `16` §5 amendée | méthode : rejouer `masque_eau` exact aux emplacements OSM manqués (scripts + CSV + planche contact dans `data/validation/autopsie_*`) ; ⚠ rappel brut vs OSM = métrique structurellement biaisée (risque R10 de `17`) |
+| 2026-07-12 | 10bis mesuré | Banc d'essai run départemental simulé (43 095 polygones, données 49 entières) : jointures **< 2 s au total**, chargements ~1 s — les « hotspots » de la lecture de code ne se reproduisent pas | 10bis CLOS sans refonte ; règle : pas d'optimisation sans mesure > 10 min sur run réel |
 | 2026-07-12 | identité trieur + bilan | Planche `16` : modal « Qui trie ? » (JB/Azan/pseudo, clé localStorage globale), décisions stockées `{d,t,ts}` (migration chaîne→objet), CSV export 4 col `id_detection,decision,trieur,horodatage` (format 2 col **toujours accepté**, rétro-compat stricte apply+fusion) ; nouveau `18_bilan_tri.py` → dataset d'entraînement `tri_labels_*.parquet` (features × décision, roadmap B4 option A) + rapport calibration réelle (taux « oui » par bucket score/surface, effet corroboration cadastre, compte par trieur, implications prudentes) | **243 tests verts** ; planches régénérées `data-planche=49_49035_2d460d3dc74e` (inchangé) ; vérifié en navigateur (modal, objet {d,t,ts}, compteur par trieur, migration) |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
@@ -480,4 +514,6 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | Ratio candidats / piscines OSM | **3,4:1** | avant calibration : 9,1:1 (seuil d'alerte 4:1 dépassé) |
 | Précision après tri (échantillon) | *(16_tri_visuel non fait cette session)* | objectif ≥ 95 % (borne basse Wilson) |
 | Rappel vs OSM | **53,1 %** | avant calibration : 58,0 % ; plafond ~55-58 % quel que soit le seuil (sweep) |
+| Rappel sur piscines VISIBLES 2022 (autopsie B4) | **85,8 %** (157/183) | 103/286 OSM sans signal eau dans l'ortho 2022 (couvertes/vides/post-2022) — plafond physique, pas algorithmique |
+| Rappel détection ∪ cadastre SYM=65 (potentiel) | **76,6 %** (219/286) | fusion source = tâche 12 (post-D0) ; + 8 SYM=65 hors OSM |
 | Seuils modifiés (avant → après) | `surface_min_m2` 4→8 ; `score_min` 0,35→0,55 | `hsv`/`irc`/`compacite`/`solidite` inchangés |

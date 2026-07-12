@@ -129,6 +129,20 @@ La détection ortho reste LA source de vérité (vérifiable en RDV). Les recoup
 🔧 tâche [OPUS] (après deepsearch ③) : colonne `corroboration` (sitadel/millesime/aucune)
 dans 30_score, bonus de confiance si corroboré. Spec ci-dessus, ne pas improviser au-delà.
 
+**Amendement du 2026-07-12 (arbitrage Fable, décision B4 — voir `08` journal) : PCI
+SYM=65 est promu de « corroboration » à « source de candidats », SANS toucher au
+principe.** Ce que l'autopsie du rappel a montré (Bouchemaine) : 80 % des piscines
+manquées par la détection sont **couvertes/vides sur l'ortho 2022** — aucun réglage ni
+modèle ne les verra comme de l'eau, mais 46/103 sont déjà des polygones SYM=65. Le
+principe « une ligne vendue = validée par un humain sur photo » est INTACT : un candidat
+`origine='cadastre'` entre dans le MÊME tri visuel, et n'est vendable que si le trieur
+voit une piscine OU une couverture/abri de piscine manifeste sur la vignette (une bâche
+d'hivernage SE VOIT — c'est vérifiable en RDV, contrairement à un permis SITADEL).
+Ce qui reste interdit : vendre une ligne cadastre non validée sur photo ; la ligne du
+tableau ci-dessus « source principale » reste vraie (couverture SYM=65 incohérente par
+commune → le cadastre COMPLÈTE la détection, il ne la remplace pas). Spec d'exécution :
+tâche 12 de `08`, post-D0. Effet mesuré : rappel 54,9 % → 76,6 % potentiel.
+
 ## 6. Les décisions connexes restantes — tranchées une par une
 
 1. **Forme juridique** 🧑 : micro-entreprise (BNC) au lancement — zéro coût fixe, suffisant
