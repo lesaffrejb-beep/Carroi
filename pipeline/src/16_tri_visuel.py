@@ -22,9 +22,12 @@ production. Les candidats bruts ne se joignent pas, ne s'exportent pas.
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import io
 import json
 import logging
+import re
 from pathlib import Path
 
 import geopandas as gpd
@@ -36,6 +39,37 @@ from rasterio.windows import from_bounds
 from common import ensure_dirs, load_config
 
 log = logging.getLogger("tri")
+
+
+# ---------------------------------------------------- empreinte de planche
+# Une planche de tri (HTML + vignettes) n'est valide QUE pour le parquet de
+# candidats depuis lequel elle a été générée. Si les candidats changent (nouveau
+# run de détection, seuils différents), les id_detection peuvent se décaler et un
+# vieux decisions.csv appliquerait des jugements sur les mauvais biens. On scelle
+# donc chaque planche par le SHA-256 (tronqué) du fichier parquet lui-même.
+
+def hash12_parquet(path) -> str:
+    """SHA-256 des OCTETS du fichier parquet des candidats, tronqué à 12 hex.
+
+    Empreinte stable : deux personnes qui régénèrent la planche depuis le même
+    fichier obtiennent le même hash12 ; un fichier différent (même d'un octet) en
+    donne un autre. Pure et testable (ne lit pas le contenu géospatial, juste les
+    octets)."""
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:12]
+
+
+def commune_depuis_nom(candidats_path, dept: str) -> str:
+    """Extrait la commune du nom piscines_candidates_{dept}_{commune}.parquet.
+    Motif absent (nom départemental ou libre) → 'dept'. Pure et testable."""
+    m = re.match(rf"piscines_candidates_{re.escape(str(dept))}_(.+)\.parquet$",
+                 Path(candidats_path).name)
+    return m.group(1) if m else "dept"
+
+
+def id_planche(candidats_path, dept: str) -> str:
+    """Identifiant de planche « {dept}_{commune}_{hash12} » — porté par le HTML
+    (data-planche), la clé localStorage et le nom du decisions.csv exporté."""
+    return f"{dept}_{commune_depuis_nom(candidats_path, dept)}_{hash12_parquet(candidats_path)}"
 
 
 # ---------------------------------------------------------------- vignettes
@@ -97,6 +131,22 @@ def png_bytes(img: np.ndarray) -> bytes:
     buf = io.BytesIO()
     Image.fromarray(img).save(buf, format="PNG")
     return buf.getvalue()
+
+
+def jpeg_bytes(img: np.ndarray, quality: int = 82) -> bytes:
+    """Ré-encode la vignette en JPEG (qualité 82 par défaut). Pour le mode
+    --embarquer : à l'échelle communale, les JPEG inline pèsent ~5× moins que les
+    PNG et rendent la planche autonome (un seul fichier, aucune référence externe)."""
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.fromarray(img).convert("RGB").save(buf, format="JPEG", quality=quality)
+    return buf.getvalue()
+
+
+def data_uri_jpeg(jpeg: bytes) -> str:
+    """Encapsule des octets JPEG en data:URI base64 (src inline pour <img>)."""
+    return "data:image/jpeg;base64," + base64.b64encode(jpeg).decode("ascii")
 
 
 # ------------------------------------------------ surimpression cadastre
@@ -228,7 +278,7 @@ HTML_TEMPLATE = """<!doctype html>
  .marque{position:absolute;top:8px;right:8px;font-weight:bold;font-size:1rem;padding:2px 10px;border-radius:6px;color:#fff}
  .dec-oui .marque{background:#2e7d32}.dec-non .marque{background:#c62828}.dec-incertain .marque{background:#ef6c00}
  .cad{position:absolute;top:8px;left:8px;font-size:.85rem;font-weight:bold;padding:2px 8px;border-radius:6px;background:#0d47a1;color:#fff;box-shadow:0 0 0 2px #fff3}
-</style></head><body>
+</style></head><body data-planche="__PLANCHE__">
 <header>
  <h1>Y a-t-il une piscine dans le <span class="rouge">CONTOUR ROUGE</span> ?</h1>
  <div id="barre">
@@ -258,7 +308,11 @@ HTML_TEMPLATE = """<!doctype html>
 <div id="galerie"></div>
 <script>
 const ITEMS = __ITEMS__;
-const CLE = "tri_piscines___DEPT__";
+// Clé de stockage DÉRIVÉE de la planche (data-planche = {dept}_{commune}_{hash12}) :
+// deux communes ou deux versions des candidats ne partagent JAMAIS le même
+// localStorage — plus de collision, plus de décisions d'une planche écrasant l'autre.
+const PLANCHE = document.body.dataset.planche;
+const CLE = "tri_" + PLANCHE;
 let dec = JSON.parse(localStorage.getItem(CLE) || "{}");
 let histo = [];  // pile d'annulation (session courante)
 let i = -1;
@@ -341,7 +395,9 @@ function exporter(){
   for (const [id, v] of Object.entries(dec)) csv += `${id},${v}\\n`;
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"}));
-  a.download = "decisions.csv"; a.click();
+  // Nom horodatable côté réception + empreinte de planche : le fichier reçu dit
+  // à quelle planche il s'applique (contenu du CSV inchangé : id_detection,decision).
+  a.download = "decisions_" + PLANCHE + ".csv"; a.click();
 }
 document.addEventListener("keydown", e => {
   if (e.key === "o" || e.key === "O") decider("oui");
@@ -357,20 +413,25 @@ focaliser(premierNonTrie(0), Object.keys(dec).length > 0);
 """
 
 
-def rendre_html(items: list[dict], dept: str) -> str:
-    """Injecte les candidats et le département dans le gabarit. Pure et testable :
-    le contrat d'export (id_detection,decision ∈ oui/non/incertain) est porté par
-    le JS de ce gabarit, les tests vérifient la présence des blocs clés."""
+def rendre_html(items: list[dict], dept: str, planche: str | None = None) -> str:
+    """Injecte les candidats, le département et l'empreinte de planche dans le
+    gabarit. Pure et testable : le contrat d'export (id_detection,decision ∈
+    oui/non/incertain) est porté par le JS de ce gabarit, les tests vérifient la
+    présence des blocs clés. `planche` = {dept}_{commune}_{hash12} ; s'il est absent
+    (appel de test minimal), on retombe sur un identifiant purement départemental."""
+    if planche is None:
+        planche = f"{dept}_dept_000000000000"
     return (HTML_TEMPLATE
+            .replace("__PLANCHE__", planche)
             .replace("__DEPT__", dept)
             .replace("__ITEMS__", json.dumps(items)))
 
 
 def generer_planche(candidats: gpd.GeoDataFrame, ortho_dir: Path, cfg: dict, out_dir: Path,
-                    reutiliser_vignettes: bool = False) -> Path:
+                    candidats_path, reutiliser_vignettes: bool = False,
+                    embarquer: bool = False) -> Path:
     tri_cfg = cfg["tri_visuel"]
     cote_m, out_px = tri_cfg["vignette_m"], tri_cfg["vignette_px"]
-    index = indexer_dalles(ortho_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     vign_dir = out_dir / "vignettes"
@@ -384,6 +445,19 @@ def generer_planche(candidats: gpd.GeoDataFrame, ortho_dir: Path, cfg: dict, out
         log.info("Réutilisation des vignettes existantes : %d PNG à (re)rendre.", len(a_rendre))
     else:
         a_rendre = {str(i) for i in candidats["id_detection"]}
+
+    # L'index des dalles ortho n'est nécessaire QUE pour (re)rendre des vignettes.
+    # Si tout est réutilisé (a_rendre vide), on s'en passe : régénérer le HTML (et
+    # embarquer les vignettes) ne requiert alors ni les dalles ni le disque externe.
+    if a_rendre:
+        if ortho_dir is None:
+            raise SystemExit(
+                f"{len(a_rendre)} vignette(s) à rendre mais --ortho-dir absent. "
+                "Fournir les dalles ortho, ou régénérer avec toutes les vignettes présentes."
+            )
+        index = indexer_dalles(Path(ortho_dir))
+    else:
+        index = None
 
     # Surimpression cadastrale : limites de parcelles (le trieur voit si la piscine
     # est chez le voisin) + badge « corroboré » (piscine cadastrée PCI à proximité).
@@ -403,24 +477,39 @@ def generer_planche(candidats: gpd.GeoDataFrame, ortho_dir: Path, cfg: dict, out
     # département — 50-100 k candidats — un HTML monolithique ferait plusieurs Go
     # et tuerait le navigateur ; les <img loading="lazy"> de la galerie ne chargent
     # que les vignettes visibles à l'écran).
-    items, sans_dalle, n_corr = [], 0, 0
+    items, sans_dalle, sans_vignette, n_corr = [], 0, 0, 0
     for _, row in candidats.iterrows():
-        pt = row.geometry.representative_point()
-        dalle = dalle_pour(pt.x, pt.y, index)
-        if dalle is None:
-            sans_dalle += 1
-            continue
         id_det = str(row["id_detection"])
+        img = None
         if id_det in a_rendre:
+            pt = row.geometry.representative_point()
+            dalle = dalle_pour(pt.x, pt.y, index)
+            if dalle is None:
+                sans_dalle += 1
+                continue
             img = extraire_vignette(dalle, pt.x, pt.y, cote_m, out_px)
             img = dessiner_surimpression(img, pt.x, pt.y, cote_m, out_px, row.geometry, parcelles)
             (vign_dir / f"{id_det}.png").write_bytes(png_bytes(img))
+        elif not (vign_dir / f"{id_det}.png").exists():
+            # Réutilisation : pas de PNG et pas de re-rendu possible → on écarte.
+            sans_vignette += 1
+            continue
+        if embarquer:
+            # Planche autonome : la vignette est ré-encodée JPEG q82 et inline en
+            # data:URI (aucune référence vignettes/*.png). Si on n'a pas re-rendu
+            # l'image (réutilisation), on relit le PNG existant pour le ré-encoder.
+            if img is None:
+                from PIL import Image
+                img = np.asarray(Image.open(vign_dir / f"{id_det}.png").convert("RGB"))
+            png_field = data_uri_jpeg(jpeg_bytes(img))
+        else:
+            png_field = f"vignettes/{id_det}.png"
         corrobore = corrobore_cadastre(row.geometry, pci)
         n_corr += int(corrobore)
         items.append(
             {
                 "id": id_det,
-                "png": f"vignettes/{id_det}.png",
+                "png": png_field,
                 "surface": float(row["surface_m2"]),
                 "score": float(row["score_detection"]),
                 "corrobore": int(corrobore),
@@ -429,17 +518,22 @@ def generer_planche(candidats: gpd.GeoDataFrame, ortho_dir: Path, cfg: dict, out
     if sans_dalle:
         log.warning("%d candidat(s) hors des dalles fournies — vignettes absentes, "
                     "ils resteront SANS décision (le --apply les signalera).", sans_dalle)
+    if sans_vignette:
+        log.warning("%d candidat(s) sans PNG existant en mode réutilisation — écartés "
+                    "(fournir --ortho-dir pour les rendre).", sans_vignette)
     if not items:
         raise SystemExit("Aucune vignette générée — mauvais dossier de dalles ?")
 
     # Cas incertains d'abord (|score-0,5| croissant), évidences à la fin (docs/15 §2).
     items.sort(key=lambda it: cle_incertitude(it["score"]))
 
-    html = rendre_html(items, cfg["dept"])
+    planche = id_planche(candidats_path, cfg["dept"])
+    html = rendre_html(items, cfg["dept"], planche)
     out = out_dir / "tri.html"
     out.write_text(html, encoding="utf-8")
-    log.info("Planche de tri : %s (%d vignettes dont %d corroborées cadastre, "
-             "autonome, ouvrir dans un navigateur).", out, len(items), n_corr)
+    log.info("Planche de tri : %s (planche=%s, %d vignettes dont %d corroborées "
+             "cadastre, %s, ouvrir dans un navigateur).", out, planche, len(items),
+             n_corr, "AUTONOME (vignettes inline)" if embarquer else "vignettes externes")
     return out
 
 
@@ -495,6 +589,14 @@ def main() -> None:
     p.add_argument("--apply", help="decisions.csv exporté depuis tri.html")
     p.add_argument("--reutiliser-vignettes", action="store_true",
                    help="ne re-rendre que les PNG manquants (régénération HTML rapide)")
+    p.add_argument("--embarquer", action="store_true",
+                   help="planche autonome : vignettes ré-encodées JPEG q82 inline "
+                        "(data:URI) dans le HTML, un seul fichier sans référence externe")
+    p.add_argument("--planche-hash",
+                   help="empreinte (hash12) attendue de la planche à l'application : "
+                        "refuse si le parquet de candidats a changé (sauf --force)")
+    p.add_argument("--force", action="store_true",
+                   help="outrepasse le contrôle d'empreinte de planche (--planche-hash)")
     args = p.parse_args()
 
     cfg = load_config()
@@ -503,16 +605,31 @@ def main() -> None:
     log.info("%d candidats chargés depuis %s.", len(candidats), args.candidats)
 
     if args.apply:
+        if args.planche_hash:
+            actuel = hash12_parquet(args.candidats)
+            if actuel != args.planche_hash:
+                msg = (f"la planche a été générée depuis une autre version des "
+                       f"candidats — régénérer la planche ou utiliser --force "
+                       f"(empreinte attendue {args.planche_hash}, candidats actuels {actuel})")
+                if args.force:
+                    log.warning("%s [--force : on applique quand même]", msg)
+                else:
+                    raise SystemExit(msg)
         decisions = pd.read_csv(args.apply)
         valides = appliquer_decisions(candidats, decisions)
         out = Path(cfg["paths"]["interim"]) / f"piscines_detectees_{cfg['dept']}.parquet"
         valides.to_parquet(out)
         log.info("Écrit : %s (%d piscines validées). Prochaine étape : "
                  "20_join_piscines_adresses.py --source-piscines %s", out, len(valides), out)
-    elif args.ortho_dir:
+    elif args.ortho_dir or args.reutiliser_vignettes:
+        # --reutiliser-vignettes seul suffit à régénérer le HTML si toutes les
+        # vignettes existent déjà (ortho non requise, cf. generer_planche).
         out_dir = Path(cfg["paths"]["interim"]) / "tri"
-        generer_planche(candidats, Path(args.ortho_dir), cfg, out_dir,
-                        reutiliser_vignettes=args.reutiliser_vignettes)
+        ortho = Path(args.ortho_dir) if args.ortho_dir else None
+        generer_planche(candidats, ortho, cfg, out_dir,
+                        candidats_path=args.candidats,
+                        reutiliser_vignettes=args.reutiliser_vignettes,
+                        embarquer=args.embarquer)
     else:
         raise SystemExit("Préciser --ortho-dir (générer la planche) ou --apply (appliquer le tri).")
 

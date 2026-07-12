@@ -11,7 +11,10 @@
 #     contributions. Par défaut « anonyme ».
 #
 # Ce que fait le script :
-#   1. copie le CSV dans handoff/decisions_recus/decisions_{timestamp}_{nom}.csv
+#   1. copie le CSV dans handoff/decisions_recus/decisions_{timestamp}_{nom}[_{hash12}].csv
+#      — le timestamp (horodatage du NOM) permet le départage des conflits sans
+#        dépendre du mtime (qu'un git clone réécrit) ; le hash12 (empreinte de
+#        planche) présent dans le nom exporté est PRÉSERVÉ pour la vérification.
 #   2. git add + commit + push origin main
 #
 # Le CSV ne contient que « id_detection,decision » (oui/non/incertain) : aucune
@@ -42,9 +45,23 @@ fi
 NOM_CLEAN="$(printf '%s' "$NOM" | tr -c 'A-Za-z0-9_-' '_' )"
 [[ -z "$NOM_CLEAN" ]] && NOM_CLEAN="anonyme"
 
+# Empreinte de planche (hash12) : présente en fin du nom exporté par la planche
+# (decisions_{dept}_{commune}_{hash12}.csv). On la préserve dans le nom de
+# destination pour que appliquer_decisions_recues.py puisse vérifier la planche.
+HASH12=""
+if [[ "$(basename "$SRC")" =~ _([0-9a-f]{12})\.csv$ ]]; then
+  HASH12="${BASH_REMATCH[1]}"
+fi
+
 TS="$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$DEST_DIR"
-DEST="$DEST_DIR/decisions_${TS}_${NOM_CLEAN}.csv"
+if [[ -n "$HASH12" ]]; then
+  DEST="$DEST_DIR/decisions_${TS}_${NOM_CLEAN}_${HASH12}.csv"
+else
+  echo "AVERTISSEMENT : pas d'empreinte de planche (hash12) dans le nom du CSV." >&2
+  echo "  Fichier accepté, mais il ne pourra pas être vérifié contre une planche." >&2
+  DEST="$DEST_DIR/decisions_${TS}_${NOM_CLEAN}.csv"
+fi
 
 cp "$SRC" "$DEST"
 echo "Copié : $DEST"

@@ -147,10 +147,14 @@ def test_rendre_html_items_persistance_et_export():
     la persistance localStorage est par département, et l'export garde le contrat
     CSV id_detection,decision. L'export prévient s'il reste des non-triés
     (seuil 2 %) mais exporte quand même."""
-    html = tri.rendre_html(_items(), "49")
+    html = tri.rendre_html(_items(), "49", "49_49035_abc123def456")
     assert '"id": "pisc_a"' in html and '"corrobore": 1' in html
     assert "dataset.corrobore" in html
-    assert 'tri_piscines_49' in html  # clé localStorage : reprise par département
+    # Clé localStorage DÉRIVÉE de l'empreinte de planche (data-planche), pas
+    # d'ancienne clé globale partagée entre communes/versions.
+    assert 'data-planche="49_49035_abc123def456"' in html
+    assert 'const PLANCHE = document.body.dataset.planche;' in html
+    assert 'const CLE = "tri_" + PLANCHE;' in html
     assert "localStorage.setItem(CLE" in html
     assert 'id="btn-export"' in html and "Exporter decisions.csv" in html
     assert "id_detection,decision" in html
@@ -162,7 +166,177 @@ def test_rendre_html_navigation_et_correction():
     """Après décision, saut à la prochaine non triée ; les cartes triées restent
     marquées (classes dec-*) et re-cliquables pour corriger."""
     html = tri.rendre_html(_items(), "49")
+    html = tri.rendre_html(_items(), "49", "49_49035_abc123def456")
     assert "premierNonTrie" in html and "scrollIntoView" in html
     assert ".dec-oui" in html and ".dec-non" in html and ".dec-incertain" in html
     assert 'addEventListener("click"' in html
     assert 'loading="lazy"' in html  # 977 vignettes : chargement paresseux obligatoire
+
+
+# ------------------------------------------------ FIX 1/2 : empreinte de planche
+
+def test_hash12_parquet_stable_et_12_hex(tmp_path):
+    """Le hash12 est déterministe (mêmes octets → même valeur), 12 hex, et change
+    si le fichier change."""
+    f1 = tmp_path / "a.parquet"
+    f1.write_bytes(b"des octets de candidats")
+    h = tri.hash12_parquet(f1)
+    assert len(h) == 12 and all(c in "0123456789abcdef" for c in h)
+    assert h == tri.hash12_parquet(f1)  # stable
+    f2 = tmp_path / "b.parquet"
+    f2.write_bytes(b"des octets differents")
+    assert tri.hash12_parquet(f2) != h
+
+
+def test_commune_depuis_nom():
+    """Commune extraite du motif piscines_candidates_{dept}_{commune}.parquet ;
+    sinon 'dept'."""
+    assert tri.commune_depuis_nom("x/piscines_candidates_49_49035.parquet", "49") == "49035"
+    assert tri.commune_depuis_nom("x/piscines_candidates_49.parquet", "49") == "dept"
+    assert tri.commune_depuis_nom("x/autre.parquet", "49") == "dept"
+
+
+def test_id_planche_format(tmp_path):
+    """id_planche = {dept}_{commune}_{hash12}, présent tel quel dans le HTML."""
+    f = tmp_path / "piscines_candidates_49_49035.parquet"
+    f.write_bytes(b"candidats bouchemaine")
+    pid = tri.id_planche(f, "49")
+    h = tri.hash12_parquet(f)
+    assert pid == f"49_49035_{h}"
+    html = tri.rendre_html(_items(), "49", pid)
+    assert f'data-planche="{pid}"' in html
+
+
+def test_export_csv_nomme_par_planche():
+    """Le nom du fichier téléchargé embarque l'empreinte de planche ; le CONTENU
+    reste le contrat immuable id_detection,decision."""
+    html = tri.rendre_html(_items(), "49", "49_49035_abc123def456")
+    assert 'a.download = "decisions_" + PLANCHE + ".csv"' in html
+    assert 'csv = "id_detection,decision' in html
+
+
+# ------------------------------------------------ FIX 4 : planche embarquée
+
+def _candidats_mini(tmp_path):
+    """GeoDataFrame minimal : un candidat carré, avec les colonnes attendues."""
+    from shapely.geometry import box as sbox
+    g = gpd.GeoDataFrame(
+        {"id_detection": ["pisc_x"], "surface_m2": [30.0], "score_detection": [0.7]},
+        geometry=[sbox(999, 1999, 1001, 2001)], crs="EPSG:2154",
+    )
+    return g
+
+
+def test_embarquer_produit_html_autonome(tmp_path, monkeypatch):
+    """--embarquer : le HTML ne référence AUCUN vignettes/*.png et contient des
+    data:image/jpeg inline. Sans le flag : références externes conservées."""
+    import numpy as np
+
+    cfg = {"dept": "49", "paths": {"interim": str(tmp_path)},
+           "tri_visuel": {"vignette_m": 60, "vignette_px": 64}}
+    cand = _candidats_mini(tmp_path)
+    cand_path = tmp_path / "piscines_candidates_49_49035.parquet"
+    cand.to_parquet(cand_path)
+
+    # On court-circuite l'ortho : dalle bidon + extraction qui renvoie une image noire.
+    monkeypatch.setattr(tri, "indexer_dalles", lambda d: {"paths": ["dalle.tif"]})
+    monkeypatch.setattr(tri, "dalle_pour", lambda x, y, idx: "dalle.tif")
+    monkeypatch.setattr(tri, "extraire_vignette",
+                        lambda *a, **k: np.zeros((64, 64, 3), dtype=np.uint8))
+    monkeypatch.setattr(tri, "charger_parcelles", lambda cfg: None)
+    monkeypatch.setattr(tri, "charger_pci_piscines", lambda cfg: None)
+
+    out_dir = tmp_path / "tri"
+    tri.generer_planche(cand, tmp_path / "ortho", cfg, out_dir,
+                        candidats_path=cand_path, embarquer=True)
+    html = (out_dir / "tri.html").read_text()
+    assert "data:image/jpeg;base64," in html
+    assert "vignettes/" not in html  # aucune référence externe
+    assert "data-planche=" in html
+
+
+def test_reutiliser_vignettes_embarquer_relit_les_png(tmp_path, monkeypatch):
+    """--embarquer + --reutiliser-vignettes : les PNG existants sont relus et
+    ré-encodés en JPEG inline (pas de re-rendu)."""
+    import numpy as np
+    from PIL import Image
+
+    cfg = {"dept": "49", "paths": {"interim": str(tmp_path)},
+           "tri_visuel": {"vignette_m": 60, "vignette_px": 64}}
+    cand = _candidats_mini(tmp_path)
+    cand_path = tmp_path / "piscines_candidates_49_49035.parquet"
+    cand.to_parquet(cand_path)
+
+    out_dir = tmp_path / "tri"
+    vign = out_dir / "vignettes"
+    vign.mkdir(parents=True)
+    Image.fromarray(np.full((64, 64, 3), 128, dtype=np.uint8)).save(vign / "pisc_x.png")
+
+    monkeypatch.setattr(tri, "indexer_dalles", lambda d: {"paths": ["dalle.tif"]})
+    monkeypatch.setattr(tri, "dalle_pour", lambda x, y, idx: "dalle.tif")
+
+    def _boom(*a, **k):
+        raise AssertionError("extraire_vignette ne doit pas être appelée en réutilisation")
+
+    monkeypatch.setattr(tri, "extraire_vignette", _boom)
+    monkeypatch.setattr(tri, "charger_parcelles", lambda cfg: None)
+    monkeypatch.setattr(tri, "charger_pci_piscines", lambda cfg: None)
+
+    tri.generer_planche(cand, tmp_path / "ortho", cfg, out_dir,
+                        candidats_path=cand_path, reutiliser_vignettes=True, embarquer=True)
+    html = (out_dir / "tri.html").read_text()
+    assert "data:image/jpeg;base64," in html
+    assert "vignettes/" not in html
+
+
+# ------------------------------------ FIX 1 : contrôle d'empreinte au --apply
+
+def _prep_apply(tmp_path, monkeypatch):
+    import pandas as pd
+    cfg = {"dept": "49", "paths": {"interim": str(tmp_path)}}
+    cand = _candidats_mini(tmp_path)
+    cand_path = tmp_path / "piscines_candidates_49_49035.parquet"
+    cand.to_parquet(cand_path)
+    dec = tmp_path / "decisions.csv"
+    pd.DataFrame({"id_detection": ["pisc_x"], "decision": ["oui"]}).to_csv(dec, index=False)
+    monkeypatch.setattr(tri, "load_config", lambda: cfg)
+    monkeypatch.setattr(tri, "ensure_dirs", lambda c: None)
+    return cand_path, dec
+
+
+def test_apply_refuse_planche_hash_different(tmp_path, monkeypatch):
+    """--planche-hash faux → SystemExit clair, aucune écriture."""
+    import sys
+    import pytest
+    cand_path, dec = _prep_apply(tmp_path, monkeypatch)
+    monkeypatch.setattr(sys, "argv", [
+        "prog", "--candidats", str(cand_path), "--apply", str(dec),
+        "--planche-hash", "000000000000",
+    ])
+    with pytest.raises(SystemExit, match="autre version des candidats"):
+        tri.main()
+
+
+def test_apply_force_outrepasse_le_hash(tmp_path, monkeypatch):
+    """--force applique malgré un --planche-hash faux : la base de sortie est écrite."""
+    import sys
+    cand_path, dec = _prep_apply(tmp_path, monkeypatch)
+    monkeypatch.setattr(sys, "argv", [
+        "prog", "--candidats", str(cand_path), "--apply", str(dec),
+        "--planche-hash", "000000000000", "--force",
+    ])
+    tri.main()
+    assert (tmp_path / "piscines_detectees_49.parquet").exists()
+
+
+def test_apply_hash_correct_passe(tmp_path, monkeypatch):
+    """Le bon hash12 laisse passer l'application."""
+    import sys
+    cand_path, dec = _prep_apply(tmp_path, monkeypatch)
+    bon = tri.hash12_parquet(cand_path)
+    monkeypatch.setattr(sys, "argv", [
+        "prog", "--candidats", str(cand_path), "--apply", str(dec),
+        "--planche-hash", bon,
+    ])
+    tri.main()
+    assert (tmp_path / "piscines_detectees_49.parquet").exists()
