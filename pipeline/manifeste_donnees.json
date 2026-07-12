@@ -1,0 +1,67 @@
+{
+  "genere_le": "2026-07-12T08:44:10+00:00",
+  "machine": "MacBookPro",
+  "note": "Référence partagée des données data/interim/. NE PAS éditer à la main. Régénérer avec : python pipeline/src/verifier_donnees.py --generer, committer, et consigner le changement de millésime dans docs/08.",
+  "fichiers": {
+    "ban_49.parquet": {
+      "sha256": "0df2c2447697ae0d9884b05c9059ac25f66397e3ee64ec7965195a41d70a167a",
+      "taille_octets": 20606190,
+      "nb_lignes": 353333
+    },
+    "batiments_cadastre_49.parquet": {
+      "sha256": "2b83d188a1ada3cf6ca94179302f22ef144093f896cb224ce586402cacc284eb",
+      "taille_octets": 88861859,
+      "nb_lignes": 803514
+    },
+    "bdtopo_batiment_49.parquet": {
+      "sha256": "38ee5d052c30d65a990c811bb6796fa6f62655dd3da8bbe0c81f74bb3b1bf816",
+      "taille_octets": 84768986,
+      "nb_lignes": 951847
+    },
+    "bdtopo_exclusions_49.parquet": {
+      "sha256": "31c3b87683179d0ed228dd1f19f49395ae9b4c386c7a98a47c882719b589c5de",
+      "taille_octets": 835154,
+      "nb_lignes": 5680
+    },
+    "millesimes.yaml": {
+      "sha256": "1de421ab1963a866b3c8dd875c7911d3e25419fb90cd6ecc708f6f41f7a28174",
+      "taille_octets": 94,
+      "nb_lignes": null
+    },
+    "parcelles_49.parquet": {
+      "sha256": "b6d74ec740e266f9613f252cb7facfd4ef5fb1826f2422a1f9267441ac73f3e6",
+      "taille_octets": 289863178,
+      "nb_lignes": 1231528
+    },
+    "piscines_adressees_49_dev.parquet": {
+      "sha256": "8782b85e4a9534a94077f44bbec8b1e3884411da2e355b8ba17f241ed63e0681",
+      "taille_octets": 39140,
+      "nb_lignes": 87
+    },
+    "piscines_candidates_49_49035.parquet": {
+      "sha256": "2d460d3dc74e4ee394732b54a5434ca468a99bfdac04a38b919e70dd2adab69f",
+      "taille_octets": 628092,
+      "nb_lignes": 977
+    },
+    "piscines_osm_dev.parquet": {
+      "sha256": "9f0876321c9347dc2b45570d051b5128aec6214b333bc3966aeb6bbe3a0e8378",
+      "taille_octets": 5048516,
+      "nb_lignes": 43095
+    },
+    "piscines_pci_sym65_49035.parquet": {
+      "sha256": "53a15a426ec84ee5cf226c90676dfc9ac2e1a65516cc60d7ac5995db835ef7f3",
+      "taille_octets": 33081,
+      "nb_lignes": 165
+    },
+    "piscines_pci_sym65_49308.parquet": {
+      "sha256": "2c748712ad6f355a419d753b7c5cb7e922e13616c790c70cd539e9eed81ac354",
+      "taille_octets": 25108,
+      "nb_lignes": 73
+    },
+    "piscines_qualifiees_49_dev.parquet": {
+      "sha256": "0a441014aaf208ded1810c44dea77320bc285680fb18e8920b2ddd5b9a735eb9",
+      "taille_octets": 41267,
+      "nb_lignes": 85
+    }
+  }
+}

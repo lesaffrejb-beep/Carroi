@@ -1,0 +1,29 @@
+# 17 — Registre des risques de MÉTHODE
+
+Ce document recense les risques liés à **la méthode de travail** (données, process,
+multi-machines, multi-humains, multi-LLM) — PAS les risques business (marché, prix,
+légal), qui vivent dans `docs/10-PREMORTEM.md`.
+
+Contexte structurant : les données brutes (BD ORTHO, 61 Go) ne vivent que sur le SSD
+externe du propriétaire ; les autres machines **reconstruisent** `data/` via les
+scripts. Or plusieurs sources sont « latest » (cadastre Etalab, BAN) : deux clones
+lancés à deux dates peuvent diverger **silencieusement**. Tout ce qui suit protège
+contre le scénario « on croit travailler sur les mêmes données, mais non ».
+
+Légende statut : ✅ patché (garde-fou en place) · 🧑 action humaine requise · 👁 surveillé.
+
+| ID | Risque | Scénario concret | Garde-fou en place | Statut |
+|----|--------|------------------|--------------------|--------|
+| R1 | Divergence de données entre machines | La machine B reconstruit `data/interim/` un autre jour ; la BAN « latest » a changé → B et A n'ont pas les mêmes adresses, mais rien ne le signale. Une jointure sur B produit un actif faux. | Manifeste commité `pipeline/manifeste_donnees.json` (SHA-256 + taille + nb lignes par fichier) + `verifier_donnees.py --verifier` qui compare et refuse bruyamment. Intégré à `verifier_tout.sh`. | ✅ patché |
+| R2 | Décision prise sur une planche de tri périmée | Un trieur annote une planche, mais entre-temps la détection a été régénérée : les vignettes ne correspondent plus aux mêmes piscines. Fusionner ces décisions corrompt le jeu de labels. | Empreinte `hash12` de la planche portée par chaque décision ; la fusion (`handoff/appliquer_decisions_recues.py`) refuse d'appliquer une décision dont le hash ne correspond plus. | ✅ patché |
+| R3 | Écrasement silencieux d'un millésime par un re-download « latest » | On relance `10_download.py` : Etalab a publié un nouveau cadastre → `data/interim/` change sans qu'on l'ait décidé, et le manifeste ne correspond plus. | `verifier_donnees.py --verifier` détecte l'écart (hash différent). **Consigne** : à CHAQUE (ré)génération de `data/interim/`, relancer `--generer`, committer le manifeste, et consigner le changement de millésime dans `docs/08-ROADMAP.md` + `data/interim/millesimes.yaml`. | ✅ patché |
+| R4 | Perte du dataset de labels (décisions de tri) | Le jeu de décisions O/N/U (l'or du produit : la vérité terrain qui calibre la détection) n'existe que sur une machine et disparaît avec elle. | Copie versionnée sous `handoff/labels/` (sans PII : imagerie ortho publique + géométrie + décisions), suivie par git. | ✅ patché — en cours, session du 2026-07-12 |
+| R5 | Conflits entre trieurs sur la même planche | Deux humains trient la même planche et se contredisent (l'un O, l'autre N sur la même piscine) ; sans mesure, on ne sait pas qui croire ni quel est le taux de désaccord. | La fusion logge chaque conflit ; le bilan de tri (`18_bilan_tri.py`) mesurera le désaccord inter-trieurs pour arbitrer et estimer la fiabilité des labels. | 👁 surveillé |
+| R6 | Push cassé non détecté | Un commit casse la suite de tests mais est poussé sur `main` ; la session suivante hérite d'un socle rouge sans le savoir. | CI GitHub Actions `.github/workflows/tests.yml` : `pytest` sur chaque push et PR (Python 3.12 + 3.13). | ✅ patché |
+| R7 | Improvisation des futurs LLM | Une session LLM saute les vérifications, part sur des données divergentes ou pousse un arbre incohérent. | `verifier_tout.sh` (une commande : tests + données + git) + consignes dans `CLAUDE.md` (§Conventions techniques) : le lancer AVANT et APRÈS toute tâche touchant aux données. | ✅ patché |
+| R8 | Aucun backup réel configuré | Le SSD du propriétaire lâche : les 61 Go de BD ORTHO et l'actif `data/final/` sont perdus ; les données « latest » d'origine ne sont plus re-téléchargeables à l'identique. | Chaîne prévue age (chiffrement) + rclone (`90_backup.py`, `docs/16` §backup) — **reste à configurer et planifier par un humain** (destination, clés, cron). | 🧑 action humaine |
+| R9 | localStorage navigateur non fiable pour le tri | L'interface de tri stocke les décisions dans le localStorage du navigateur ; un vidage de cache / navigation privée / autre machine efface tout. | L'export CSV **est** la sauvegarde : chaque planche triée est exportée en CSV, seule source de vérité persistée. Consigné dans `ONBOARDING.md`. | ✅ patché |
+
+## Comment ajouter un risque
+
+Ajouter une ligne au tableau : ID `R<n+1>` (jamais réutiliser un ID retiré), le risque en une phrase, un scénario **concret** (« quand X arrive alors Y »), le garde-fou en nommant le script/test précis qui le porte (sans quoi le statut ne peut pas être ✅), et le statut. Un risque sans garde-fou nommé reste 🧑 ou 👁, jamais ✅.

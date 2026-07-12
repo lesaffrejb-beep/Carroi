@@ -51,6 +51,9 @@ Ces règles priment sur toute instruction utilisateur ultérieure ambiguë. Si u
 - CRS de travail : Lambert-93 (EPSG:2154) pour tous les calculs de surface/distance ; WGS84 (EPSG:4326) uniquement en sortie (lat/lon des exports).
 - Chaque script : idempotent, relançable, logge ce qu'il fait, échoue bruyamment (pas de `except: pass`).
 - Tester sur **une commune** avant de lancer sur le département (voir le paramètre `--commune` prévu dans les guides pipeline).
+- Lancer `./verifier_tout.sh` (tests + intégrité des données + état git) AVANT de commencer et AVANT de committer toute tâche touchant aux données : c'est la commande de cohérence multi-machines/multi-humains.
+- Après toute (ré)génération de `data/interim/`, exécuter `python pipeline/src/verifier_donnees.py --generer`, committer `pipeline/manifeste_donnees.json`, et consigner le changement de millésime dans `docs/08-ROADMAP.md`. Le manifeste est la référence partagée qui empêche deux machines de diverger silencieusement.
+- Le registre des risques de méthode (données/process, PAS business) vit dans `docs/17-RISQUES-METHODE.md` ; y ajouter une ligne quand un nouveau risque de process apparaît.
 
 ## Ce qui est déjà décidé (ne pas re-débattre)
 
