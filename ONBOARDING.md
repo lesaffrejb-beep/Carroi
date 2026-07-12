@@ -12,7 +12,11 @@ piscine ou non. C'est tout. Pas de Python, pas d'install.
 
 1. **Ouvre la planche** : double-clique sur `handoff/tri_bouchemaine_49035.html`
    (elle s'ouvre dans ton navigateur ; les images sont intégrées dans le fichier).
-2. **Suis les instructions à l'écran** : le bandeau en haut et les règles du jeu
+2. **Dis qui tu es** : à l'ouverture, une petite fenêtre « Qui trie ? » te demande
+   ton prénom (boutons rapides **JB** / **Azan**, ou tape un pseudo). Il est
+   enregistré avec chacune de tes réponses (traçabilité qualité) et affiché en haut
+   à gauche — clique « changer » pour en changer.
+3. **Suis les instructions à l'écran** : le bandeau en haut et les règles du jeu
    sont dans la page. En résumé, au clavier :
    - **O** = oui, c'est une piscine
    - **N** = non
@@ -21,7 +25,7 @@ piscine ou non. C'est tout. Pas de Python, pas d'install.
    Ta progression est sauvegardée automatiquement dans le navigateur, mais
    **uniquement sur la même machine et le même fichier**. Tu peux fermer et
    reprendre plus tard sur le même ordinateur.
-3. **Exporte souvent — même partiellement.** Pas besoin de tout finir d'un coup :
+4. **Exporte souvent — même partiellement.** Pas besoin de tout finir d'un coup :
    tu peux trier en plusieurs sessions. Dès que tu as avancé un peu, clique sur
    **« Exporter decisions.csv »** : un CSV est téléchargé. **C'est le CSV exporté
    qui est ta vraie sauvegarde**, pas le navigateur — le stockage local n'est
@@ -30,7 +34,7 @@ piscine ou non. C'est tout. Pas de Python, pas d'install.
    ⚠ **Ne renomme pas le fichier** : son nom contient une empreinte de version
    (`decisions_49_49035_<hash12>.csv`) qui garantit que tes décisions collent bien
    à la planche que tu as triée. Un fichier renommé peut être refusé à la fusion.
-4. **Renvoie ton travail** :
+5. **Renvoie ton travail** :
    ```
    ./handoff/soumettre_tri.sh chemin/vers/decisions_49_49035_<hash>.csv "ton_prenom"
    ```

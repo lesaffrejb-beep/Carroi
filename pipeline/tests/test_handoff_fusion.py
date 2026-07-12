@@ -102,3 +102,45 @@ def test_cle_recence_fallback_mtime_si_nom_non_horodate(tmp_path):
     f.write_text("id_detection,decision\n")
     os.utime(f, (1234567890, 1234567890))
     assert adr.cle_recence(f) == (1234567890.0, f.name)
+
+
+# ------------------------------------------ fusion : rétro-compat 2 col / 4 col
+
+def test_fusion_2_colonnes_reste_2_colonnes(tmp_path):
+    """Format historique (2 colonnes) : la fusion reste à 2 colonnes — contrat
+    immuable, toujours accepté."""
+    f = tmp_path / "decisions_20260712_100000_a_aaaaaaaaaaaa.csv"
+    pd.DataFrame({"id_detection": ["p1", "p2"], "decision": ["oui", "non"]}).to_csv(f, index=False)
+    fusion = adr.fusionner([f])
+    assert list(fusion.columns) == ["id_detection", "decision"]
+    assert set(fusion["id_detection"]) == {"p1", "p2"}
+
+
+def test_fusion_4_colonnes_conserve_trieur_horodatage(tmp_path):
+    """Format enrichi (4 colonnes) : trieur/horodatage sont CONSERVÉS dans la
+    fusion (traçabilité), sans casser la logique 2 colonnes en aval."""
+    f = tmp_path / "decisions_20260712_100000_a_aaaaaaaaaaaa.csv"
+    pd.DataFrame({
+        "id_detection": ["p1", "p2"],
+        "decision": ["oui", "non"],
+        "trieur": ["JB", "Azan"],
+        "horodatage": ["2026-07-12T10:00:00Z", "2026-07-12T10:01:00Z"],
+    }).to_csv(f, index=False)
+    fusion = adr.fusionner([f])
+    assert list(fusion.columns) == ["id_detection", "decision", "trieur", "horodatage"]
+    row = fusion.set_index("id_detection").loc["p1"]
+    assert row["decision"] == "oui" and row["trieur"] == "JB"
+
+
+def test_fusion_mixte_2_et_4_colonnes(tmp_path):
+    """Un fichier 2 col + un fichier 4 col : la fusion porte trieur/horodatage
+    (colonnes présentes dès qu'un fichier les a ; '' pour l'autre)."""
+    f2 = tmp_path / "decisions_20260712_090000_a_aaaaaaaaaaaa.csv"
+    f4 = tmp_path / "decisions_20260712_100000_b_aaaaaaaaaaaa.csv"
+    pd.DataFrame({"id_detection": ["p1"], "decision": ["non"]}).to_csv(f2, index=False)
+    pd.DataFrame({"id_detection": ["p2"], "decision": ["oui"],
+                  "trieur": ["JB"], "horodatage": ["2026-07-12T10:00:00Z"]}).to_csv(f4, index=False)
+    fusion = adr.fusionner([f2, f4]).set_index("id_detection")
+    assert "trieur" in fusion.columns and "horodatage" in fusion.columns
+    assert fusion.loc["p1", "trieur"] == ""      # fichier 2 col → vide
+    assert fusion.loc["p2", "trieur"] == "JB"

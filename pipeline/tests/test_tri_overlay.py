@@ -209,10 +209,47 @@ def test_id_planche_format(tmp_path):
 
 def test_export_csv_nomme_par_planche():
     """Le nom du fichier téléchargé embarque l'empreinte de planche ; le CONTENU
-    reste le contrat immuable id_detection,decision."""
+    reprend le contrat élargi id_detection,decision,trieur,horodatage."""
     html = tri.rendre_html(_items(), "49", "49_49035_abc123def456")
     assert 'a.download = "decisions_" + PLANCHE + ".csv"' in html
-    assert 'csv = "id_detection,decision' in html
+    assert 'csv = "id_detection,decision,trieur,horodatage' in html
+
+
+# ------------------------------------------------ identité du trieur (chantier 1)
+
+def test_rendre_html_modal_trieur():
+    """Modal « Qui trie ? » avec boutons rapides JB / Azan + champ libre (pseudo)."""
+    html = tri.rendre_html(_items(), "49", "49_49035_abc123def456")
+    assert 'id="modal-trieur"' in html and "Qui trie ?" in html
+    assert "definirTrieur('JB')" in html and "definirTrieur('Azan')" in html
+    assert 'id="champ-trieur"' in html
+    assert "function demanderTrieur()" in html
+    # affiché dans le bandeau avec un lien « changer »
+    assert 'id="trieur-nom"' in html and 'id="lien-changer"' in html
+
+
+def test_rendre_html_trieur_cle_globale():
+    """Le trieur est mémorisé sous une clé GLOBALE (la personne, pas la planche)."""
+    html = tri.rendre_html(_items(), "49", "49_49035_abc123def456")
+    assert 'const CLE_TRIEUR = "tri_trieur";' in html
+    assert "localStorage.setItem(CLE_TRIEUR" in html
+
+
+def test_rendre_html_decision_objet_et_migration():
+    """Chaque décision est un objet {d, t, ts} ; migration chaîne→objet des
+    valeurs héritées ({d: chaîne, t: 'inconnu', ts: null})."""
+    html = tri.rendre_html(_items(), "49", "49_49035_abc123def456")
+    assert "function normDec(v)" in html
+    assert '{d: v, t: "inconnu", ts: null}' in html
+    assert "dec[it.id] = {d: v, t: TRIEUR, ts: new Date().toISOString()};" in html
+
+
+def test_rendre_html_compteurs_par_trieur():
+    """Bandeau : compteurs par trieur en direct, calculés depuis les objets."""
+    html = tri.rendre_html(_items(), "49", "49_49035_abc123def456")
+    assert 'id="par-trieur"' in html
+    assert "const parTrieur = {};" in html
+    assert "`${t} : ${parTrieur[t]}`" in html
 
 
 # ------------------------------------------------ FIX 4 : planche embarquée
@@ -340,3 +377,30 @@ def test_apply_hash_correct_passe(tmp_path, monkeypatch):
     ])
     tri.main()
     assert (tmp_path / "piscines_detectees_49.parquet").exists()
+
+
+# --------------------------------- rétro-compat consommation : 2 col ET 4 col
+
+def test_appliquer_decisions_accepte_2_colonnes():
+    """Format historique (id_detection,decision) : toujours accepté."""
+    import pandas as pd
+    cand = _candidats_mini(None)
+    dec = pd.DataFrame({"id_detection": ["pisc_x"], "decision": ["oui"]})
+    out = tri.appliquer_decisions(cand, dec)
+    assert list(out["id_detection"]) == ["pisc_x"]
+
+
+def test_appliquer_decisions_accepte_4_colonnes_ignore_trieur():
+    """Format enrichi (…,trieur,horodatage) : accepté, les colonnes trieur/
+    horodatage sont IGNORÉES par la logique d'application (rétro-compat stricte)."""
+    import pandas as pd
+    cand = _candidats_mini(None)
+    dec = pd.DataFrame({
+        "id_detection": ["pisc_x"],
+        "decision": ["oui"],
+        "trieur": ["JB"],
+        "horodatage": ["2026-07-12T10:00:00Z"],
+    })
+    out = tri.appliquer_decisions(cand, dec)
+    assert list(out["id_detection"]) == ["pisc_x"]
+    assert out.iloc[0]["methode"] == "valide_humain"

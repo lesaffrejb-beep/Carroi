@@ -16,9 +16,15 @@ Il ne contient QUE :
 
 - des **planches de tri** (`tri_*.html`) : vignettes d'imagerie ortho publique
   (IGN, BD ORTHO), polygones candidats et limites de parcelles — pas de PII ;
-- des **décisions** (`decisions_49_49035_<hash12>.csv`) : deux colonnes
-  `id_detection,decision` où `decision` ∈ {`oui`, `non`, `incertain`}. Aucun
-  identifiant nominatif.
+- des **décisions** (`decisions_49_49035_<hash12>.csv`) : colonnes
+  `id_detection,decision,trieur,horodatage` où `decision` ∈ {`oui`, `non`,
+  `incertain`}, `trieur` = prénom/pseudo du trieur (l'équipe, pas un prospect —
+  cf. `CLAUDE.md`), `horodatage` = date ISO de la décision. **Aucun identifiant
+  nominatif de particulier.** L'ancien format à 2 colonnes (`id_detection,decision`)
+  reste accepté pour toujours : la fusion et l'application lisent les deux formats,
+  et conservent `trieur`/`horodatage` dans le CSV fusionné quand ils sont présents
+  (ces deux colonnes servent la traçabilité qualité, elles n'influencent jamais la
+  logique d'application — seule la colonne `decision` décide).
 
 **En cas de doute sur un fichier, ne pas le mettre ici.** C'est le pilier de la
 défendabilité RGPD du projet (voir `CLAUDE.md` règle 1). Les fichiers avec adresses

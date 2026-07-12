@@ -117,17 +117,36 @@ def cle_recence(path: Path):
     return (ts, path.name)
 
 
+def _val(row, col: str) -> str:
+    """Valeur str nettoyée d'une colonne optionnelle ('' si absente/NaN)."""
+    if col not in row.index:
+        return ""
+    v = row[col]
+    return "" if pd.isna(v) else str(v).strip()
+
+
 def fusionner(csvs_ordonnes) -> pd.DataFrame:
     """Concatène les CSV (donnés du plus ANCIEN au plus récent), dédoublonne par
-    id_detection : la dernière écriture (donc la plus récente) gagne les conflits."""
+    id_detection : la dernière écriture (donc la plus récente) gagne les conflits.
+
+    Accepte les DEUX formats de CSV : 2 colonnes (id_detection,decision — contrat
+    immuable, toujours accepté) ET 4 colonnes (… ,trieur,horodatage). Les colonnes
+    trieur/horodatage sont CONSERVÉES dans la fusion si au moins un fichier les
+    porte (traçabilité qualité), mais restent ignorées par la logique d'application
+    en aval (16_tri_visuel --apply)."""
     retenu: dict[str, str] = {}
+    trieur: dict[str, str] = {}
+    horod: dict[str, str] = {}
     provenance: dict[str, str] = {}
+    a_trieur = a_horod = False
     for csv in csvs_ordonnes:
         df = pd.read_csv(csv, dtype=str)
         if not {"id_detection", "decision"} <= set(df.columns):
             raise SystemExit(
                 f"{csv.name} : colonnes id_detection,decision attendues, trouvé {list(df.columns)}."
             )
+        a_trieur = a_trieur or ("trieur" in df.columns)
+        a_horod = a_horod or ("horodatage" in df.columns)
         for _, row in df.iterrows():
             idd = str(row["id_detection"]).strip()
             dec = str(row["decision"]).strip()
@@ -137,10 +156,19 @@ def fusionner(csvs_ordonnes) -> pd.DataFrame:
                     idd, retenu[idd], provenance[idd], dec, csv.name,
                 )
             retenu[idd] = dec
+            trieur[idd] = _val(row, "trieur")
+            horod[idd] = _val(row, "horodatage")
             provenance[idd] = csv.name
 
-    fusion = pd.DataFrame(sorted(retenu.items()), columns=["id_detection", "decision"])
-    log.info("Fusion : %d décision(s) unique(s).", len(fusion))
+    ids = sorted(retenu)
+    data = {"id_detection": ids, "decision": [retenu[i] for i in ids]}
+    if a_trieur:
+        data["trieur"] = [trieur[i] for i in ids]
+    if a_horod:
+        data["horodatage"] = [horod[i] for i in ids]
+    fusion = pd.DataFrame(data)
+    log.info("Fusion : %d décision(s) unique(s)%s.", len(fusion),
+             " (trieur/horodatage conservés)" if a_trieur or a_horod else "")
     return fusion
 
 

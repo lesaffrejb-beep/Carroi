@@ -278,13 +278,39 @@ HTML_TEMPLATE = """<!doctype html>
  .marque{position:absolute;top:8px;right:8px;font-weight:bold;font-size:1rem;padding:2px 10px;border-radius:6px;color:#fff}
  .dec-oui .marque{background:#2e7d32}.dec-non .marque{background:#c62828}.dec-incertain .marque{background:#ef6c00}
  .cad{position:absolute;top:8px;left:8px;font-size:.85rem;font-weight:bold;padding:2px 8px;border-radius:6px;background:#0d47a1;color:#fff;box-shadow:0 0 0 2px #fff3}
+ #trieur-actuel b{color:#fff}
+ #lien-changer{color:#64b5f6;font-size:.85rem;margin-left:5px}
+ #par-trieur{color:#9ccc65;font-variant-numeric:tabular-nums}
+ #modal-trieur{display:none;position:fixed;inset:0;z-index:50;background:#000a;align-items:center;justify-content:center}
+ #modal-trieur .boite{background:#1c1c1c;border:1px solid #444;border-radius:12px;padding:24px;max-width:420px;width:90%;box-shadow:0 8px 40px #000}
+ #modal-trieur h2{margin:0 0 8px;font-size:1.3rem}
+ #modal-trieur p{color:#bbb;font-size:.9rem;margin:0 0 16px}
+ #modal-trieur .rapides{display:flex;gap:10px;margin-bottom:14px}
+ #modal-trieur .rapides button{flex:1;font-size:1.1rem;font-weight:bold;padding:12px}
+ #champ-trieur{width:100%;box-sizing:border-box;padding:10px;border-radius:6px;border:1px solid #555;background:#111;color:#eee;margin-bottom:10px}
+ #modal-trieur .valider{width:100%;background:#1565c0;border-color:#1e88e5;font-weight:bold;padding:10px}
 </style></head><body data-planche="__PLANCHE__">
+<div id="modal-trieur">
+ <div class="boite">
+  <h2>Qui trie ?</h2>
+  <p>Ton prénom est enregistré avec tes réponses (traçabilité qualité). Un pseudo convient aussi.</p>
+  <div class="rapides">
+   <button onclick="definirTrieur('JB')">JB</button>
+   <button onclick="definirTrieur('Azan')">Azan</button>
+  </div>
+  <input id="champ-trieur" type="text" placeholder="ou tape ton prénom / pseudo"
+         onkeydown="if(event.key==='Enter')definirTrieur(this.value)">
+  <button class="valider" onclick="definirTrieur(document.getElementById('champ-trieur').value)">Commencer à trier</button>
+ </div>
+</div>
 <header>
  <h1>Y a-t-il une piscine dans le <span class="rouge">CONTOUR ROUGE</span> ?</h1>
  <div id="barre">
+  <span id="trieur-actuel">Trieur : <b id="trieur-nom">—</b><a href="#" id="lien-changer" onclick="demanderTrieur();return false">changer</a></span>
   <span id="compteur"></span>
   <div id="jauge-fond"><div id="jauge"></div></div>
   <span id="corrobore_count"></span>
+  <span id="par-trieur"></span>
   <button id="btn-export" onclick="exporter()">Exporter decisions.csv</button>
   <button id="btn-reset" onclick="if(confirm('Effacer TOUTES les décisions et repartir de zéro ?')){localStorage.removeItem(CLE);location.reload()}">réinitialiser le tri</button>
  </div>
@@ -313,9 +339,45 @@ const ITEMS = __ITEMS__;
 // localStorage — plus de collision, plus de décisions d'une planche écrasant l'autre.
 const PLANCHE = document.body.dataset.planche;
 const CLE = "tri_" + PLANCHE;
+// Identité du trieur : clé GLOBALE (la personne, pas la planche) — le même trieur
+// garde son nom d'une planche/commune à l'autre.
+const CLE_TRIEUR = "tri_trieur";
+
+// Chaque décision est un objet {d, t, ts} : d = oui/non/incertain, t = trieur,
+// ts = horodatage ISO. MIGRATION : une valeur héritée peut être une simple chaîne
+// (tri commencé avant l'ajout de l'identité) → {d: chaîne, t: "inconnu", ts: null}.
+function normDec(v){
+  return (typeof v === "string") ? {d: v, t: "inconnu", ts: null} : v;
+}
 let dec = JSON.parse(localStorage.getItem(CLE) || "{}");
+let migre = false;
+for (const id in dec){
+  const n = normDec(dec[id]);
+  if (n !== dec[id]){ dec[id] = n; migre = true; }
+}
+if (migre) localStorage.setItem(CLE, JSON.stringify(dec));
+
+let TRIEUR = localStorage.getItem(CLE_TRIEUR) || "";
 let histo = [];  // pile d'annulation (session courante)
 let i = -1;
+
+// ------------------------------------------------ identité du trieur
+function definirTrieur(nom){
+  nom = (nom || "").trim();
+  if (!nom) return;
+  TRIEUR = nom;
+  localStorage.setItem(CLE_TRIEUR, TRIEUR);
+  document.getElementById("modal-trieur").style.display = "none";
+  majTrieur();
+}
+function demanderTrieur(){
+  const champ = document.getElementById("champ-trieur");
+  if (champ) champ.value = "";
+  document.getElementById("modal-trieur").style.display = "flex";
+}
+function majTrieur(){
+  document.getElementById("trieur-nom").textContent = TRIEUR || "—";
+}
 
 // Panneau règles : ouvert par défaut à la PREMIÈRE visite, état mémorisé ensuite.
 const regles = document.getElementById("regles");
@@ -349,7 +411,7 @@ function premierNonTrie(depuis){
   return Math.max(0, Math.min(depuis, ITEMS.length - 1));
 }
 function marquer(id){
-  const c = cartes[id], d = dec[id];
+  const c = cartes[id], o = dec[id], d = o ? o.d : null;
   c.classList.remove("dec-oui", "dec-non", "dec-incertain");
   c.querySelector(".marque").textContent = d ? d.toUpperCase() : "";
   if (d) c.classList.add("dec-" + d);
@@ -370,11 +432,20 @@ function maj(){
   document.getElementById("btn-export").textContent = reste
     ? `Exporter decisions.csv (il reste ${reste} non triés — l'application refusera au-delà de 2 %)`
     : "Exporter decisions.csv";
+  // Compteurs par trieur, en direct, calculés depuis les objets localStorage.
+  const parTrieur = {};
+  for (const id in dec){
+    const t = dec[id].t || "inconnu";
+    parTrieur[t] = (parTrieur[t] || 0) + 1;
+  }
+  document.getElementById("par-trieur").textContent =
+    Object.keys(parTrieur).sort().map(t => `${t} : ${parTrieur[t]}`).join(" · ");
 }
 function decider(v){
+  if (!TRIEUR){ demanderTrieur(); return; }  // pas de décision anonyme
   const it = ITEMS[i];
   histo.push({id: it.id, avant: dec[it.id]});
-  dec[it.id] = v;
+  dec[it.id] = {d: v, t: TRIEUR, ts: new Date().toISOString()};
   localStorage.setItem(CLE, JSON.stringify(dec));
   marquer(it.id);
   focaliser(premierNonTrie(i + 1));
@@ -391,8 +462,11 @@ function exporter(){
   const reste = ITEMS.length - Object.keys(dec).length;
   if (reste) alert(`Il reste ${reste} vignette(s) non triée(s) — l'application (--apply) ` +
                    `refusera au-delà de 2 %. Le CSV est exporté quand même.`);
-  let csv = "id_detection,decision\\n";
-  for (const [id, v] of Object.entries(dec)) csv += `${id},${v}\\n`;
+  // Contrat élargi : id_detection,decision,trieur,horodatage. Le format à 2
+  // colonnes reste accepté en consommation (rétro-compat) ; on exporte les 4.
+  let csv = "id_detection,decision,trieur,horodatage\\n";
+  for (const [id, o] of Object.entries(dec))
+    csv += `${id},${o.d},${o.t || "inconnu"},${o.ts || ""}\\n`;
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"}));
   // Nom horodatable côté réception + empreinte de planche : le fichier reçu dit
@@ -400,6 +474,8 @@ function exporter(){
   a.download = "decisions_" + PLANCHE + ".csv"; a.click();
 }
 document.addEventListener("keydown", e => {
+  // Modal d'identité ouvert : on laisse la frappe aller au champ, pas de raccourci.
+  if (document.getElementById("modal-trieur").style.display === "flex") return;
   if (e.key === "o" || e.key === "O") decider("oui");
   else if (e.key === "n" || e.key === "N") decider("non");
   else if (e.key === "u" || e.key === "U") decider("incertain");
@@ -409,6 +485,9 @@ document.addEventListener("keydown", e => {
 // Reprise : restaurer les marques puis sauter à la première vignette non triée.
 for (const id of Object.keys(dec)) if (id in cartes) marquer(id);
 focaliser(premierNonTrie(0), Object.keys(dec).length > 0);
+// À l'ouverture : si aucun trieur mémorisé, demander « Qui trie ? » ; sinon l'afficher.
+majTrieur();
+if (!TRIEUR) demanderTrieur();
 </script></body></html>
 """
 
