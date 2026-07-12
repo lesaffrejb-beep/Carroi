@@ -1,6 +1,12 @@
 # Données — jamais dans git (volumineuses + actif commercial + RGPD)
 data/
 sales/
+
+# handoff/ est une exception volontaire : contenu SANS PII (planches de tri =
+# imagerie ortho publique IGN + géométrie, et décisions O/N/U). Voir handoff/README.md.
+# Rien de nominatif ne doit y entrer. On force son suivi malgré les règles larges ci-dessus.
+!handoff/
+!handoff/**
 *.gpkg
 *.shp
 *.shx
