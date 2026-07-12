@@ -23,6 +23,45 @@ from common import archiver_copie_datee, ensure_dirs, load_config
 log = logging.getLogger("score")
 
 
+def calculer_confiance(gdf, dist_max_adresse_m):
+    """Score de confiance (docs/06 §4), durci par la corroboration adresse↔parcelle.
+
+    Mesure A4 (docs/08) : la jointure par index cadastral 'cad_parcelles' tombe dans la
+    bonne parcelle 94 % du temps, le fallback 'nearest' seulement 23 %. On exige donc, pour
+    la « haute » confiance, que le POINT BAN retenu soit bien DANS la parcelle de la piscine
+    (`adresse_dans_parcelle == True`) EN PLUS des conditions historiques (cad_parcelles +
+    non-ambiguë + dist ≤ 60). Et on déclasse en « basse » toute adresse trouvée par simple
+    proximité mais hors parcelle (`nearest` & pas dans la parcelle = risque « piscine du
+    voisin ») : elle ne doit JAMAIS sortir en haute/moyenne.
+
+    Rétro-compatibilité : si la colonne `adresse_dans_parcelle` est absente (parquet issu
+    d'un 20_join pré-A4), on retombe sur le comportement historique (corroboration neutre).
+    """
+    n = len(gdf)
+    if "adresse_dans_parcelle" in gdf.columns:
+        corrob_true = gdf["adresse_dans_parcelle"].eq(True).fillna(False).to_numpy(dtype=bool)
+        nearest_hors_parcelle = (gdf["source_jointure"] == "nearest").to_numpy(dtype=bool) & ~corrob_true
+    else:
+        log.warning("Colonne 'adresse_dans_parcelle' absente (parquet ancienne génération, "
+                    "20_join pré-A4) : score de confiance sans corroboration adresse↔parcelle. "
+                    "Relancer 20_join pour bénéficier du durcissement (mesure A4).")
+        corrob_true = np.ones(n, dtype=bool)          # neutre : n'ajoute pas de contrainte
+        nearest_hors_parcelle = np.zeros(n, dtype=bool)  # neutre : ne déclasse personne
+
+    return np.select(
+        [
+            # haute : jointure cadastrale nette, adresse proche ET dans la parcelle (A4)
+            (~gdf["jointure_ambigue"]) & (gdf["source_jointure"] == "cad_parcelles")
+            & (gdf["dist_adresse_m"] <= 60) & corrob_true,
+            # basse : jointure ambiguë OU adresse lointaine OU 'nearest' hors parcelle (A4)
+            gdf["jointure_ambigue"] | (gdf["dist_adresse_m"] > dist_max_adresse_m * 0.8)
+            | nearest_hors_parcelle,
+        ],
+        ["haute", "basse"],
+        default="moyenne",
+    )
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--dev", action="store_true", help="source OSM de développement (ODbL) — ne peut pas produire la base vendable")
@@ -57,18 +96,8 @@ def main() -> None:
     dans_zone = gdf.geometry.representative_point().within(exclusions.union_all())
     garder(lambda g: ~dans_zone.reindex(g.index, fill_value=False), "hors zones collectives")
 
-    # --- Score de confiance (docs/06 §4) ---
-    conf = np.select(
-        [
-            # haute : jointure cadastrale nette, adresse proche
-            (~gdf["jointure_ambigue"]) & (gdf["source_jointure"] == "cad_parcelles") & (gdf["dist_adresse_m"] <= 60),
-            # basse : jointure ambiguë OU adresse lointaine
-            gdf["jointure_ambigue"] | (gdf["dist_adresse_m"] > pc["dist_max_adresse_m"] * 0.8),
-        ],
-        ["haute", "basse"],
-        default="moyenne",
-    )
-    gdf["confiance"] = conf
+    # --- Score de confiance (docs/06 §4, durci par la corroboration A4) ---
+    gdf["confiance"] = calculer_confiance(gdf, pc["dist_max_adresse_m"])
 
     # --- Dédoublonnage : une adresse = une ligne (la plus grande piscine) ---
     gdf = gdf.sort_values("surface_m2", ascending=False).drop_duplicates(subset="id_ban", keep="first")

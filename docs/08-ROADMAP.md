@@ -423,6 +423,7 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-11 | A3bis PCI SYM=65 | 238 piscines cadastrées (165+73) ; couche `TSURF_id`, attr `SYM`, L93 natif ; **86,1 % des SYM=65 ont une OSM < 5 m** (sens inverse 55 %) → **corroboration au score validée**, branchement différé au 1er run prod | 2 feuilles 49308 sans couche TSURF (légitime) ; parquets en interim/ |
 | 2026-07-11 | item 7 flags | 20_join `--source` (alias, `resoudre_source` pure) + 30_score `--produit` ; +12 tests, **140 verts** | comportement piscines inchangé |
 | 2026-07-11 | tri visuel prêt | **Planche générée : `data/interim/tri/tri.html` (977 vignettes, Bouchemaine)** — raccourcis O/N/U, export decisions.csv puis `16 --apply` | **🧑 LE tri humain est LA prochaine action produit** : ~20-30 min, donne la vraie précision et débloque B4/C1 |
+| 2026-07-11 | verrou parcellaire | Retour 🧑 (« piscine chez le voisin ») → colonne `adresse_dans_parcelle` (20_join, point BAN dans la parcelle de la piscine, tol. 2 m) ; « haute » l'EXIGE, `nearest`+hors-parcelle → **basse, jamais vendue**. Effet 49035 : haute 193→182, moyenne 67→37, basse 4→45 (41 adresses à risque déclassées) ; 49308 : 74/11 → 74/6/5. **149 tests verts** | ferme la faille A4 (nearest = 23 % bonne parcelle) ; `calculer_confiance` factorisée pure + rétro-compat parquet ancien |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 

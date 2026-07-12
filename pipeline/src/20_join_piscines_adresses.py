@@ -103,6 +103,34 @@ def index_ban_par_parcelle(ban: gpd.GeoDataFrame) -> pd.DataFrame:
     return idx.loc[idx["id_parcelle"].notna(), ["id_parcelle", "id_ban"]]
 
 
+def corroborer_adresse_parcelle(out: gpd.GeoDataFrame, ban: gpd.GeoDataFrame, parcelles: gpd.GeoDataFrame) -> pd.Series:
+    """Le POINT BAN de l'adresse retenue tombe-t-il dans la PARCELLE de la piscine ?
+
+    Corroboration croisée mesurée en A4 (docs/08) : la voie 'cad_parcelles' tombe dans la
+    bonne parcelle 94 % du temps, le fallback 'nearest' seulement 23 %. Cette colonne
+    permet à 30_score de déclasser les adresses trouvées par simple proximité mais hors
+    de la parcelle de la piscine (risque « piscine du voisin »).
+
+    Tolérance 2 m (within OU distance < 2) pour absorber l'imprécision du point BAN et des
+    bords de parcelle. pd.NA si l'adresse (id_ban) ou la parcelle (id_parcelle) manque.
+    """
+    # ban est déjà dédupliqué sur id_ban dans charger() ; parcelles a un id unique.
+    ban_geo = ban.drop_duplicates("id_ban").set_index("id_ban").geometry
+    parc_geo = parcelles.set_index("id").geometry
+
+    def _test(row):
+        idb, idp = row["id_ban"], row["id_parcelle"]
+        if pd.isna(idb) or pd.isna(idp):
+            return pd.NA
+        pt = ban_geo.get(idb)
+        parc = parc_geo.get(idp)
+        if pt is None or parc is None:
+            return pd.NA
+        return bool(pt.within(parc) or pt.distance(parc) < 2)
+
+    return out.apply(_test, axis=1).astype("boolean")
+
+
 def joindre_adresse(piscines: gpd.GeoDataFrame, ban: gpd.GeoDataFrame, parcelles: gpd.GeoDataFrame, cfg: dict) -> gpd.GeoDataFrame:
     dist_max = cfg["piscines"]["dist_max_adresse_m"]
 
@@ -153,6 +181,9 @@ def joindre_adresse(piscines: gpd.GeoDataFrame, ban: gpd.GeoDataFrame, parcelles
         out["numero"].fillna("").astype(str).str.replace(r"\.0$", "", regex=True)
         + " " + out["rep"].fillna("") + " " + out["nom_voie"].fillna("")
     ).str.replace(r"\s+", " ", regex=True).str.strip()
+
+    # Corroboration adresse↔parcelle (mesure A4) : ferme la faille du fallback 'nearest'.
+    out["adresse_dans_parcelle"] = corroborer_adresse_parcelle(out, ban, parcelles)
     return out.rename(columns={"nom_commune": "commune"})
 
 
