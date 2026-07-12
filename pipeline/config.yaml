@@ -88,7 +88,14 @@ export:
   rayon_defaut_km: 30
   confiances_vendues: ["haute", "moyenne"]  # la basse confiance ne sort jamais
 
-backup:                      # 90_backup.py (docs/16 §2) — 🧑 à renseigner avant 1er usage
+backup:                      # 90_backup.py (docs/16 §2) — configuré le 2026-07-12
   chiffrement: age           # age (défaut) ou gpg — clé PUBLIQUE, pas de passphrase
-  destinataire: ""           # 🧑 clé publique age (age1…) ou identité gpg
-  rclone_remote: ""          # 🧑 remote rclone configuré (ex. "storagebox:maps-backups")
+  # Clé PUBLIQUE age (non secrète). La clé PRIVÉE correspondante est HORS repo :
+  # ~/.config/maps-backup/age-key.txt — 🧑 EN GARDER UNE COPIE dans un gestionnaire de
+  # mots de passe : sans elle, AUCUN backup n'est déchiffrable. Régénérer = age-keygen.
+  destinataire: "age16q3mllugvr9n4hczrm0szddfq6j7xxlq30f0k8gw47qe4980w5zssvdnqt"
+  # Destination rclone. Défaut = dossier LOCAL sur le disque externe NOIR (aucun compte
+  # requis, marche tout de suite ; c'est un backup hors-disque-principal, PAS encore
+  # hors-site). 🧑 pour l'off-site cloud : `rclone config` (créer un remote, ex. Hetzner
+  # Storage Box / Backblaze B2), puis remplacer par "monremote:maps-backups".
+  rclone_remote: "/Volumes/NOIR 1/maps-backups"
