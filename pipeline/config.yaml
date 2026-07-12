@@ -12,6 +12,14 @@ paths:
   optout: "data/optout/optout.csv"   # adresses retirées (droit d'opposition) — filtre systématique
   validation: "data/validation"
 
+bdortho:
+  # Dossier contenant les archives 7z multi-volumes BD ORTHO (RVB + IRC) du
+  # département — sur un disque externe HORS repo (~61 Go), donc dépendant de la
+  # machine. Utilisé par 12_extraire_dalles_ortho.py. Laisser vide et passer
+  # --archives-dir en argument, OU renseigner ici le chemin monté, ex. :
+  #   archives_dir: "/Volumes/NOIR 1/maps-bdortho/D049_2022"
+  archives_dir: ""
+
 piscines:
   # Filtres qualité — justifiés dans docs/06-QUALITE-VALIDATION.md.
   # Ajuster UNIQUEMENT après une passe de validation, et consigner l'ancien/nouveau dans 08-ROADMAP.md.
