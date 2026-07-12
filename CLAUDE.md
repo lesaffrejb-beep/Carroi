@@ -2,6 +2,12 @@
 
 Ce repo est le socle d'un business de **vente de bases de données d'adresses qualifiées** (piscines, puis terrasses ensoleillées) dans le Maine-et-Loire (49). Il a été architecturé par une session "chef d'orchestre" ; les sessions suivantes (toi) exécutent.
 
+## Routage express (lis ça en premier)
+
+- **« Je veux juste aider à trier les piscines » / « comment j'aide ? »** (ami, bénévole, non-technique) → envoie-le au **parcours A de `ONBOARDING.md`** : ouvrir `handoff/tri_bouchemaine_49035.html` dans un navigateur (double-clic, rien à installer), suivre les règles affichées, exporter le CSV en fin de session, le renvoyer via `handoff/soumettre_tri.sh` ou par message. **NE PAS** dérouler la roadmap ni installer le pipeline pour ça.
+- **« Je veux contribuer au code »** → `./bootstrap.sh` puis **parcours B de `ONBOARDING.md`**, puis l'ordre de lecture ci-dessous.
+- **Session d'orchestration/exécution normale** → poursuis avec l'ordre de lecture obligatoire.
+
 ## Ordre de lecture obligatoire
 
 1. `docs/00-VISION.md` — le business, les produits, les prix, le protocole de preuve.

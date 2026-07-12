@@ -18,19 +18,28 @@ piscine ou non. C'est tout. Pas de Python, pas d'install.
    - **N** = non
    - **U** = incertain (dans le doute)
    - **←** / **Z** = annuler la dernière décision, **→** = passer
-   Ta progression est sauvegardée automatiquement dans le navigateur : tu peux
-   fermer et reprendre plus tard sur le même ordinateur.
-3. **Exporte** : quand tu as fini (ou une bonne session), clique sur
-   **« Exporter decisions.csv »**. Un fichier `decisions.csv` est téléchargé.
+   Ta progression est sauvegardée automatiquement dans le navigateur, mais
+   **uniquement sur la même machine et le même fichier**. Tu peux fermer et
+   reprendre plus tard sur le même ordinateur.
+3. **Exporte souvent — même partiellement.** Pas besoin de tout finir d'un coup :
+   tu peux trier en plusieurs sessions. Dès que tu as avancé un peu, clique sur
+   **« Exporter decisions.csv »** : un CSV est téléchargé. **C'est le CSV exporté
+   qui est ta vraie sauvegarde**, pas le navigateur — le stockage local n'est
+   **pas fiable** (il disparaît en navigation privée, ou si tu changes de machine).
+   Un export **partiel** est parfaitement accepté ; renvoie-le, on continue plus tard.
+   ⚠ **Ne renomme pas le fichier** : son nom contient une empreinte de version
+   (`decisions_49_49035_<hash12>.csv`) qui garantit que tes décisions collent bien
+   à la planche que tu as triée. Un fichier renommé peut être refusé à la fusion.
 4. **Renvoie ton travail** :
    ```
-   ./handoff/soumettre_tri.sh chemin/vers/decisions.csv "ton_prenom"
+   ./handoff/soumettre_tri.sh chemin/vers/decisions_49_49035_<hash>.csv "ton_prenom"
    ```
    Cela range ton fichier et le pousse dans le dépôt.
    - Si tu as un clone git avec accès push, ça marche tout seul.
-   - Si tu **n'as pas** les droits git, le script te le dira sans planter :
-     envoie simplement le `decisions.csv` à l'équipe par un autre biais (mail,
-     messagerie...).
+   - Si tu **n'as pas** les droits git (le script te le dira sans planter, ou tu
+     n'as simplement pas de clone), envoie le CSV au propriétaire du dépôt par
+     **n'importe quel canal** (mail, messagerie, transfert de fichier). Le nom du
+     fichier suffit à le rattacher à la bonne planche.
 
 > Rappel confidentialité : la planche ne contient que des images aériennes
 > publiques et des formes — **aucune adresse, aucun nom**. Ne mets jamais de

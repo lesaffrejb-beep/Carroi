@@ -16,8 +16,9 @@ Il ne contient QUE :
 
 - des **planches de tri** (`tri_*.html`) : vignettes d'imagerie ortho publique
   (IGN, BD ORTHO), polygones candidats et limites de parcelles — pas de PII ;
-- des **décisions** (`decisions_recus/*.csv`) : deux colonnes `id_detection,decision`
-  où `decision` ∈ {`oui`, `non`, `incertain`}. Aucun identifiant nominatif.
+- des **décisions** (`decisions_49_49035_<hash12>.csv`) : deux colonnes
+  `id_detection,decision` où `decision` ∈ {`oui`, `non`, `incertain`}. Aucun
+  identifiant nominatif.
 
 **En cas de doute sur un fichier, ne pas le mettre ici.** C'est le pilier de la
 défendabilité RGPD du projet (voir `CLAUDE.md` règle 1). Les fichiers avec adresses
@@ -28,7 +29,22 @@ défendabilité RGPD du projet (voir `CLAUDE.md` règle 1). Les fichiers avec ad
 - `tri_bouchemaine_49035.html` — planche de tri autonome (images en base64).
   S'ouvre dans n'importe quel navigateur, aucune install requise. Voir le parcours A
   de `ONBOARDING.md`.
-- `soumettre_tri.sh` — renvoie un `decisions.csv` trié (git add + commit + push).
+- `soumettre_tri.sh` — renvoie un CSV de décisions trié (git add + commit + push).
 - `appliquer_decisions_recues.py` — fusionne tous les CSV reçus et applique le tri
   via `pipeline/src/16_tri_visuel.py --apply`.
 - `decisions_recus/` — dépôt des décisions renvoyées par les contributeurs.
+
+## Empreinte de version dans le nom des fichiers
+
+Chaque planche embarque une **empreinte `hash12`** (12 caractères) qui identifie
+exactement le jeu de candidats affiché. Le CSV exporté par la planche la reprend
+dans son nom : `decisions_{dept}_{commune}_{hash12}.csv` (ex.
+`decisions_49_49035_<hash12>.csv`). **Cette empreinte garantit que les décisions
+reçues correspondent bien à la planche qui a été triée** : à la fusion,
+`appliquer_decisions_recues.py` **refuse** un CSV dont l'empreinte ne colle pas à
+la planche courante (sauf `--force` explicite). Conséquence pratique :
+
+- **Ne jamais renommer** un `decisions_*.csv` reçu — le nom porte l'empreinte.
+- **Exporter régulièrement**, même partiellement : le CSV exporté est la vraie
+  sauvegarde (le stockage navigateur n'est pas fiable). Un export partiel est
+  accepté et fusionnable ; on peut trier en plusieurs fois.

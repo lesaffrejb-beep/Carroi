@@ -2,27 +2,37 @@
 
 > **Ce fichier est le journal du projet.** Chaque session LLM qui termine une tâche met à jour le statut, la date, et surtout ce qui a été **appris/mesuré** (les chiffres réels valent plus que le plan). La session suivante ne sait que ce qui est écrit ici.
 
-## ⚡ PROCHAINE SESSION : COMMENCER ICI (état au 2026-07-11 soir, session Fable — deepsearchs + incident)
+## ⚡ PROCHAINE SESSION : COMMENCER ICI (état au 2026-07-12, session Opus — outils de tri + partage)
 
-**Où on en est en une phrase** : le moteur est codé et testé (**124 tests verts** — la
-tâche 5bis a REFAIT les 3 correctifs d'audit + 6 tests perdus dans l'incident du
-2026-07-11, voir journal), les drafts légaux C2/C5 sont rédigés (`docs/legal/`, à valider avocat), les
-**deepsearchs ①②③④⑤⑦⑨⑩ sont reçues, rangées et arbitrées** (`docs/deepsearch/` —
-B1 est DÉBLOQUÉ, SITADEL est viable, namR a fait faillite, aucun pivot). **Phase A
-(chaîne dev OSM) FAITE le 2026-07-11** : A1-A4 déroulés sur données réelles (2 communes),
-3 bugs de chaîne corrigés, jointure cad_parcelles 0 %→96 %, précision d'adressage 94 %
-sur le chemin cad_parcelles — mais tout ça reste du **dev non vendable** (OSM/ODbL) ;
-l'actif vendable dépend de la détection BD ORTHO. **B1 FAIT** (🧑 a autorisé le
-téléchargement, 61 Go réels sur disque NOIR, millésime 2022 confirmé) et **B2-terrain
-FAIT** sur Bouchemaine : seuils calibrés, ratio candidats/OSM ramené sous l'alerte
-(3,4:1), rappel 53 %. A3bis (corroboration cadastre SYM=65 : validée à 86 %) et
-l'item 7 (flags --source/--produit) sont aussi FAITS — **toutes les tâches machine
-débloquées sont épuisées**. **Reste avant d'avoir un actif vendable** : 🧑 le tri humain
-(la planche est PRÊTE : ouvrir `data/interim/tri/tri.html`, trier les 977 vignettes
-O/N/U ~20-30 min, exporter decisions.csv, puis `16_tri_visuel.py --candidats … --apply
-decisions.csv`), puis B5 (département), B6 (chaîne prod), C1 (validation qualité 95 %).
-AUCUN prospect appelé — l'inversion de séquence (`10`) reste LE risque n°1. La
-priorité absolue n'est toujours pas le code : c'est D0.
+**Où on en est en une phrase** : le moteur est codé et testé (**193+ tests verts**),
+Phase A (chaîne dev OSM, 2 communes) et Phase B jusqu'à B2-terrain sont FAITES,
+et **tout l'outillage de tri humain est prêt et partageable sans installation**.
+Détection calibrée sur Bouchemaine (49035) : **977 candidats, ratio 3,4:1, rappel
+~53 %** vs OSM (BD ORTHO 2022 réelle, 61 Go sur disque externe NOIR). Deux outils de
+tri : **`16_tri_visuel.py`** (tri d'existence O/N/U, planche HTML autonome gamifiée —
+bandeau question/compteur/progression, règles intégrées, undo Z/←, persistance
+localStorage, export `decisions.csv`) et **`17_verification_adresse.py`** (2e outil :
+vérification humaine de l'adresse assignée par clic sur la carte des adresses BAN
+alentour, pour les cas de confiance non-haute — 7 cas détectés sur le dev Bouchemaine).
+**Verrou parcellaire** : la « haute confiance » exige l'adresse DANS la parcelle de la
+piscine (colonne `adresse_dans_parcelle`) ; nearest hors-parcelle → basse, jamais
+vendue. Badge « cadastré » (PCI SYM=65) sur les vignettes (99/977 corroborés). **Partage
+sans install** : dossier `handoff/` (planche autonome ~27 Mo, `soumettre_tri.sh`,
+`appliquer_decisions_recues.py`), `bootstrap.sh` (install one-shot) et `ONBOARDING.md`
+(parcours A trier / parcours B contribuer). Intégrité verrouillée : empreinte `hash12`
+des candidats dans la planche → nom d'export `decisions_{dept}_{commune}_{hash12}.csv`,
+refus à la fusion si l'empreinte ne colle pas (sauf `--force`), clé localStorage par
+planche, fusion par timestamp du nom de fichier, flag `--embarquer` pour régénérer la
+planche autonome. **Extraction ciblée** de dalles BD ORTHO depuis les archives 7z :
+`12_extraire_dalles_ortho.py` (par `--commune`/`--bbox`, index `dalles.shp` embarqué).
+
+**⚡ PROCHAINE ACTION = 🧑 TRIER.** Soi-même (ouvrir `handoff/tri_bouchemaine_49035.html`
+ou générer la planche via `16_tri_visuel.py`) OU faire trier par un ami/bénévole via
+`handoff/` (voir `ONBOARDING.md` parcours A). Puis **appliquer les décisions**
+(`appliquer_decisions_recues.py` → `16 --apply`) → **mesurer la précision réelle**
+(borne basse de Wilson, `06` §2) → débloquer **B4** (décision A/B modèle) et **B5**
+(industrialisation département). AUCUN prospect appelé — l'inversion de séquence (`10`)
+reste LE risque n°1 : la priorité absolue n'est toujours pas le code, c'est D0.
 
 **⚠ Incident du 2026-07-11 (17h30-17h45)** : la quasi-totalité de l'arbre de travail a été
 supprimée pendant une session (cause exacte inconnue — concomitant avec le `git init` +
@@ -71,7 +81,7 @@ s'arrêter proprement.**
    ⚠ Ces fichiers ont survécu à l'incident mais ne sont PAS commités → commit/push
    en tête de la prochaine session Opus.
 
-5. `[OPUS — DÉBLOQUÉ par deepsearch ①/③, specs dans docs/deepsearch/DS3 et docs/02]`
+5. `[OPUS — ✅ FAIT 2026-07-11/12 — voir Phases A & B et le journal]`
    **A1-A4 puis B1 + B2-terrain.** Ordre strict : A1 (10_download ; si le miroir BD TOPO
    échoue → --bdtopo-url), A2 (OSM 2 communes), A3 (20→35 en --dev ; consigner %
    cad_parcelles vs nearest), **A3bis (nouveau, deepsearch ③)** : extraire les piscines
@@ -450,6 +460,10 @@ Objectif : chaîne 10→40 qui tourne de bout en bout. Aucune vente possible à 
 | 2026-07-11 | item 7 flags | 20_join `--source` (alias, `resoudre_source` pure) + 30_score `--produit` ; +12 tests, **140 verts** | comportement piscines inchangé |
 | 2026-07-11 | tri visuel prêt | **Planche générée : `data/interim/tri/tri.html` (977 vignettes, Bouchemaine)** — raccourcis O/N/U, export decisions.csv puis `16 --apply` | **🧑 LE tri humain est LA prochaine action produit** : ~20-30 min, donne la vraie précision et débloque B4/C1 |
 | 2026-07-11 | verrou parcellaire | Retour 🧑 (« piscine chez le voisin ») → colonne `adresse_dans_parcelle` (20_join, point BAN dans la parcelle de la piscine, tol. 2 m) ; « haute » l'EXIGE, `nearest`+hors-parcelle → **basse, jamais vendue**. Effet 49035 : haute 193→182, moyenne 67→37, basse 4→45 (41 adresses à risque déclassées) ; 49308 : 74/11 → 74/6/5. **149 tests verts** | ferme la faille A4 (nearest = 23 % bonne parcelle) ; `calculer_confiance` factorisée pure + rétro-compat parquet ancien |
+| 2026-07-12 | refonte UX tri | Planche `16_tri_visuel.py` refondue en jeu autonome : bandeau question/compteur/progression, règles du jeu intégrées, raccourcis O/N/U, **undo Z/←**, **persistance localStorage**, export `decisions.csv` (contrat `id_detection,decision`) | rend le tri faisable par un non-technique sans accompagnement ; badge « cadastré » (PCI SYM=65) sur les vignettes, 99/977 corroborés |
+| 2026-07-12 | partage sans install | `handoff/` (planche autonome `tri_bouchemaine_49035.html` ~27 Mo double-clic, `soumettre_tri.sh`, `appliquer_decisions_recues.py`, ZÉRO PII) + `bootstrap.sh` (venv+requirements+outils brew+tests) + `ONBOARDING.md` (parcours A trier / B contribuer) + routage express en tête de `CLAUDE.md` | un ami peut trier sans rien installer ; `12_extraire_dalles_ortho.py` extrait les dalles ciblées depuis les archives 7z (`--commune`/`--bbox`, index `dalles.shp`) |
+| 2026-07-12 | outil 17 vérif adresse | `17_verification_adresse.py` : 2e outil de tri humain — vérification de l'adresse assignée par clic sur la carte des adresses BAN alentour, pour les cas de confiance non-haute | **7 cas à vérifier** détectés sur le dev Bouchemaine |
+| 2026-07-12 | fixes d'intégrité | Empreinte `hash12` des candidats dans la planche (`data-planche`, nom d'export `decisions_{dept}_{commune}_{hash12}.csv`, **refus à l'apply si mismatch** sauf `--force`) ; clé localStorage **par planche** ; fusion par **timestamp du nom de fichier** (pas mtime) ; flag `--embarquer` pour régénérer la planche autonome | motivé par 3 scénarios de perte/invalidation identifiés (décisions collées à la mauvaise planche, écrasement de localStorage, ordre de fusion faux). **193+ tests verts** |
 
 ## Tableau de mesures B2-terrain (à remplir par la session Opus de la tâche 5)
 

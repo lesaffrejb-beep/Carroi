@@ -65,6 +65,25 @@ C'est l'étape qui fait la valeur (aucune base ouverte ne contient les piscines 
 5. **Sortie** : `data/interim/piscines_detectees_49.parquet` — polygones EPSG:2154, colonnes `surface_m2`, `score_detection`, `methode` (hsv/model/valide_humain).
 6. **Test avant industrialisation** : tout au point sur UNE commune (`--commune 49XXX`), mesurer précision/rappel vs OSM + contrôle visuel, consigner dans ROADMAP, PUIS lancer le département.
 
+## Étape 1c — Tri visuel humain (`16` existence + `17` adresse)
+
+Deux outils complémentaires, tous deux à sortie humaine :
+- **`16_tri_visuel.py` — tri d'existence** : génère une planche HTML autonome
+  (vignettes en base64, raccourcis O/N/U, undo, persistance, règles intégrées),
+  puis `--apply decisions.csv` écrit `piscines_detectees_{dept}.parquet`
+  (`methode='valide_humain'`). Badge « cadastré » (PCI SYM=65) sur les vignettes.
+- **`17_verification_adresse.py` — vérification d'adresse** : pour les cas de
+  confiance non-haute, l'humain confirme l'adresse assignée en cliquant sur la
+  carte des adresses BAN alentour.
+- **Faire trier par un tiers, sans installation** : `16 … --embarquer` produit une
+  planche 100 % autonome (double-clic dans un navigateur), déposée dans `handoff/`
+  (voir `ONBOARDING.md` parcours A). Les décisions reviennent via
+  `handoff/soumettre_tri.sh` puis se fusionnent avec `appliquer_decisions_recues.py`.
+- **Garde-fou d'intégrité** : la planche embarque une empreinte `hash12` des
+  candidats ; le nom d'export est `decisions_{dept}_{commune}_{hash12}.csv` et la
+  fusion **refuse** un CSV dont l'empreinte ne colle pas à la planche (sauf `--force`) —
+  impossible d'appliquer par erreur des décisions à un mauvais jeu de candidats.
+
 ## Étape 2 — Jointure piscine → adresse (`20_join_piscines_adresses.py`, écrit)
 
 Stratégie décidée (et codée) :
