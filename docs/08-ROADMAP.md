@@ -146,6 +146,23 @@ s'arrêter proprement.**
    sortie compatible couche 1. Auditer les noms de colonnes réels AVANT de coder
    (transition SITADEL 3). C'est le moteur de l'« abonnement fraîcheur » (grille `16`).
 
+10bis. `[OPUS ou FABLE — déclencheur : B5 échoue/rame sur le département entier]`
+   **Fragilités de scalabilité identifiées** (audit 2026-07-12, non corrigées — simple
+   constat, à traiter si B5 le révèle bloquant) :
+   - `20_join_piscines_adresses.py::charger()` (l.39-48) charge `parcelles_49.parquet`
+     (1,2 M lignes/290 Mo), `ban` et `batiments` EN ENTIER avant de filtrer par
+     commune — un run `--commune` paie le coût département complet à chaque fois.
+   - `20_join::corroborer_adresse_parcelle()` (l.131) et `joindre_parcelle()` (l.63-65) :
+     boucles `.apply(axis=1)` row-wise pur Python/shapely — linéaire en nb de
+     candidats, hotspot net à l'échelle département (~100k candidats estimés).
+   - `16_tri_visuel.py::charger_parcelles()` (l.134) : même chargement complet +
+     sindex sur 1,2M parcelles (~5 min mesuré) ; boucle `for _, row in
+     candidats.iterrows()` (l.407) avec `corrobore_cadastre()` → `sindex.query`
+     PAR CANDIDAT (l.418) plutôt qu'un sjoin vectorisé.
+   Piste commune si ça bloque : restreindre parcelles/ban/batiments à l'AOI (bbox
+   des candidats) AVANT indexation, et remplacer les `.apply(axis=1)` par des
+   `sjoin`/`sjoin_nearest` vectorisés (déjà le pattern utilisé ailleurs dans 20_join).
+
 11. `[FABLE — seulement si déclenché]` : option A détection (déclencheur : B2-terrain
    plafonne < 95 % après calibration ; noter — doc 15 + DS5 : partir des poids
    `sp-swimming-pools` CC-BY-4.0 + annotation manuelle BD ORTHO ; JAMAIS AGPL/images
