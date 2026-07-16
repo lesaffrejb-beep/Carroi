@@ -728,6 +728,12 @@ def main() -> None:
     p.add_argument("--embarquer", action="store_true",
                    help="planche autonome : vignettes ré-encodées JPEG q82 inline "
                         "(data:URI) dans le HTML, un seul fichier sans référence externe")
+    p.add_argument("--out-dir",
+                   help="dossier de sortie (défaut : data/interim/tri) — indispensable "
+                        "pour un produit ≠ piscines, sinon les vignettes se mélangent")
+    p.add_argument("--vignette-m", type=float,
+                   help="côté du crop ortho en mètres (défaut : config tri_visuel.vignette_m ; "
+                        "les zones terrasses sont plus grandes que les piscines)")
     p.add_argument("--planche-hash",
                    help="empreinte (hash12) attendue de la planche à l'application : "
                         "refuse si le parquet de candidats a changé (sauf --force)")
@@ -737,6 +743,8 @@ def main() -> None:
 
     cfg = load_config()
     ensure_dirs(cfg)
+    if args.vignette_m:
+        cfg["tri_visuel"]["vignette_m"] = args.vignette_m
     candidats = gpd.read_parquet(args.candidats)
     log.info("%d candidats chargés depuis %s.", len(candidats), args.candidats)
 
@@ -760,7 +768,7 @@ def main() -> None:
     elif args.ortho_dir or args.reutiliser_vignettes:
         # --reutiliser-vignettes seul suffit à régénérer le HTML si toutes les
         # vignettes existent déjà (ortho non requise, cf. generer_planche).
-        out_dir = Path(cfg["paths"]["interim"]) / "tri"
+        out_dir = Path(args.out_dir) if args.out_dir else Path(cfg["paths"]["interim"]) / "tri"
         ortho = Path(args.ortho_dir) if args.ortho_dir else None
         generer_planche(candidats, ortho, cfg, out_dir,
                         candidats_path=args.candidats,

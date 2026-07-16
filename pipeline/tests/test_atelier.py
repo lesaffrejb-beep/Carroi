@@ -35,24 +35,50 @@ def test_choisir_moins_vu_prend_dans_le_minimum():
 def test_votes_append_only(tmp_path):
     v = atelier.Votes(tmp_path / "v.sqlite")
     assert v.vide()
-    v.ajouter("existence", "p1", "oui", "JB")
-    v.ajouter("existence", "p1", "non", "Azan")
-    v.ajouter("adresse", "p1", "ban_x", "JB")
-    assert v.votes_item("existence", "p1") == ["oui", "non"]   # rien d'écrasé
-    assert v.compte_par_item("existence")["p1"] == 2
-    assert v.total() == 3 and not v.vide()
+    v.ajouter("piscines", "existence", "p1", "oui", "JB")
+    v.ajouter("piscines", "existence", "p1", "non", "Azan")
+    v.ajouter("piscines", "adresse", "p1", "ban_x", "JB")
+    v.ajouter("terrasses", "existence", "p1", "non", "JB")   # produits étanches
+    assert v.votes_item("piscines", "existence", "p1") == ["oui", "non"]
+    assert v.votes_item("terrasses", "existence", "p1") == ["non"]
+    assert v.compte_par_item("piscines", "existence")["p1"] == 2
+    assert v.total() == 4 and not v.vide()
 
 
 def test_remplacer_dernier_corrige_sans_doublon(tmp_path):
     """Navigation arrière : re-répondre corrige SON dernier vote (erreur de clic),
     sans doublon et sans toucher aux votes des autres trieurs."""
     v = atelier.Votes(tmp_path / "v.sqlite")
-    v.ajouter("existence", "p1", "non", "JB")
-    v.ajouter("existence", "p1", "oui", "Azan")
-    v.remplacer_dernier("existence", "p1", "oui", "JB")
-    assert sorted(v.votes_item("existence", "p1")) == ["oui", "oui"]
-    assert v.dernier_de("existence", "p1", "JB") == "oui"
-    assert v.dernier_de("existence", "p1", "Azan") == "oui"
+    v.ajouter("piscines", "existence", "p1", "non", "JB")
+    v.ajouter("piscines", "existence", "p1", "oui", "Azan")
+    v.remplacer_dernier("piscines", "existence", "p1", "oui", "JB")
+    assert sorted(v.votes_item("piscines", "existence", "p1")) == ["oui", "oui"]
+    assert v.dernier_de("piscines", "existence", "p1", "JB") == "oui"
+    assert v.dernier_de("piscines", "existence", "p1", "Azan") == "oui"
     # remplacer sans vote antérieur = simple ajout
-    v.remplacer_dernier("existence", "p2", "non", "JB")
-    assert v.votes_item("existence", "p2") == ["non"]
+    v.remplacer_dernier("piscines", "existence", "p2", "non", "JB")
+    assert v.votes_item("piscines", "existence", "p2") == ["non"]
+
+
+def test_choisir_moins_vu_priorite_aux_desaccords():
+    """Passe N : parmi les moins vus, les items CONTESTÉS (votes à égalité)
+    passent d'abord — une passe de plus tranche ce qui est disputé."""
+    from collections import Counter
+    rng = random.Random(7)
+    compte = Counter({"a": 2, "b": 2, "c": 2})
+    for _ in range(10):
+        assert atelier.choisir_moins_vu(["a", "b", "c"], compte, rng,
+                                        prioritaires={"b"}) == "b"
+    # sans prioritaire dans le groupe min, comportement inchangé
+    assert atelier.choisir_moins_vu(["a", "c"], compte, rng, prioritaires={"zz"}) in ("a", "c")
+
+
+def test_signalements_et_stats(tmp_path):
+    v = atelier.Votes(tmp_path / "v.sqlite")
+    v.signaler("piscines", "p1", 427421.5, 6707886.1, "JB")
+    csv = v.signalements_csv()
+    assert "produit,id_item,x_l93,y_l93,trieur,ts" in csv and "427421.5" in csv
+    v.ajouter("piscines", "existence", "p1", "oui", "JB")
+    v.ajouter("piscines", "existence", "p2", "non", "JB")
+    s = v.stats_trieur("JB")
+    assert s["votes"] == 2 and s["temps_actif_s"] >= 0

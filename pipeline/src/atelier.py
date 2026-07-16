@@ -55,8 +55,29 @@ v17 = importlib.import_module("17_verification_adresse")
 
 log = logging.getLogger("atelier")
 
-PRODUIT = "piscines"          # extensible : terrasses, parkings… même schéma
 MODES = ("existence", "adresse")
+
+# Registre des produits farmables. En ajouter un = une entrée ici + un parquet de
+# candidats + des vignettes (16_tri_visuel --out-dir dédié). Le niveau adresse
+# n'existe que si le produit a une base adressée (20_join).
+PRODUITS = {
+    "piscines": {
+        "question": "Y a-t-il une piscine dans le contour rouge ?",
+        "bouton_oui": "Piscine", "bouton_non": "Pas une piscine",
+        "candidats": "piscines_candidates_49_49035.parquet",
+        "vignettes": "tri/vignettes",
+        "vignette_m": 60,
+        "adressees": "piscines_adressees_49.parquet",
+    },
+    "terrasses": {
+        "question": "La zone rouge est-elle un jardin / une terrasse dégagé(e) au soleil ?",
+        "bouton_oui": "Oui, dégagé", "bouton_non": "Non (toit, route, artefact…)",
+        "candidats": "terrasses_a_farmer_49_49035.parquet",
+        "vignettes": "tri_terrasses/vignettes",
+        "vignette_m": 100,
+        "adressees": None,          # pas de niveau adresse (pas encore de 20_join terrasses)
+    },
+}
 
 
 # ------------------------------------------------------------------ votes (DB)
@@ -76,35 +97,42 @@ class Votes:
             " trieur TEXT, ts TEXT)")
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS ix_votes ON votes (produit, mode, id_item)")
+        # Signalements : « je vois une piscine ICI » — points cliqués hors contour,
+        # en Lambert-93. Donnée de RAPPEL (détections manquées), recoupée plus tard
+        # avec cadastre/CoSIA. Append-only comme les votes.
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS signalements ("
+            " produit TEXT, id_item TEXT, x_l93 REAL, y_l93 REAL,"
+            " trieur TEXT, ts TEXT)")
         self.conn.commit()
 
-    def ajouter(self, mode: str, id_item: str, reponse: str, trieur: str):
+    def ajouter(self, produit: str, mode: str, id_item: str, reponse: str, trieur: str):
         with self.lock:
             self.conn.execute(
                 "INSERT INTO votes VALUES (?,?,?,?,?,?)",
-                (PRODUIT, mode, str(id_item), reponse, trieur,
+                (produit, mode, str(id_item), reponse, trieur,
                  datetime.now(timezone.utc).isoformat()))
             self.conn.commit()
 
-    def compte_par_item(self, mode: str) -> Counter:
+    def compte_par_item(self, produit: str, mode: str) -> Counter:
         with self.lock:
             rows = self.conn.execute(
                 "SELECT id_item, COUNT(*) FROM votes WHERE produit=? AND mode=? "
-                "GROUP BY id_item", (PRODUIT, mode)).fetchall()
+                "GROUP BY id_item", (produit, mode)).fetchall()
         return Counter(dict(rows))
 
-    def votes_item(self, mode: str, id_item: str) -> list[str]:
+    def votes_item(self, produit: str, mode: str, id_item: str) -> list[str]:
         with self.lock:
             rows = self.conn.execute(
                 "SELECT reponse FROM votes WHERE produit=? AND mode=? AND id_item=?",
-                (PRODUIT, mode, str(id_item))).fetchall()
+                (produit, mode, str(id_item))).fetchall()
         return [r[0] for r in rows]
 
-    def tout(self, mode: str) -> dict[str, list[str]]:
+    def tout(self, produit: str, mode: str) -> dict[str, list[str]]:
         with self.lock:
             rows = self.conn.execute(
                 "SELECT id_item, reponse FROM votes WHERE produit=? AND mode=?",
-                (PRODUIT, mode)).fetchall()
+                (produit, mode)).fetchall()
         d: dict[str, list[str]] = {}
         for id_item, rep in rows:
             d.setdefault(id_item, []).append(rep)
@@ -117,17 +145,51 @@ class Votes:
     def vide(self) -> bool:
         return self.total() == 0
 
-    def dernier_de(self, mode: str, id_item: str, trieur: str) -> str | None:
+    def signaler(self, produit: str, id_item: str, x: float, y: float, trieur: str):
+        with self.lock:
+            self.conn.execute(
+                "INSERT INTO signalements VALUES (?,?,?,?,?,?)",
+                (produit, str(id_item), float(x), float(y), trieur,
+                 datetime.now(timezone.utc).isoformat()))
+            self.conn.commit()
+
+    def signalements_csv(self) -> str:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT produit,id_item,x_l93,y_l93,trieur,ts FROM signalements").fetchall()
+        lignes = ["produit,id_item,x_l93,y_l93,trieur,ts"]
+        lignes += [",".join(str(c) for c in r) for r in rows]
+        return "\n".join(lignes) + "\n"
+
+    def stats_trieur(self, trieur: str, seuil_pause_s: float = 60.0) -> dict:
+        """Rythme réel depuis les horodatages : temps actif = somme des écarts
+        entre votes consécutifs < seuil (une pause café ne compte pas)."""
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT ts FROM votes WHERE trieur=? ORDER BY ts", (trieur,)).fetchall()
+        n = len(rows)
+        actif = 0.0
+        for a, b in zip(rows, rows[1:]):
+            try:
+                d = (datetime.fromisoformat(b[0]) - datetime.fromisoformat(a[0])).total_seconds()
+            except ValueError:
+                continue
+            if 0 <= d < seuil_pause_s:
+                actif += d
+        return {"votes": n, "temps_actif_s": round(actif),
+                "votes_par_h": round(n / (actif / 3600)) if actif > 30 else None}
+
+    def dernier_de(self, produit: str, mode: str, id_item: str, trieur: str) -> str | None:
         """Dernière réponse de CE trieur sur cet item (pour l'afficher au retour
         arrière et proposer la correction plutôt que le doublon)."""
         with self.lock:
             row = self.conn.execute(
                 "SELECT reponse FROM votes WHERE produit=? AND mode=? AND id_item=? "
                 "AND trieur=? ORDER BY rowid DESC LIMIT 1",
-                (PRODUIT, mode, str(id_item), trieur)).fetchone()
+                (produit, mode, str(id_item), trieur)).fetchone()
         return row[0] if row else None
 
-    def remplacer_dernier(self, mode: str, id_item: str, reponse: str, trieur: str):
+    def remplacer_dernier(self, produit: str, mode: str, id_item: str, reponse: str, trieur: str):
         """Corrige le DERNIER vote de ce trieur sur cet item (navigation arrière) :
         on supprime sa dernière réponse puis on insère la nouvelle. Le multi-passes
         reste append-only pour tout le reste — corriger sa propre erreur de clic
@@ -136,11 +198,11 @@ class Votes:
             row = self.conn.execute(
                 "SELECT rowid FROM votes WHERE produit=? AND mode=? AND id_item=? "
                 "AND trieur=? ORDER BY rowid DESC LIMIT 1",
-                (PRODUIT, mode, str(id_item), trieur)).fetchone()
+                (produit, mode, str(id_item), trieur)).fetchone()
             if row:
                 self.conn.execute("DELETE FROM votes WHERE rowid=?", (row[0],))
                 self.conn.commit()
-        self.ajouter(mode, id_item, reponse, trieur)
+        self.ajouter(produit, mode, id_item, reponse, trieur)
 
 
 # --------------------------------------------------------------- logique pure
@@ -161,39 +223,33 @@ def existence_acquise(votes: list[str]) -> bool:
     return maj == "oui"
 
 
-def choisir_moins_vu(ids: list[str], compte: Counter, rng: random.Random) -> str | None:
+def choisir_moins_vu(ids: list[str], compte: Counter, rng: random.Random,
+                     prioritaires: set | None = None) -> str | None:
     """Un id au hasard PARMI les moins votés (couverture uniforme, ordre
-    imprévisible — l'ennui vient de la prévisibilité). Pure (rng injecté)."""
+    imprévisible — l'ennui vient de la prévisibilité). Les `prioritaires`
+    (désaccords : votes à égalité) passent en tête DANS le groupe des moins vus :
+    une passe de plus tranche d'abord ce qui est contesté. Pure (rng injecté)."""
     if not ids:
         return None
     mini = min(compte.get(i, 0) for i in ids)
-    return rng.choice([i for i in ids if compte.get(i, 0) == mini])
+    groupe = [i for i in ids if compte.get(i, 0) == mini]
+    if prioritaires:
+        contestes = [i for i in groupe if i in prioritaires]
+        if contestes:
+            groupe = contestes
+    return rng.choice(groupe)
 
 
 # ------------------------------------------------------------------- données
 
-class Donnees:
-    """Charge une fois : candidats (vignettes existence), base adressée (items
-    adresse via les fonctions pures de 17), BAN, parcelles, index de dalles."""
+class Ressources:
+    """Actifs géo partagés entre produits : BAN, parcelles, dalles ortho, cache."""
 
-    def __init__(self, cfg: dict, candidats_path: Path, ortho_dir: Path | None):
+    def __init__(self, cfg: dict, ortho_dir: Path | None):
         interim = Path(cfg["paths"]["interim"])
         dept = cfg["dept"]
-        self.vignettes_dir = interim / "tri" / "vignettes"
         self.cache_dir = interim.parent / "atelier" / "cache_ortho"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-
-        cand = gpd.read_parquet(candidats_path)
-        self.candidats = cand.assign(id_detection=cand["id_detection"].astype(str))
-        log.info("%d candidats (existence).", len(self.candidats))
-
-        adressees = gpd.read_parquet(interim / f"piscines_adressees_{dept}.parquet")
-        adressees = adressees.assign(
-            id_detection=adressees["id_detection"].astype(str),
-            id_piscine=adressees["id_piscine"].astype(str))
-        self.adressees = adressees
-        self.id_piscine_vers_detection = dict(
-            zip(adressees["id_piscine"], adressees["id_detection"]))
         self.ban = gpd.read_parquet(interim / f"ban_{dept}.parquet").to_crs(cfg["crs_metric"])
         self.ban = self.ban.drop_duplicates("id_ban")
         self.ban.sindex
@@ -203,6 +259,30 @@ class Donnees:
         if self.parcelles is not None:
             self.parcelles.sindex
         self.index_dalles = tri.indexer_dalles(ortho_dir) if ortho_dir else None
+
+
+class Donnees:
+    """Données d'UN produit : candidats + vignettes (existence), base adressée
+    (niveau adresse, optionnel). Les actifs lourds partagés vivent dans Ressources."""
+
+    def __init__(self, cfg: dict, nom: str, pcfg: dict, res: Ressources):
+        interim = Path(cfg["paths"]["interim"])
+        self.nom, self.meta, self.res = nom, pcfg, res
+        self.vignettes_dir = interim / pcfg["vignettes"]
+        self.cache_dir = res.cache_dir
+        self.ban, self.parcelles = res.ban, res.parcelles
+        self.index_dalles = res.index_dalles
+
+        cand = gpd.read_parquet(interim / pcfg["candidats"])
+        self.candidats = cand.assign(id_detection=cand["id_detection"].astype(str))
+        log.info("[%s] %d candidats (existence).", nom, len(self.candidats))
+
+        self.adressees = None
+        if pcfg["adressees"]:
+            adressees = gpd.read_parquet(interim / pcfg["adressees"])
+            self.adressees = adressees.assign(
+                id_detection=adressees["id_detection"].astype(str),
+                id_piscine=adressees["id_piscine"].astype(str))
         self._cache_items_adresse: dict[str, dict] = {}
 
     # --- existence -----------------------------------------------------------
@@ -211,13 +291,18 @@ class Donnees:
         if row.empty:
             return None
         r = row.iloc[0]
+        pt = r.geometry.representative_point()
         return {"id": id_detection,
-                "png": f"/api/vignette/{id_detection}.png",
+                "png": f"/api/vignette/{self.nom}/{id_detection}.png",
                 "surface": float(r["surface_m2"]),
-                "score": float(r["score_detection"])}
+                "score": float(r["score_detection"]),
+                "cx": round(float(pt.x), 2), "cy": round(float(pt.y), 2),
+                "cote_m": self.meta.get("vignette_m", 60)}
 
     # --- adresse -------------------------------------------------------------
     def item_adresse(self, id_piscine: str) -> dict | None:
+        if self.adressees is None:
+            return None
         if id_piscine in self._cache_items_adresse:
             return self._cache_items_adresse[id_piscine]
         row = self.adressees[self.adressees["id_piscine"] == id_piscine]
@@ -226,15 +311,15 @@ class Donnees:
         item = v17.construire_item(row.iloc[0], self.ban, self.parcelles, image_b64=None)
         if not item["adresses"]:
             return None                       # rien à cliquer : invérifiable
-        item["img"] = f"/api/ortho/{id_piscine}.jpg"
+        item["img"] = f"/api/ortho/{self.nom}/{id_piscine}.jpg"
         self._cache_items_adresse[id_piscine] = item
         return item
 
     def ortho_jpeg(self, id_piscine: str) -> bytes | None:
-        cache = self.cache_dir / f"{id_piscine}.jpg"
+        cache = self.cache_dir / f"{self.nom}_{id_piscine}.jpg"
         if cache.exists():
             return cache.read_bytes()
-        if self.index_dalles is None:
+        if self.index_dalles is None or self.adressees is None:
             return None
         row = self.adressees[self.adressees["id_piscine"] == id_piscine]
         if row.empty:
@@ -262,15 +347,15 @@ def amorcer_depuis_acquis(votes: Votes, repo: Path):
     if fusion.exists():
         df = pd.read_csv(fusion)
         for _, r in df.iterrows():
-            votes.ajouter("existence", str(r["id_detection"]), str(r["decision"]),
-                          str(r.get("trieur", "import")))
+            votes.ajouter("piscines", "existence", str(r["id_detection"]),
+                          str(r["decision"]), str(r.get("trieur", "import")))
         log.info("Amorçage existence : %d votes importés de %s.", len(df), fusion.name)
     conc_dir = repo / "handoff" / "concordance_recus"
     fichiers = sorted(conc_dir.glob("concordance_*.csv")) if conc_dir.exists() else []
     if fichiers:
         df = pd.read_csv(fichiers[-1])
         for _, r in df.iterrows():
-            votes.ajouter("adresse", str(r["id_piscine"]),
+            votes.ajouter("piscines", "adresse", str(r["id_piscine"]),
                           str(r["id_ban_choisi_humain"]), "JB")
         log.info("Amorçage adresse : %d votes importés de %s.", len(df), fichiers[-1].name)
 
@@ -281,11 +366,12 @@ def etat_global(donnees: Donnees, votes: Votes) -> dict:
     """Statistiques de progression par mode : items, couverture de la passe
     courante, passe minimale/maximale, accord moyen sur les items votés."""
     out = {}
+    produit = donnees.nom
     ids_exist = list(donnees.candidats["id_detection"])
-    tout_exist = votes.tout("existence")
+    tout_exist = votes.tout(produit, "existence")
     ids_adresse = ids_adresse_debloques(donnees, tout_exist)
     for mode, ids in (("existence", ids_exist), ("adresse", ids_adresse)):
-        t = votes.tout(mode)
+        t = votes.tout(produit, mode)
         compte = {i: len(t.get(i, [])) for i in ids}
         n = len(ids)
         passe_min = min(compte.values()) if compte else 0
@@ -304,6 +390,8 @@ def etat_global(donnees: Donnees, votes: Votes) -> dict:
 def ids_adresse_debloques(donnees: Donnees, votes_existence: dict[str, list[str]]) -> list[str]:
     """Le niveau adresse ne propose que les piscines dont l'existence est acquise
     (majorité de oui) ET qui ont au moins une adresse candidate."""
+    if donnees.adressees is None:
+        return []
     ids = []
     for _, r in donnees.adressees.iterrows():
         if existence_acquise(votes_existence.get(r["id_detection"], [])):
@@ -312,9 +400,12 @@ def ids_adresse_debloques(donnees: Donnees, votes_existence: dict[str, list[str]
 
 
 class Handler(BaseHTTPRequestHandler):
-    donnees: Donnees = None       # injectés au démarrage
+    produits: dict[str, Donnees] = None    # injectés au démarrage
     votes: Votes = None
     rng = random.Random()
+
+    def _produit(self, q) -> Donnees | None:
+        return self.produits.get(q.get("produit", ["piscines"])[0])
 
     def log_message(self, fmt, *args):   # silence le log par requête
         pass
@@ -348,32 +439,51 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         q = parse_qs(u.query)
-        d, v = self.donnees, self.votes
+        d, v = self._produit(q), self.votes
+        if d is None:
+            self.send_error(404, "produit inconnu")
+            return
+        produit = d.nom
 
         if u.path == "/":
             data = PAGE_HTML.encode()
             self._binaire(data, "text/html; charset=utf-8")
+        elif u.path == "/api/produits":
+            self._json([{"nom": n, "question": p.meta["question"],
+                         "bouton_oui": p.meta["bouton_oui"],
+                         "bouton_non": p.meta["bouton_non"],
+                         "adresse": p.adressees is not None}
+                        for n, p in self.produits.items()])
         elif u.path == "/api/etat":
-            self._json(etat_global(d, v))
+            e = etat_global(d, v)
+            trieur = q.get("trieur", [""])[0]
+            if trieur:
+                e["rythme"] = v.stats_trieur(trieur)
+            self._json(e)
+        elif u.path == "/api/export/signalements.csv":
+            self._csv(v.signalements_csv(), "signalements.csv")
         elif u.path == "/api/tache":
             mode = q.get("mode", ["existence"])[0]
             if mode == "existence":
                 ids = list(d.candidats["id_detection"])
-                id_item = choisir_moins_vu(ids, v.compte_par_item("existence"), self.rng)
+                tout = v.tout(produit, "existence")
+                contestes = {i for i, vs in tout.items() if consensus(vs)[0] is None and vs}
+                id_item = choisir_moins_vu(ids, v.compte_par_item(produit, "existence"),
+                                           self.rng, prioritaires=contestes)
                 item = d.item_existence(id_item) if id_item else None
             else:
-                ids = ids_adresse_debloques(d, v.tout("existence"))
+                ids = ids_adresse_debloques(d, v.tout(produit, "existence"))
                 # ne proposer que les items qui ont des candidates cliquables
                 ids = [i for i in ids if d.item_adresse(i)]
-                id_item = choisir_moins_vu(ids, v.compte_par_item("adresse"), self.rng)
+                id_item = choisir_moins_vu(ids, v.compte_par_item(produit, "adresse"), self.rng)
                 item = d.item_adresse(id_item) if id_item else None
             if item is None:
                 self._json({"vide": True})
                 return
             id_item = item.get("id") or item.get("id_piscine")
             trieur = q.get("trieur", [""])[0]
-            self._json({"item": item, "deja_vu": len(v.votes_item(mode, id_item)),
-                        "mon_dernier": v.dernier_de(mode, id_item, trieur) if trieur else None})
+            self._json({"item": item, "deja_vu": len(v.votes_item(produit, mode, id_item)),
+                        "mon_dernier": v.dernier_de(produit, mode, id_item, trieur) if trieur else None})
         elif u.path == "/api/item":
             # Item PRÉCIS (navigation avant/arrière dans l'historique de session).
             mode = q.get("mode", ["existence"])[0]
@@ -383,31 +493,40 @@ class Handler(BaseHTTPRequestHandler):
             if item is None:
                 self._json({"vide": True})
                 return
-            self._json({"item": item, "deja_vu": len(v.votes_item(mode, id_item)),
-                        "mon_dernier": v.dernier_de(mode, id_item, trieur) if trieur else None})
+            self._json({"item": item, "deja_vu": len(v.votes_item(produit, mode, id_item)),
+                        "mon_dernier": v.dernier_de(produit, mode, id_item, trieur) if trieur else None})
         elif u.path.startswith("/api/vignette/"):
-            data = d.vignette_png(u.path.rsplit("/", 1)[1].removesuffix(".png"))
+            # /api/vignette/{produit}/{id}.png — le produit est DANS le chemin
+            # (les <img> ne portent pas de query string produit).
+            parts = u.path.split("/")
+            dp = self.produits.get(parts[3]) if len(parts) == 5 else None
+            data = dp.vignette_png(parts[4].removesuffix(".png")) if dp else None
             if data is None:
                 self.send_error(404)
             else:
                 self._binaire(data, "image/png")
         elif u.path.startswith("/api/ortho/"):
-            data = d.ortho_jpeg(u.path.rsplit("/", 1)[1].removesuffix(".jpg"))
+            parts = u.path.split("/")
+            dp = self.produits.get(parts[3]) if len(parts) == 5 else None
+            data = dp.ortho_jpeg(parts[4].removesuffix(".jpg")) if dp else None
             if data is None:
                 self.send_error(404)
             else:
                 self._binaire(data, "image/jpeg")
         elif u.path == "/api/export/existence.csv":
             lignes = ["id_detection,decision,n_votes,accord"]
-            for i, vs in sorted(v.tout("existence").items()):
+            for i, vs in sorted(v.tout(produit, "existence").items()):
                 maj, acc = consensus(vs)
                 lignes.append(f"{i},{maj or 'incertain'},{len(vs)},{acc:.2f}")
-            self._csv("\n".join(lignes) + "\n", "existence_consensus.csv")
+            self._csv("\n".join(lignes) + "\n", f"existence_consensus_{produit}.csv")
         elif u.path == "/api/export/adresse.csv":
+            if d.adressees is None:
+                self.send_error(404, "pas de niveau adresse pour ce produit")
+                return
             assigne = dict(zip(d.adressees["id_piscine"],
                                d.adressees["id_ban"].astype(str)))
             lignes = ["id_piscine,id_ban_choisi_humain,id_ban_assigne_auto,concordance,n_votes,accord"]
-            for i, vs in sorted(v.tout("adresse").items()):
+            for i, vs in sorted(v.tout(produit, "adresse").items()):
                 maj, acc = consensus(vs)
                 auto = assigne.get(i, "")
                 conc = str(maj == auto).lower() if maj and auto and auto != "nan" else ""
@@ -418,10 +537,38 @@ class Handler(BaseHTTPRequestHandler):
 
     # ----------------------------------------------------------------- POST
     def do_POST(self):
-        if urlparse(self.path).path != "/api/reponse":
+        chemin = urlparse(self.path).path
+        if chemin == "/api/signalement":
+            corps = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            d = self.produits.get(corps.get("produit", ""))
+            item = d.item_existence(str(corps["id_item"])) if d else None
+            if item is None:
+                self._json({"erreur": "item inconnu"}, 400)
+                return
+            # (fx, fy) = position du clic en fraction de l'image (0-1, origine
+            # en haut à gauche) → Lambert-93 via le centre et le côté du crop.
+            try:
+                fx, fy = float(corps["fx"]), float(corps["fy"])
+            except (TypeError, ValueError, KeyError):
+                self._json({"erreur": "fx/fy invalides"}, 400)
+                return
+            if not (0 <= fx <= 1 and 0 <= fy <= 1):
+                self._json({"erreur": "fx/fy hors de l'image"}, 400)
+                return
+            x = item["cx"] + (fx - 0.5) * item["cote_m"]
+            y = item["cy"] + (0.5 - fy) * item["cote_m"]
+            self.votes.signaler(corps["produit"], corps["id_item"], x, y,
+                                str(corps.get("trieur") or "anonyme"))
+            self._json({"ok": True, "x_l93": round(x, 2), "y_l93": round(y, 2)})
+            return
+        if chemin != "/api/reponse":
             self.send_error(404)
             return
         corps = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        produit = corps.get("produit", "piscines")
+        if produit not in self.produits:
+            self._json({"erreur": "produit inconnu"}, 400)
+            return
         mode, id_item = corps["mode"], str(corps["id_item"])
         reponse, trieur = str(corps["reponse"]), str(corps.get("trieur") or "anonyme")
         # 'indecis' = « je ne peux pas répondre » : un vrai vote (l'item ne
@@ -431,12 +578,25 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"erreur": "mode ou réponse invalide"}, 400)
             return
         if corps.get("remplacer"):
-            self.votes.remplacer_dernier(mode, id_item, reponse, trieur)
+            self.votes.remplacer_dernier(produit, mode, id_item, reponse, trieur)
         else:
-            self.votes.ajouter(mode, id_item, reponse, trieur)
-        vs = self.votes.votes_item(mode, id_item)
+            self.votes.ajouter(produit, mode, id_item, reponse, trieur)
+        vs = self.votes.votes_item(produit, mode, id_item)
         maj, acc = consensus(vs)
-        self._json({"ok": True, "n_votes": len(vs), "majorite": maj, "accord": acc})
+        total = self.votes.total()
+        if total % 100 == 0:
+            # Point de sauvegarde : consensus du produit dumpé sur disque (en plus
+            # du SQLite qui, lui, est écrit à CHAQUE vote).
+            dossier = Path(self.produits[produit].cache_dir).parent / "exports"
+            dossier.mkdir(parents=True, exist_ok=True)
+            lignes = ["id_item,decision,n_votes,accord"]
+            for i, vv in sorted(self.votes.tout(produit, mode).items()):
+                m2, a2 = consensus(vv)
+                lignes.append(f"{i},{m2 or 'indecis'},{len(vv)},{a2:.2f}")
+            (dossier / f"{produit}_{mode}_consensus.csv").write_text(
+                "\n".join(lignes) + "\n", encoding="utf-8")
+        self._json({"ok": True, "n_votes": len(vs), "majorite": maj, "accord": acc,
+                    "total": total, "checkpoint": total % 100 == 0})
 
 
 # ------------------------------------------------------------------ page HTML
@@ -562,7 +722,8 @@ body{padding-bottom:52px}
 
 <header>
  <div id="hud">
-  <div id="marque">L'ATELIER<small>Bouchemaine · piscines</small></div>
+  <div id="marque">L'ATELIER<small>Bouchemaine</small></div>
+  <div id="produits-sel" style="display:flex;gap:6px"></div>
   <div id="niveaux">
    <button class="niveau actif" id="ong-existence" onclick="changerMode('existence')">Niveau 1 · Existence</button>
    <button class="niveau" id="ong-adresse" onclick="changerMode('adresse')">Niveau 2 · Adresse <span class="sous" id="verrou-adresse"></span></button>
@@ -573,8 +734,10 @@ body{padding-bottom:52px}
    <div class="chip">accord<b id="accord">—</b></div>
    <div class="chip acc">xp<b id="xp">—</b></div>
    <div class="chip acc">série<b id="serie">0</b></div>
+   <div class="chip">session<b id="chrono">0:00</b></div>
+   <div class="chip">rythme<b id="rythme">—</b></div>
   </div>
-  <button id="btn-export" onclick="location.href='/api/export/'+MODE+'.csv'">Exporter</button>
+  <button id="btn-export" onclick="location.href='/api/export/'+MODE+'.csv?produit='+PRODUIT">Exporter</button>
  </div>
  <div id="jauge-fond"><div id="jauge"></div></div>
 </header>
@@ -586,20 +749,35 @@ body{padding-bottom:52px}
   <div id="detail"></div>
   <div id="boutons"></div>
   <div id="liste-adr" style="display:none"></div>
-  <div id="nav-aide"><kbd>←</kbd>/<kbd>Q</kbd> revenir · <kbd>→</kbd>/<kbd>D</kbd> avancer ·
-   <kbd>S</kbd> passer sans répondre (l'item restera dû)</div>
+  <div id="nav-aide" style="display:none"></div>
  </div>
 </div>
 
 <div id="histo-barre"><span id="histo-titre">SESSION</span><div id="histo"></div></div>
 <div id="toast"></div>
+<div id="pause" style="display:none;position:fixed;inset:0;z-index:60;background:#000d;
+     align-items:center;justify-content:center;flex-direction:column;gap:10px;text-align:center">
+ <div style="font-size:2.2rem;font-family:var(--mono);color:var(--acc)" id="pause-n"></div>
+ <div style="color:var(--mut)" id="pause-stats"></div>
+ <div style="color:var(--mut);font-size:.85rem">sauvegardé · respire · <span id="pause-cpt">3</span> s</div>
+</div>
 
 <script>
-let MODE = "existence", ITEM = null, MON_DERNIER = null, serie = 0;
-// Historique de session PAR MODE : liste d'items vus + curseur. Reculer montre
-// l'item avec sa réponse ; re-répondre CORRIGE le dernier vote (pas de doublon).
-const histo = {existence: [], adresse: []};   // [{id, rep}]
-const idx = {existence: -1, adresse: -1};
+let PRODUIT = "piscines", PRODUITS = {}, MODE = "existence", ITEM = null, MON_DERNIER = null, serie = 0;
+let actifS = 0, dernierVoteT = null;   // chrono de session (temps ACTIF)
+setInterval(() => {
+  if (dernierVoteT && (Date.now() - dernierVoteT) < 60000){
+    actifS++;
+    const m = Math.floor(actifS / 60), s = actifS % 60;
+    document.getElementById("chrono").textContent = m + ":" + String(s).padStart(2, "0");
+  }
+}, 1000);
+// Historique de session PAR produit/mode : liste d'items vus + curseur. Reculer
+// montre l'item avec sa réponse ; re-répondre CORRIGE le dernier vote.
+const histo = {};   // cle() -> [{id, rep}]
+const idx = {};     // cle() -> curseur
+function cle(){ return PRODUIT + "/" + MODE; }
+function H(){ if(!(cle() in histo)){ histo[cle()] = []; idx[cle()] = -1; } return histo[cle()]; }
 let TRIEUR = localStorage.getItem("atelier_trieur") || "";
 
 function definirTrieur(n){ n=(n||"").trim(); if(!n) return; TRIEUR=n;
@@ -608,7 +786,7 @@ function definirTrieur(n){ n=(n||"").trim(); if(!n) return; TRIEUR=n;
 if (!TRIEUR) document.getElementById("modal-trieur").style.display="flex";
 
 async function etat(){
-  const e = await (await fetch("/api/etat")).json();
+  const e = await (await fetch("/api/etat?produit=" + PRODUIT + "&trieur=" + encodeURIComponent(TRIEUR))).json();
   const m = e[MODE];
   document.getElementById("passe").textContent = m.passe_courante;
   document.getElementById("restants").textContent = m.restants_cette_passe;
@@ -617,6 +795,8 @@ async function etat(){
   document.getElementById("accord").textContent =
     m.accord_moyen === null ? "—" : Math.round(m.accord_moyen * 100) + "%";
   document.getElementById("xp").textContent = e.xp;
+  if (e.rythme && e.rythme.votes_par_h)
+    document.getElementById("rythme").textContent = e.rythme.votes_par_h + "/h";
   const na = e.adresse.items;
   document.getElementById("verrou-adresse").textContent = na ? `· ${na}` : "· 🔒";
 }
@@ -626,27 +806,27 @@ function changerMode(m){
   document.getElementById("ong-existence").classList.toggle("actif", m === "existence");
   document.getElementById("ong-adresse").classList.toggle("actif", m === "adresse");
   dessinerHisto();
-  (idx[m] >= 0) ? charger(histo[m][idx[m]].id) : suivant();
+  (idx[cle()] >= 0) ? charger(H()[idx[cle()]].id) : suivant();
 }
 
 async function suivant(){
   // avancer : d'abord dans l'historique, sinon une nouvelle tâche « moins vue »
-  if (idx[MODE] < histo[MODE].length - 1){
-    idx[MODE]++;
-    return charger(histo[MODE][idx[MODE]].id);
+  if (idx[cle()] < H().length - 1){
+    idx[cle()]++;
+    return charger(H()[idx[cle()]].id);
   }
-  const r = await (await fetch(`/api/tache?mode=${MODE}&trieur=${encodeURIComponent(TRIEUR)}`)).json();
+  const r = await (await fetch(`/api/tache?produit=${PRODUIT}&mode=${MODE}&trieur=${encodeURIComponent(TRIEUR)}`)).json();
   if (r.vide){ afficherVide(); etat(); return; }
   const id = r.item.id || r.item.id_piscine;
-  histo[MODE].push({id, rep: r.mon_dernier || null});
-  idx[MODE] = histo[MODE].length - 1;
+  H().push({id, rep: r.mon_dernier || null});
+  idx[cle()] = H().length - 1;
   afficher(r);
 }
 function precedent(){
-  if (idx[MODE] > 0){ idx[MODE]--; charger(histo[MODE][idx[MODE]].id); }
+  if (idx[cle()] > 0){ idx[cle()]--; charger(H()[idx[cle()]].id); }
 }
 async function charger(id){
-  const r = await (await fetch(`/api/item?mode=${MODE}&id=${encodeURIComponent(id)}&trieur=${encodeURIComponent(TRIEUR)}`)).json();
+  const r = await (await fetch(`/api/item?produit=${PRODUIT}&mode=${MODE}&id=${encodeURIComponent(id)}&trieur=${encodeURIComponent(TRIEUR)}`)).json();
   if (!r.vide) afficher(r);
 }
 
@@ -671,14 +851,21 @@ function afficher(r){
   const liste = document.getElementById("liste-adr");
   if (MODE === "existence"){
     cadre.innerHTML = `<img src="${ITEM.png}" width="560" height="560" style="image-rendering:pixelated">` + badges;
-    document.getElementById("question").textContent = "Y a-t-il une piscine dans le contour rouge ?";
+    cadre.querySelector("img").addEventListener("click", clicImage);
+    modeSignal = false; cadre.style.cursor = "";
+    document.getElementById("question").textContent = PRODUITS[PRODUIT].question;
     document.getElementById("detail").textContent =
       `${ITEM.surface.toFixed(0)} m² · score ${ITEM.score.toFixed(2)} · ${ITEM.id}`;
     liste.style.display = "none"; liste.innerHTML = "";
+    document.getElementById("nav-aide").style.display = "";
+    document.getElementById("nav-aide").innerHTML =
+      `<kbd>Q</kbd> oui · <kbd>D</kbd> non · <kbd>S</kbd> impossible à dire · <kbd>A</kbd> revenir ·
+       <kbd>E</kbd> avancer · <kbd>ESPACE</kbd> passer (restera dû) · <kbd>F</kbd> puis clic = piscine vue ailleurs`;
     boutons.innerHTML =
-      `<button class="keycap oui" onclick="repondre('oui')"><span class="k">O</span>Piscine</button>
-       <button class="keycap non" onclick="repondre('non')"><span class="k">N</span>Pas une piscine</button>
-       <button class="keycap unsure" onclick="repondre('incertain')"><span class="k">U</span>Impossible à dire</button>`;
+      `<button class="keycap oui" onclick="repondre('oui')"><span class="k">Q</span>${PRODUITS[PRODUIT].bouton_oui}</button>
+       <button class="keycap non" onclick="repondre('non')"><span class="k">D</span>${PRODUITS[PRODUIT].bouton_non}</button>
+       <button class="keycap unsure" onclick="repondre('incertain')"><span class="k">S</span>Impossible à dire</button>
+       <button class="keycap aucune" onclick="armerSignal()"><span class="k">F</span>Je vois une piscine ailleurs</button>`;
   } else {
     cadre.innerHTML = svgAdresse(ITEM) + badges;
     cadre.querySelectorAll(".pin").forEach(g =>
@@ -695,7 +882,11 @@ function afficher(r){
     });
     boutons.innerHTML =
       `<button class="keycap aucune" onclick="repondre('aucune')"><span class="k">A</span>Aucune de ces adresses</button>
-       <button class="keycap unsure" onclick="repondre('indecis')"><span class="k">U</span>Impossible à dire</button>`;
+       <button class="keycap unsure" onclick="repondre('indecis')"><span class="k">S</span>Impossible à dire</button>`;
+    document.getElementById("nav-aide").style.display = "";
+    document.getElementById("nav-aide").innerHTML =
+      `rangée des chiffres <kbd>&</kbd><kbd>é</kbd><kbd>"</kbd>… = maison 1,2,3 · <kbd>A</kbd> aucune ·
+       <kbd>S</kbd> impossible · <kbd>←</kbd>/<kbd>→</kbd> ou <kbd>E</kbd> naviguer · <kbd>ESPACE</kbd> passer`;
   }
   document.getElementById("badge-deja").style.display = MON_DERNIER ? "inline" : "none";
 }
@@ -729,9 +920,10 @@ async function repondre(rep){
   const correction = MON_DERNIER !== null;
   const r = await (await fetch("/api/reponse", {method:"POST",
     headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({mode: MODE, id_item: id, reponse: rep, trieur: TRIEUR,
-                          remplacer: correction})})).json();
-  histo[MODE][idx[MODE]].rep = rep;
+    body: JSON.stringify({produit: PRODUIT, mode: MODE, id_item: id, reponse: rep,
+                          trieur: TRIEUR, remplacer: correction})})).json();
+  H()[idx[cle()]].rep = rep;
+  dernierVoteT = Date.now();
   const cadre = document.getElementById("cadre");
   cadre.className = "flash-" + (["oui","non","incertain","indecis","aucune"].includes(rep) ? rep : "adresse");
   if (!correction){
@@ -741,9 +933,52 @@ async function repondre(rep){
   }
   toast((correction ? "corrigé" : "+1") + ` · ${r.n_votes} vote(s)` +
         (r.majorite ? ` · majorité « ${r.majorite} » (${Math.round(r.accord*100)}%)` : " · égalité, une passe de plus tranchera"));
+  if (r.checkpoint){
+    // Pause forcée : 3 s toutes les 100 réponses, pendant que le serveur dumpe
+    // le consensus sur disque. Les yeux aussi ont un localStorage.
+    const p = document.getElementById("pause");
+    document.getElementById("pause-n").textContent = r.total + " votes";
+    document.getElementById("pause-stats").textContent =
+      `série ${serie} · ${document.getElementById("rythme").textContent} · session ${document.getElementById("chrono").textContent}`;
+    p.style.display = "flex";
+    let cpt = 3;
+    document.getElementById("pause-cpt").textContent = cpt;
+    const h = setInterval(() => {
+      cpt--;
+      document.getElementById("pause-cpt").textContent = cpt;
+      if (cpt <= 0){ clearInterval(h); p.style.display = "none"; suivant(); }
+    }, 1000);
+    return;
+  }
   setTimeout(suivant, correction ? 350 : 220);
 }
 
+let modeSignal = false;
+function armerSignal(){
+  if (MODE !== "existence") return;
+  modeSignal = !modeSignal;
+  document.getElementById("cadre").style.cursor = modeSignal ? "crosshair" : "";
+  toast(modeSignal ? "clique sur la piscine que tu vois (F pour annuler)" : "signalement annulé");
+}
+async function clicImage(ev){
+  if (!modeSignal || MODE !== "existence" || !ITEM) return;
+  const img = ev.currentTarget;
+  const rect = img.getBoundingClientRect();
+  const fx = (ev.clientX - rect.left) / rect.width;
+  const fy = (ev.clientY - rect.top) / rect.height;
+  const r = await (await fetch("/api/signalement", {method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({produit: PRODUIT, id_item: ITEM.id, fx, fy, trieur: TRIEUR})})).json();
+  modeSignal = false;
+  document.getElementById("cadre").style.cursor = "";
+  if (r.ok){
+    const m = document.createElement("div");
+    m.style.cssText = `position:absolute;left:${fx*100}%;top:${fy*100}%;width:14px;height:14px;
+      margin:-7px;border:3px solid var(--acc);border-radius:50%;pointer-events:none`;
+    document.getElementById("cadre").appendChild(m);
+    toast("piscine signalée · recoupée plus tard avec le cadastre");
+  }
+}
 function toast(txt){
   const t = document.getElementById("toast");
   t.textContent = txt; t.classList.add("on");
@@ -753,41 +988,69 @@ function toast(txt){
 function dessinerHisto(){
   const conteneur = document.getElementById("histo");
   conteneur.innerHTML = "";
-  const h = histo[MODE];
+  const h = H();
   h.slice(-60).forEach((e, kRel) => {
     const k = h.length - Math.min(60, h.length) + kRel;
     const d = document.createElement("div");
     let cls = "pas";
     if (e.rep) cls += " " + (["oui","non","incertain","indecis","aucune"].includes(e.rep) ? e.rep : "adresse");
-    if (k === idx[MODE]) cls += " courant";
+    if (k === idx[cle()]) cls += " courant";
     d.className = cls;
     d.title = e.id + (e.rep ? " · " + e.rep : " · sans réponse");
-    d.onclick = () => { idx[MODE] = k; charger(h[k].id); };
+    d.onclick = () => { idx[cle()] = k; charger(h[k].id); };
     conteneur.appendChild(d);
   });
   conteneur.scrollLeft = conteneur.scrollWidth;
 }
 
 const AZERTY = {"&":0, "é":1, '"':2, "'":3, "(":4, "-":5, "è":6, "_":7, "ç":8};
+// Mapping main gauche défini par JB (2026-07-16) : Q=oui, D=non, A=arrière,
+// E=avant, S=je ne peux pas dire (vote), ESPACE=passer sans voter, F=signaler.
+// O/N restent en alias. Au niveau adresse, A garde son sens « aucune » : la
+// navigation y passe par les flèches (et E pour avancer).
 document.addEventListener("keydown", e => {
   if (document.getElementById("modal-trieur").style.display === "flex") return;
+  if (document.getElementById("pause").style.display === "flex") return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  const k = e.key;
-  if (k === "ArrowLeft" || k === "q" || k === "Q") return precedent();
-  if (k === "ArrowRight" || k === "d" || k === "D") return suivant();
-  if (k === "s" || k === "S" || k === " "){ e.preventDefault(); return suivant(); }
+  const k = e.key.toLowerCase();
+  if (k === "arrowleft") return precedent();
+  if (k === "arrowright" || k === "e") return suivant();
+  if (k === " "){ e.preventDefault(); return suivant(); }
   if (MODE === "existence"){
-    if (k === "o" || k === "O") repondre("oui");
-    else if (k === "n" || k === "N") repondre("non");
-    else if (k === "u" || k === "U") repondre("incertain");
+    if (k === "q" || k === "o") repondre("oui");
+    else if (k === "d" || k === "n") repondre("non");
+    else if (k === "s" || k === "u") repondre("incertain");
+    else if (k === "a") precedent();
+    else if (k === "f") armerSignal();
   } else {
-    if (k in AZERTY && ITEM && ITEM.adresses[AZERTY[k]]) repondre(ITEM.adresses[AZERTY[k]].id_ban);
+    if (e.key in AZERTY && ITEM && ITEM.adresses[AZERTY[e.key]]) repondre(ITEM.adresses[AZERTY[e.key]].id_ban);
     else if (/^[1-9]$/.test(k) && ITEM && ITEM.adresses[+k-1]) repondre(ITEM.adresses[+k-1].id_ban);
-    else if (k === "a" || k === "A") repondre("aucune");
-    else if (k === "u" || k === "U") repondre("indecis");
+    else if (k === "a") repondre("aucune");
+    else if (k === "s" || k === "u") repondre("indecis");
   }
 });
-changerMode("existence");
+function changerProduit(p){
+  PRODUIT = p;
+  document.querySelectorAll("#produits-sel .niveau").forEach(b =>
+    b.classList.toggle("actif", b.dataset.p === p));
+  const aAdresse = PRODUITS[p].adresse;
+  document.getElementById("ong-adresse").style.display = aAdresse ? "" : "none";
+  if (!aAdresse && MODE === "adresse") MODE = "existence";
+  changerMode(MODE);
+}
+(async () => {
+  const liste = await (await fetch("/api/produits")).json();
+  const sel = document.getElementById("produits-sel");
+  liste.forEach(p => {
+    PRODUITS[p.nom] = p;
+    const b = document.createElement("button");
+    b.className = "niveau"; b.dataset.p = p.nom;
+    b.textContent = p.nom.charAt(0).toUpperCase() + p.nom.slice(1);
+    b.onclick = () => changerProduit(p.nom);
+    sel.appendChild(b);
+  });
+  changerProduit(liste[0].nom);
+})();
 </script></body></html>
 """
 
@@ -805,8 +1068,6 @@ def main() -> None:
     ensure_dirs(cfg)
     repo = Path(__file__).resolve().parents[2]
     interim = Path(cfg["paths"]["interim"])
-    candidats = Path(args.candidats) if args.candidats else \
-        interim / f"piscines_candidates_{cfg['dept']}_49035.parquet"
     ortho = Path(args.ortho_dir) if args.ortho_dir else \
         repo / "data" / "raw" / "bdortho" / "49035" / "rvb"
 
@@ -814,7 +1075,21 @@ def main() -> None:
     if votes.vide():
         amorcer_depuis_acquis(votes, repo)
 
-    Handler.donnees = Donnees(cfg, candidats, ortho if ortho.exists() else None)
+    res = Ressources(cfg, ortho if ortho.exists() else None)
+    produits = {}
+    for nom, pcfg in PRODUITS.items():
+        if not (interim / pcfg["candidats"]).exists():
+            log.warning("[%s] candidats absents (%s) — produit non chargé.",
+                        nom, pcfg["candidats"])
+            continue
+        if not (interim / pcfg["vignettes"]).exists():
+            log.warning("[%s] vignettes absentes (%s) — produit non chargé "
+                        "(générer via 16_tri_visuel --out-dir).", nom, pcfg["vignettes"])
+            continue
+        produits[nom] = Donnees(cfg, nom, pcfg, res)
+    if not produits:
+        raise SystemExit("Aucun produit chargeable.")
+    Handler.produits = produits
     Handler.votes = votes
 
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)

@@ -34,11 +34,25 @@ ajouté à `data/atelier/atelier.sqlite` (append-only, gitignoré comme tout
 
 | Niveau | Question | Réponses | Débloqué par |
 |---|---|---|---|
-| 1 · Existence | piscine dans le contour rouge ? | O / N / U (impossible à dire) | — |
-| 2 · Adresse | quelle maison ? | rangée de chiffres AZERTY, A (aucune), U (impossible) | majorité de « oui » au niveau 1 |
+| 1 · Existence | piscine dans le contour rouge ? | `Q` oui · `D` non · `S` impossible à dire | — |
+| 2 · Adresse | quelle maison ? | rangée de chiffres AZERTY · `A` aucune · `S` impossible | majorité de « oui » au niveau 1 |
 
-`S` = passer **sans** voter (l'item reste dû). `U` = **voter** « je ne peux pas
-répondre » (l'item ne revient plus cette passe ; jamais vendu).
+Clavier main gauche (mapping JB, 2026-07-16) : `A`/`←` revenir, `E`/`→` avancer,
+`ESPACE` passer **sans** voter (l'item reste dû), `O`/`N` restent en alias au
+niveau 1. « Impossible à dire » est un **vote** : l'item ne revient plus cette
+passe et n'est jamais vendu.
+
+**Signalements (`F` puis clic)** : « je vois une piscine ailleurs dans l'image ».
+Le clic est converti en point **Lambert-93** (via le centre et le côté du crop)
+et stocké dans la table `signalements` — donnée de RAPPEL (détections manquées),
+export `/api/export/signalements.csv`, à recouper avec cadastre SYM=65 / CoSIA.
+
+**Rythme et pauses** : chrono de session (temps actif, coupé après 60 s
+d'inactivité), rythme réel en votes/h calculé depuis les horodatages (mesure du
+2026-07-16 : **~1 360 votes/h**, 2,6 s par vignette). Toutes les 100 réponses :
+pause forcée de 3 s + dump automatique du consensus dans `data/atelier/exports/`
+(le SQLite, lui, est écrit à chaque vote). Les items en désaccord (votes à
+égalité) passent en tête de la passe suivante.
 
 ## Exports (compatibles chaîne existante)
 
