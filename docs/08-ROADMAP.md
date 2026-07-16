@@ -73,10 +73,21 @@ dans le fichier final (violation minimisation) — corrigé, fonction extraite
 les **68 cas non-haute** : `handoff/verif_adresse_bouchemaine_49035.html` (ortho
 communale, clic sur la maison, export concordance.csv).
 
-**⚡ PROCHAINE ACTION = 🧑 VÉRIFIER LES ADRESSES** (ouvrir
-`handoff/verif_adresse_bouchemaine_49035.html`, 68 cas, exporter concordance.csv),
-puis protocole précision `06` §2 sur la base finale — et toujours **D0 avant tout
-code : aucun prospect appelé, l'inversion de séquence reste LE risque n°1**. Soi-même (ouvrir `handoff/tri_bouchemaine_49035.html`
+**Nouveau (2026-07-16 nuit — vérification d'adresses TERMINÉE et appliquée)** :
+JB a vérifié les **69 cas non-haute** avec l'outil 17 refondu (ortho pleine vue,
+clavier AZERTY main gauche Q/D/S/Z/A + rangée des chiffres, auto-avance, choix
+« aucune », protocole en aveugle réellement respecté). Verdicts : **51 confirmées,
+17 corrigées, 1 sans adresse valable**. Nouveau script **`21_appliquer_concordance.py`**
+(verdicts → base adressée ; verif_humaine=True ; corrections avec attributs BAN ;
+'aucune' → adresse retirée) + `30_score` : une adresse vérifiée humain prime sur
+les heuristiques → **base finale : 228 adresses, 100 % confiance haute**
+(existence validée humain + adresse confirmée ou corrigée humain sur tous les cas
+douteux). CSV archivés dans `handoff/concordance_recus/`.
+
+**⚡ PROCHAINE ACTION** : protocole précision `06` §2 (échantillon aléatoire, borne
+basse de Wilson) pour le chiffre affichable en démo, puis kit de vente — et toujours
+**D0 avant tout code : aucun prospect appelé, l'inversion de séquence reste LE
+risque n°1. La base est prête, l'excuse « le produit n'est pas fini » ne tient plus.** Soi-même (ouvrir `handoff/tri_bouchemaine_49035.html`
 ou générer la planche via `16_tri_visuel.py`) OU faire trier par un ami/bénévole via
 `handoff/` (voir `ONBOARDING.md` parcours A). Puis **appliquer les décisions**
 (`appliquer_decisions_recues.py` → `16 --apply`) → **mesurer la précision réelle**

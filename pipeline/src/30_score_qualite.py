@@ -62,7 +62,7 @@ def calculer_confiance(gdf, dist_max_adresse_m):
         corrob_true = np.ones(n, dtype=bool)          # neutre : n'ajoute pas de contrainte
         nearest_hors_parcelle = np.zeros(n, dtype=bool)  # neutre : ne déclasse personne
 
-    return np.select(
+    conf = np.select(
         [
             # haute : jointure cadastrale nette, adresse proche ET dans la parcelle (A4)
             (~gdf["jointure_ambigue"]) & (gdf["source_jointure"] == "cad_parcelles")
@@ -74,6 +74,14 @@ def calculer_confiance(gdf, dist_max_adresse_m):
         ["haute", "basse"],
         default="moyenne",
     )
+    # Vérification humaine (17_verification_adresse → 21_appliquer_concordance) :
+    # une adresse confirmée ou corrigée par l'humain PRIME sur les heuristiques —
+    # c'est la vérité terrain, elle passe en haute (si une adresse subsiste ;
+    # les 'aucune' ont un id_ban NaN et tombent au filtre « adresse trouvée »).
+    if "verif_humaine" in gdf.columns:
+        verif = gdf["verif_humaine"].eq(True).fillna(False).to_numpy(dtype=bool)
+        conf = np.where(verif & gdf["id_ban"].notna().to_numpy(), "haute", conf)
+    return conf
 
 
 def main() -> None:
