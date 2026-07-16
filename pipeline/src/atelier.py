@@ -284,6 +284,17 @@ class Donnees:
                 id_detection=adressees["id_detection"].astype(str),
                 id_piscine=adressees["id_piscine"].astype(str))
         self._cache_items_adresse: dict[str, dict] = {}
+        self._dispo: tuple[float, set] = (0.0, set())
+
+    def ids_disponibles(self) -> set[str]:
+        """Ids dont la vignette PNG existe SUR DISQUE — pendant qu'une génération
+        tourne (16_tri_visuel), on ne sert que le déjà-prêt. Cache 15 s."""
+        import time
+        ts, dispo = self._dispo
+        if time.monotonic() - ts > 15:
+            dispo = {p.stem for p in self.vignettes_dir.glob("*.png")}
+            self._dispo = (time.monotonic(), dispo)
+        return dispo
 
     # --- existence -----------------------------------------------------------
     def item_existence(self, id_detection: str) -> dict | None:
@@ -403,6 +414,9 @@ class Handler(BaseHTTPRequestHandler):
     produits: dict[str, Donnees] = None    # injectés au démarrage
     votes: Votes = None
     rng = random.Random()
+    # HTTP/1.1 = keep-alive : le navigateur réutilise ses connexions au lieu
+    # d'en rouvrir une par image (on envoie toujours Content-Length).
+    protocol_version = "HTTP/1.1"
 
     def _produit(self, q) -> Donnees | None:
         return self.produits.get(q.get("produit", ["piscines"])[0])
@@ -464,8 +478,10 @@ class Handler(BaseHTTPRequestHandler):
             self._csv(v.signalements_csv(), "signalements.csv")
         elif u.path == "/api/tache":
             mode = q.get("mode", ["existence"])[0]
+            sauf = q.get("sauf", [None])[0]
             if mode == "existence":
-                ids = list(d.candidats["id_detection"])
+                dispo = d.ids_disponibles()
+                ids = [i for i in d.candidats["id_detection"] if i in dispo and i != sauf]
                 tout = v.tout(produit, "existence")
                 contestes = {i for i, vs in tout.items() if consensus(vs)[0] is None and vs}
                 id_item = choisir_moins_vu(ids, v.compte_par_item(produit, "existence"),
@@ -474,7 +490,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 ids = ids_adresse_debloques(d, v.tout(produit, "existence"))
                 # ne proposer que les items qui ont des candidates cliquables
-                ids = [i for i in ids if d.item_adresse(i)]
+                ids = [i for i in ids if i != sauf and d.item_adresse(i)]
                 id_item = choisir_moins_vu(ids, v.compte_par_item(produit, "adresse"), self.rng)
                 item = d.item_adresse(id_item) if id_item else None
             if item is None:
@@ -809,13 +825,41 @@ function changerMode(m){
   (idx[cle()] >= 0) ? charger(H()[idx[cle()]].id) : suivant();
 }
 
+// Préchargement : pendant que le trieur regarde l'item courant, on va chercher
+// le suivant ET on décode son image. Au vote, l'affichage est instantané —
+// c'est ça qui tient le rythme (le décodage JPEG2000 coûtait 2-3 s à froid).
+let PRECHARGE = null;   // {cle, r, pret:Promise}
+function precharger(){
+  const c = cle();
+  const courant = ITEM ? (ITEM.id || ITEM.id_piscine) : "";
+  PRECHARGE = {cle: c, r: null};
+  PRECHARGE.pret = (async () => {
+    const r = await (await fetch(`/api/tache?produit=${PRODUIT}&mode=${MODE}` +
+      `&trieur=${encodeURIComponent(TRIEUR)}&sauf=${encodeURIComponent(courant)}`)).json();
+    if (!r.vide){
+      const src = r.item.png || r.item.img;
+      await new Promise(res => { const im = new Image(); im.onload = im.onerror = res; im.src = src; });
+    }
+    PRECHARGE.r = r;
+  })();
+}
+
 async function suivant(){
   // avancer : d'abord dans l'historique, sinon une nouvelle tâche « moins vue »
   if (idx[cle()] < H().length - 1){
     idx[cle()]++;
     return charger(H()[idx[cle()]].id);
   }
-  const r = await (await fetch(`/api/tache?produit=${PRODUIT}&mode=${MODE}&trieur=${encodeURIComponent(TRIEUR)}`)).json();
+  let r;
+  if (PRECHARGE && PRECHARGE.cle === cle()){
+    await PRECHARGE.pret;
+    r = PRECHARGE.r;
+    PRECHARGE = null;
+    // le préchargé peut avoir déjà été vu dans la session (rare) : on le montre
+    // quand même, le serveur l'a choisi parmi les moins vus.
+  } else {
+    r = await (await fetch(`/api/tache?produit=${PRODUIT}&mode=${MODE}&trieur=${encodeURIComponent(TRIEUR)}`)).json();
+  }
   if (r.vide){ afficherVide(); etat(); return; }
   const id = r.item.id || r.item.id_piscine;
   H().push({id, rep: r.mon_dernier || null});
@@ -889,6 +933,8 @@ function afficher(r){
        <kbd>S</kbd> impossible · <kbd>←</kbd>/<kbd>→</kbd> ou <kbd>E</kbd> naviguer · <kbd>ESPACE</kbd> passer`;
   }
   document.getElementById("badge-deja").style.display = MON_DERNIER ? "inline" : "none";
+  // en bout d'historique (item neuf) : précharger le prochain pendant la réflexion
+  if (idx[cle()] === H().length - 1) precharger();
 }
 
 function svgAdresse(it){
@@ -950,7 +996,10 @@ async function repondre(rep){
     }, 1000);
     return;
   }
-  setTimeout(suivant, correction ? 350 : 220);
+  // avance IMMÉDIATE : le flash et le toast vivent leur vie pendant que
+  // l'item suivant (préchargé) s'affiche — aucun timer, les navigateurs
+  // les étranglent dès que l'onglet perd le focus.
+  suivant();
 }
 
 let modeSignal = false;
@@ -1091,6 +1140,24 @@ def main() -> None:
         raise SystemExit("Aucun produit chargeable.")
     Handler.produits = produits
     Handler.votes = votes
+
+    # Chauffe du cache ortho (niveau adresse) : le décodage JPEG2000 à la volée
+    # coûte 1-3 s par piscine — inacceptable en farm. On pré-rend tout en fond.
+    def chauffer():
+        for d in produits.values():
+            if d.adressees is None or d.index_dalles is None:
+                continue
+            n = 0
+            import time
+            for pid in d.adressees["id_piscine"]:
+                try:
+                    if d.ortho_jpeg(pid) is not None:
+                        n += 1
+                except Exception:                      # dalle manquante : tant pis
+                    log.debug("chauffe ortho : échec %s", pid)
+                time.sleep(0.02)   # laisse toujours la main aux requêtes du farm
+            log.info("[%s] cache ortho chaud (%d fonds).", d.nom, n)
+    threading.Thread(target=chauffer, daemon=True).start()
 
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     log.info("Atelier prêt : http://localhost:%d (Ctrl-C pour arrêter).", args.port)
