@@ -174,8 +174,9 @@ def test_rendre_html_items_et_vue_embarques():
     assert '"id_piscine": "p1"' in html
     assert '"id_ban_assignee": "B"' in html
     assert '"assignee": true' in html
-    # géométrie de vue injectée (out_px/img_px/img_off)
-    assert '"out_px": 600' in html and '"img_px"' in html
+    # géométrie de vue injectée (out_px/img_px/img_off) — l'ortho couvre
+    # toute la vue depuis le retour terrain du 2026-07-16
+    assert '"out_px": 700' in html and '"img_px": 700' in html and '"img_off": 0' in html
     # clé localStorage par département (reprise)
     assert "verif_adresse_49" in html
 
@@ -210,3 +211,14 @@ def test_rendre_html_json_serialisation_items():
     fin = html.index(";\nconst VUE")
     parsed = json.loads(html[debut:fin])
     assert parsed[0]["id_piscine"] == "p1"
+
+
+def test_rendre_html_raccourcis_azerty_et_auto_avance():
+    """Retour terrain 2026-07-16 : pilotage main gauche AZERTY (rangée des
+    chiffres = choisir la maison, Q/D naviguer, S passer, Z effacer) et
+    auto-avance vers la prochaine piscine non vérifiée après un choix."""
+    html = verif.rendre_html(_items(), "49")
+    assert 'const AZERTY = {"&":0, "é":1' in html
+    assert "function passer" in html and "function effacerChoix" in html
+    assert "function prochainNonVerifie" in html
+    assert "timerAvance" in html

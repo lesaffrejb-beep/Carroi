@@ -43,19 +43,19 @@ tri = importlib.import_module("16_tri_visuel")
 log = logging.getLogger("verif")
 
 # --- Géométrie de la vue (mètres) --------------------------------------------
-# La vignette ortho est un crop 120×120 m centré sur la piscine (cf. 15_detect /
-# 16_tri). Mais on veut aussi montrer les adresses candidates dans un rayon de
-# 150 m — donc plus large que le crop. La VUE (le cadre SVG) couvre 2×rayon pour
-# que TOUS les points d'adresse tiennent dans l'image, l'ortho occupant le carré
-# central de 120 m.
+# La VUE (le cadre SVG) couvre 2×rayon pour que TOUS les points d'adresse
+# tiennent dans l'image, et l'ortho couvre TOUTE la vue (retour terrain
+# 2026-07-16 : un fond partiel laissait des maisons candidates dans le noir,
+# impossible de cliquer en confiance). JPEG q82 pour contenir le poids de la
+# page (PNG 300 m plein cadre = page ingérable).
 RAYON_M = 150.0          # rayon de recherche des adresses BAN et parcelles
-CROP_ORTHO_M = 120.0     # côté de la vignette ortho (RVB), centrée sur la piscine
 VUE_M = 2 * RAYON_M      # côté du cadre SVG (300 m) : englobe tout le rayon
-OUT_PX = 600             # côté du cadre SVG en pixels (0,5 m/px)
+CROP_ORTHO_M = VUE_M     # l'ortho couvre toute la vue
+OUT_PX = 700             # côté du cadre SVG en pixels (~0,43 m/px)
 
-# Placement de l'ortho (carré central) dans le cadre SVG, en pixels.
-IMG_PX = int(round(CROP_ORTHO_M / VUE_M * OUT_PX))          # 240
-IMG_OFF = int(round((VUE_M / 2 - CROP_ORTHO_M / 2) / VUE_M * OUT_PX))  # 180
+# Placement de l'ortho dans le cadre SVG, en pixels (plein cadre).
+IMG_PX = int(round(CROP_ORTHO_M / VUE_M * OUT_PX))          # 700
+IMG_OFF = int(round((VUE_M / 2 - CROP_ORTHO_M / 2) / VUE_M * OUT_PX))  # 0
 
 COLS_ADRESSE = ["numero", "rep", "nom_voie", "code_postal", "nom_commune"]
 
@@ -204,7 +204,9 @@ def construire_item(pisc, ban, parcelles, image_b64: str | None = None) -> dict:
         "parcelles": parcelles_pour_piscine(parcelles, cx, cy, id_parcelle),
         "id_ban_assignee": None if id_ban_assignee is None else str(id_ban_assignee),
         "adresse_assignee": adresse_assignee,
-        "confiance": str(pisc.get("confiance")) if pisc.get("confiance") is not None else None,
+        "confiance": (str(pisc.get("confiance"))
+                      if pisc.get("confiance") is not None
+                      and str(pisc.get("confiance")) != "nan" else None),
         "source_jointure": str(pisc.get("source_jointure"))
                            if pisc.get("source_jointure") is not None else None,
     }
@@ -213,14 +215,14 @@ def construire_item(pisc, ban, parcelles, image_b64: str | None = None) -> dict:
 # ---------------------------------------------------------------- vignette ortho
 
 def vignette_base64(index, cx: float, cy: float) -> str | None:
-    """Crop ortho RVB CROP_ORTHO_M centré sur (cx, cy) → data URI PNG base64, ou
-    None si le point tombe hors des dalles. Réutilise 16_tri_visuel."""
+    """Crop ortho RVB CROP_ORTHO_M centré sur (cx, cy) → data URI JPEG base64
+    (q82, ~5× plus léger que le PNG à cette taille de crop), ou None si le point
+    tombe hors des dalles. Réutilise 16_tri_visuel."""
     dalle = tri.dalle_pour(cx, cy, index)
     if dalle is None:
         return None
     img = tri.extraire_vignette(dalle, cx, cy, CROP_ORTHO_M, IMG_PX)
-    b64 = base64.b64encode(tri.png_bytes(img)).decode("ascii")
-    return "data:image/png;base64," + b64
+    return tri.data_uri_jpeg(tri.jpeg_bytes(img))
 
 
 # ---------------------------------------------------------------- page HTML
@@ -275,18 +277,20 @@ HTML_TEMPLATE = """<!doctype html>
   <button id="btn-export" onclick="exporter()">Exporter concordance.csv</button>
   <button id="btn-reset" onclick="if(confirm('Effacer toutes les vérifications ?')){localStorage.removeItem(CLE);location.reload()}">réinitialiser</button>
  </div>
- <div id="touches"><kbd>←</kbd>/<kbd>→</kbd> piscine précédente / suivante · cliquer un
-  cercle numéroté = « c'est cette maison » · le cerclé <span style="color:#ffca28">jaune</span>
-  est l'adresse qu'a choisie l'algo.</div>
+ <div id="touches">Main gauche clavier, main droite souris :
+  <kbd>&amp;</kbd><kbd>é</kbd><kbd>"</kbd><kbd>'</kbd>… (rangée des chiffres) = choisir la maison 1, 2, 3…
+  · <kbd>Q</kbd>/<kbd>D</kbd> = précédent / suivant · <kbd>S</kbd> = passer (prochain non vérifié)
+  · <kbd>Z</kbd> = effacer mon choix ici · le clic sur un rond bleu marche aussi.
+  Après un choix, la piscine suivante s'affiche toute seule.</div>
 </header>
 <details id="regles">
  <summary>À quoi sert cet outil (à lire une fois)</summary>
  <ul>
-  <li>La piscine (contour <span style="color:#ff2d55">rouge</span>) est déjà connue et validée. Ici on vérifie seulement <strong>quelle adresse</strong> lui revient.</li>
-  <li>Le cercle <span style="color:#ffca28">jaune</span> est l'adresse assignée <strong>automatiquement</strong> (jointure cadastre/proximité). Vous ne la voyez qu'après avoir cliqué, pour ne pas être influencé.</li>
-  <li>Cliquez le cercle de la maison que <strong>vous</strong> jugez concernée. L'outil dit aussitôt si ça <strong>concorde</strong> (✓ vert) ou <strong>diverge</strong> (✗ rouge) de l'algo.</li>
-  <li>Les traits <span style="color:#ffeb3b">jaunes fins</span> sont les limites de parcelles ; la parcelle de la piscine est <span style="color:#00e5ff">cyan</span>.</li>
-  <li>Une divergence n'est pas une erreur de votre part : elle signale une adresse à corriger en aval. Tout est loggé et exportable.</li>
+  <li><strong>Le jeu en une phrase</strong> : la piscine au contour <span style="color:#ff2d55">rouge</span> existe, c'est déjà validé. Vous dites juste <strong>à quelle maison elle appartient</strong>, en choisissant un rond bleu numéroté (clic, ou touche de la rangée des chiffres).</li>
+  <li>Choisissez la maison <strong>desservie</strong> : celle dont le jardin contient la piscine, en vous aidant des limites de parcelles (traits <span style="color:#ffeb3b">jaunes</span> ; la parcelle de la piscine est <span style="color:#00e5ff">cyan</span>).</li>
+  <li>L'adresse assignée par l'algo est révélée <strong>après</strong> votre choix (cercle <span style="color:#ffca28">jaune</span>), pour ne pas vous influencer. ✓ vert = vous êtes d'accord avec lui, ✗ rouge = divergence.</li>
+  <li>Une divergence n'est pas une erreur de votre part : c'est exactement ce qu'on cherche, une adresse à corriger. Tout est mémorisé et exportable.</li>
+  <li>Vous hésitez entre deux maisons ? <kbd>S</kbd> pour passer, on la retraitera. Après chaque choix, l'outil enchaîne tout seul sur la suivante.</li>
  </ul>
 </details>
 <div id="scene">
@@ -333,10 +337,11 @@ function svgItem(it){
     const d = "M" + ring.map(p=>p.join(",")).join(" L") + " Z";
     s += `<path d="${d}" fill="rgba(255,45,85,0.15)" stroke="#ff2d55" stroke-width="2.5"/>`;
   }
-  // pastilles d'adresse cliquables (numérotées)
+  // pastilles d'adresse cliquables (numérotées). L'assignée de l'algo n'est
+  // cerclée jaune qu'APRÈS le choix humain (protocole en aveugle, cf. règles).
   const dejaChoisi = choix[it.id_piscine];
   it.adresses.forEach((a, k) => {
-    const cls = "pin" + (a.assignee ? " assignee" : "") +
+    const cls = "pin" + (a.assignee && dejaChoisi ? " assignee" : "") +
                 (dejaChoisi === a.id_ban ? " choisi" : "");
     s += `<g class="${cls}" data-k="${k}">`+
          `<circle cx="${a.x}" cy="${a.y}" r="12" fill="#1565c0"/>`+
@@ -367,6 +372,16 @@ function verdict(it, idBanChoisi){
   }
 }
 
+let timerAvance = null;   // auto-avance après un choix (annulée si on navigue)
+
+function prochainNonVerifie(depuis){
+  for (let k = 1; k <= ITEMS.length; k++){
+    const j = (depuis + k) % ITEMS.length;
+    if (!(ITEMS[j].id_piscine in choix)) return j;
+  }
+  return null;   // tout est vérifié
+}
+
 function choisir(it, k){
   const a = it.adresses[k];
   if (!a) return;
@@ -375,10 +390,26 @@ function choisir(it, k){
   render();          // re-render pour marquer le cercle choisi
   verdict(it, a.id_ban);
   maj();
+  // Auto-avance : on laisse 0,9 s pour lire le verdict, puis piscine suivante
+  // non vérifiée. Toute navigation manuelle annule le saut.
+  clearTimeout(timerAvance);
+  timerAvance = setTimeout(() => {
+    const j = prochainNonVerifie(i);
+    if (j !== null){ i = j; render(); }
+  }, 900);
+}
+
+function effacerChoix(){
+  const it = ITEMS[i];
+  if (!(it.id_piscine in choix)) return;
+  delete choix[it.id_piscine];
+  localStorage.setItem(CLE, JSON.stringify(choix));
+  render(); maj();
 }
 
 function render(){
   const it = ITEMS[i];
+  const dejaChoisi = choix[it.id_piscine];
   document.getElementById("cadre").innerHTML = svgItem(it);
   document.getElementById("cadre").querySelectorAll(".pin").forEach(g =>
     g.addEventListener("click", () => choisir(it, +g.dataset.k)));
@@ -387,7 +418,7 @@ function render(){
   liste.innerHTML = "";
   it.adresses.forEach((a, k) => {
     const row = document.createElement("div");
-    row.className = "row" + (a.assignee ? " assignee" : "");
+    row.className = "row" + (a.assignee && dejaChoisi ? " assignee" : "");
     row.innerHTML = `<span class="num">${k+1}</span><span>${a.texte || a.id_ban} `+
                     `<span style="color:#777">· ${a.dist_m} m</span></span>`;
     row.addEventListener("click", () => choisir(it, k));
@@ -398,7 +429,6 @@ function render(){
   document.getElementById("psrc").textContent = it.source_jointure || "—";
   document.getElementById("pos").textContent = `${i+1} / ${ITEMS.length}`;
   // si déjà vérifiée, ré-affiche le verdict ; sinon invite
-  const dejaChoisi = choix[it.id_piscine];
   if (dejaChoisi){ verdict(it, dejaChoisi); }
   else {
     const v = document.getElementById("verdict");
@@ -408,8 +438,14 @@ function render(){
 }
 
 function aller(d){
+  clearTimeout(timerAvance);
   i = (i + d + ITEMS.length) % ITEMS.length;
   render();
+}
+function passer(){
+  clearTimeout(timerAvance);
+  const j = prochainNonVerifie(i);
+  if (j !== null){ i = j; render(); }
 }
 function maj(){
   const faits = ITEMS.filter(it => it.id_piscine in choix).length;
@@ -430,10 +466,24 @@ function exporter(){
   a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"}));
   a.download = "concordance.csv"; a.click();
 }
+// Rangée des chiffres AZERTY sans Shift (& é " ' ( - è _ ç) = maisons 1 à 9 ;
+// les chiffres 1-9 (pavé numérique / autres claviers) marchent aussi.
+const AZERTY = {"&":0, "é":1, '"':2, "'":3, "(":4, "-":5, "è":6, "_":7, "ç":8};
 document.addEventListener("keydown", e => {
-  if (e.key === "ArrowLeft") aller(-1);
-  else if (e.key === "ArrowRight") aller(1);
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key;
+  if (k === "ArrowLeft" || k === "q" || k === "Q") aller(-1);
+  else if (k === "ArrowRight" || k === "d" || k === "D") aller(1);
+  else if (k === "s" || k === "S" || k === " ") { e.preventDefault(); passer(); }
+  else if (k === "z" || k === "Z") effacerChoix();
+  else if (k in AZERTY) choisir(ITEMS[i], AZERTY[k]);
+  else if (/^[1-9]$/.test(k)) choisir(ITEMS[i], +k - 1);
 });
+// Reprise : démarrer sur la première piscine non vérifiée.
+if (ITEMS[0].id_piscine in choix){
+  const j = prochainNonVerifie(ITEMS.length - 1);
+  if (j !== null) i = j;
+}
 render();
 maj();
 </script></body></html>
@@ -466,7 +516,7 @@ def generer(source: gpd.GeoDataFrame, ban: gpd.GeoDataFrame, parcelles, cfg: dic
         log.warning("Pas de dossier ortho (--ortho-dir) : vignettes sans fond ortho "
                     "(points d'adresse + parcelles seulement).")
 
-    items, sans_ortho = [], 0
+    items, sans_ortho, sans_candidat = [], 0, 0
     for _, pisc in source.iterrows():
         img = None
         if index is not None:
@@ -474,7 +524,18 @@ def generer(source: gpd.GeoDataFrame, ban: gpd.GeoDataFrame, parcelles, cfg: dic
             img = vignette_base64(index, pt.x, pt.y)
             if img is None:
                 sans_ortho += 1
-        items.append(construire_item(pisc, ban, parcelles, image_b64=img))
+        item = construire_item(pisc, ban, parcelles, image_b64=img)
+        if not item["adresses"]:
+            # Aucune adresse BAN dans le rayon : rien à cliquer, la page ne peut
+            # produire aucune décision — on écarte (cas déjà exclus de la vente
+            # par le filtre « adresse trouvée » de 30_score).
+            sans_candidat += 1
+            continue
+        items.append(item)
+    if sans_candidat:
+        log.warning("%d piscine(s) sans AUCUNE adresse BAN à moins de %d m — exclues "
+                    "de la page (invérifiables, déjà hors base vendable).",
+                    sans_candidat, int(RAYON_M))
 
     if index is not None and sans_ortho:
         log.warning("%d piscine(s) hors des dalles fournies — vignette sans fond ortho.",
@@ -508,6 +569,29 @@ def main() -> None:
     if "id_piscine" not in source.columns:
         source["id_piscine"] = source.index.astype(str)
     log.info("%d piscines chargées depuis %s.", len(source), args.source)
+
+    # La source de référence est le parquet ADRESSÉ (20_join) : il porte le POLYGONE
+    # piscine, indispensable au contour rouge. Depuis la correction minimisation du
+    # 2026-07-16, la base finale (30_score) ne porte plus que le POINT adresse : si
+    # on la reçoit ici, le contour rouge serait vide. On rapatrie donc la colonne
+    # `confiance` de la base finale (jointure par id_ban) quand la source ne l'a pas.
+    if "confiance" not in source.columns and "id_ban" in source.columns:
+        qualif = Path(cfg["paths"]["final"]) / f"piscines_qualifiees_{dept}.parquet"
+        if qualif.exists():
+            q = gpd.read_parquet(qualif)
+            if {"id_ban", "confiance"} <= set(q.columns):
+                corr = q.drop_duplicates("id_ban").set_index("id_ban")["confiance"]
+                source["confiance"] = source["id_ban"].map(corr)
+                log.info("Confiance rapatriée depuis %s (%d/%d piscines renseignées).",
+                         qualif.name, int(source["confiance"].notna().sum()), len(source))
+        else:
+            log.warning("Base finale absente (%s) — sélection sans colonne confiance.", qualif)
+    if (set(source.geometry.geom_type) <= {"Point"}):
+        raise SystemExit(
+            "La source ne contient que des POINTS (base finale post-minimisation ?) : "
+            "le contour piscine serait invisible. Fournir le parquet ADRESSÉ de 20_join "
+            f"(ex. data/interim/piscines_adressees_{dept}.parquet)."
+        )
 
     a_verifier = cas_a_verifier(source, toutes=args.toutes)
     log.info("%d piscines à vérifier (%s).", len(a_verifier),
