@@ -41,3 +41,18 @@ def test_votes_append_only(tmp_path):
     assert v.votes_item("existence", "p1") == ["oui", "non"]   # rien d'écrasé
     assert v.compte_par_item("existence")["p1"] == 2
     assert v.total() == 3 and not v.vide()
+
+
+def test_remplacer_dernier_corrige_sans_doublon(tmp_path):
+    """Navigation arrière : re-répondre corrige SON dernier vote (erreur de clic),
+    sans doublon et sans toucher aux votes des autres trieurs."""
+    v = atelier.Votes(tmp_path / "v.sqlite")
+    v.ajouter("existence", "p1", "non", "JB")
+    v.ajouter("existence", "p1", "oui", "Azan")
+    v.remplacer_dernier("existence", "p1", "oui", "JB")
+    assert sorted(v.votes_item("existence", "p1")) == ["oui", "oui"]
+    assert v.dernier_de("existence", "p1", "JB") == "oui"
+    assert v.dernier_de("existence", "p1", "Azan") == "oui"
+    # remplacer sans vote antérieur = simple ajout
+    v.remplacer_dernier("existence", "p2", "non", "JB")
+    assert v.votes_item("existence", "p2") == ["non"]

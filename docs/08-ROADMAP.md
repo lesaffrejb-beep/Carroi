@@ -96,6 +96,17 @@ lancement avec les acquis (977 votes tri + 69 concordance = passe 1). Extensible
 même schéma aux produits suivants (terrasses — détecteur 25 déjà codé, attend le
 LiDAR ; **parkings : idée produit 3 consignée, non chiffrée**).
 
+**Nouveau (2026-07-16 nuit, suite — atelier v2 + LiDAR en route)** : atelier
+refondu après retour JB (doc complète : **`docs/18-ATELIER-ANNOTATION.md`**) :
+navigation avant/arrière (`←`/`Q`, `→`/`D`) avec correction de son propre vote
+(remplacement, pas doublon), « impossible à dire » = vrai vote dans les deux
+niveaux, `S` = passer sans voter, barre d'historique de session cliquable,
+interface redessinée (HUD sombre, keycaps, accent lime, wording farm). Nouveau
+**`13_download_lidar.py`** (dalles MNS/MNH ciblées par commune via WFS
+Géoplateforme) ; téléchargement Bouchemaine + `25_terrasses` **lancés** — premier
+run réel du produit 2. Le plan « IA maison » (combien de labels, quels modèles,
+pourquoi des petits) est chiffré dans `18` §IA.
+
 **Stratégie POC validée par JB (2026-07-16)** : échantillon vérifié humain par
 produit (Bouchemaine = fait pour piscines) → démarchage pour trouver QUI PAYE →
 industrialisation Angers / 49 / Pays de la Loire seulement si un marché niche paye.

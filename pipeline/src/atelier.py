@@ -117,6 +117,31 @@ class Votes:
     def vide(self) -> bool:
         return self.total() == 0
 
+    def dernier_de(self, mode: str, id_item: str, trieur: str) -> str | None:
+        """Dernière réponse de CE trieur sur cet item (pour l'afficher au retour
+        arrière et proposer la correction plutôt que le doublon)."""
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT reponse FROM votes WHERE produit=? AND mode=? AND id_item=? "
+                "AND trieur=? ORDER BY rowid DESC LIMIT 1",
+                (PRODUIT, mode, str(id_item), trieur)).fetchone()
+        return row[0] if row else None
+
+    def remplacer_dernier(self, mode: str, id_item: str, reponse: str, trieur: str):
+        """Corrige le DERNIER vote de ce trieur sur cet item (navigation arrière) :
+        on supprime sa dernière réponse puis on insère la nouvelle. Le multi-passes
+        reste append-only pour tout le reste — corriger sa propre erreur de clic
+        n'est pas une nouvelle passe."""
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT rowid FROM votes WHERE produit=? AND mode=? AND id_item=? "
+                "AND trieur=? ORDER BY rowid DESC LIMIT 1",
+                (PRODUIT, mode, str(id_item), trieur)).fetchone()
+            if row:
+                self.conn.execute("DELETE FROM votes WHERE rowid=?", (row[0],))
+                self.conn.commit()
+        self.ajouter(mode, id_item, reponse, trieur)
+
 
 # --------------------------------------------------------------- logique pure
 
@@ -345,8 +370,21 @@ class Handler(BaseHTTPRequestHandler):
             if item is None:
                 self._json({"vide": True})
                 return
-            nb = len(v.votes_item(mode, item.get("id") or item.get("id_piscine")))
-            self._json({"item": item, "deja_vu": nb})
+            id_item = item.get("id") or item.get("id_piscine")
+            trieur = q.get("trieur", [""])[0]
+            self._json({"item": item, "deja_vu": len(v.votes_item(mode, id_item)),
+                        "mon_dernier": v.dernier_de(mode, id_item, trieur) if trieur else None})
+        elif u.path == "/api/item":
+            # Item PRÉCIS (navigation avant/arrière dans l'historique de session).
+            mode = q.get("mode", ["existence"])[0]
+            id_item = q.get("id", [""])[0]
+            trieur = q.get("trieur", [""])[0]
+            item = d.item_existence(id_item) if mode == "existence" else d.item_adresse(id_item)
+            if item is None:
+                self._json({"vide": True})
+                return
+            self._json({"item": item, "deja_vu": len(v.votes_item(mode, id_item)),
+                        "mon_dernier": v.dernier_de(mode, id_item, trieur) if trieur else None})
         elif u.path.startswith("/api/vignette/"):
             data = d.vignette_png(u.path.rsplit("/", 1)[1].removesuffix(".png"))
             if data is None:
@@ -386,11 +424,16 @@ class Handler(BaseHTTPRequestHandler):
         corps = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         mode, id_item = corps["mode"], str(corps["id_item"])
         reponse, trieur = str(corps["reponse"]), str(corps.get("trieur") or "anonyme")
+        # 'indecis' = « je ne peux pas répondre » : un vrai vote (l'item ne
+        # reviendra pas cette passe), jamais vendu, exclu du consensus utile.
         valides = {"existence": {"oui", "non", "incertain"}}
         if mode not in MODES or (mode in valides and reponse not in valides[mode]):
             self._json({"erreur": "mode ou réponse invalide"}, 400)
             return
-        self.votes.ajouter(mode, id_item, reponse, trieur)
+        if corps.get("remplacer"):
+            self.votes.remplacer_dernier(mode, id_item, reponse, trieur)
+        else:
+            self.votes.ajouter(mode, id_item, reponse, trieur)
         vs = self.votes.votes_item(mode, id_item)
         maj, acc = consensus(vs)
         self._json({"ok": True, "n_votes": len(vs), "majorite": maj, "accord": acc})
@@ -399,93 +442,175 @@ class Handler(BaseHTTPRequestHandler):
 # ------------------------------------------------------------------ page HTML
 
 PAGE_HTML = """<!doctype html>
-<html lang="fr"><head><meta charset="utf-8"><title>Atelier — annotation</title>
+<html lang="fr"><head><meta charset="utf-8"><title>L'Atelier — farm d'annotation</title>
 <style>
- body{font-family:system-ui,sans-serif;margin:0;background:#111;color:#eee}
- header{position:sticky;top:0;z-index:10;background:#1c1c1c;padding:10px 16px;box-shadow:0 2px 10px #000c}
- h1{font-size:1.15rem;margin:0 0 8px}
- #onglets{display:flex;gap:8px;margin-bottom:8px}
- .onglet{padding:6px 14px;border-radius:8px;background:#2a2a2a;border:1px solid #444;cursor:pointer;font-weight:bold}
- .onglet.actif{background:#1565c0;border-color:#1e88e5}
- .onglet .verrou{opacity:.7;font-weight:normal;font-size:.85rem}
- #barre{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:.92rem}
- #jauge-fond{flex:1;min-width:120px;height:10px;background:#333;border-radius:5px;overflow:hidden}
- #jauge{height:100%;width:0;background:#4caf50;transition:width .2s}
- .stat b{color:#9ccc65;font-variant-numeric:tabular-nums}
- kbd{background:#333;border-radius:4px;padding:1px 6px;border:1px solid #555}
- #touches{margin-top:6px;font-size:.85rem;color:#bbb}
- button{background:#333;color:#eee;border:1px solid #555;border-radius:6px;padding:6px 12px;cursor:pointer}
- #zone{display:flex;gap:18px;padding:14px 16px;align-items:flex-start;flex-wrap:wrap;justify-content:center}
- #cadre{position:relative;background:#000;border:4px solid #333;border-radius:10px;overflow:hidden}
- #cadre.dec-oui{border-color:#2e7d32}#cadre.dec-non{border-color:#c62828}#cadre.dec-incertain{border-color:#ef6c00}
- #panneau{min-width:280px;max-width:440px;flex:1}
- #verdict{padding:10px 14px;border-radius:8px;font-weight:bold;margin-bottom:10px;background:#222;color:#aaa;min-height:1.2em}
- #verdict.ok{background:#1b5e20;color:#fff}
- #liste-adr{margin-top:8px;font-size:.9rem;max-height:250px;overflow:auto}
- #liste-adr .row{padding:4px 6px;border-radius:5px;cursor:pointer;display:flex;gap:8px}
- #liste-adr .row:hover{background:#262626}
- .num{font-weight:bold;min-width:1.4em}
- .boutons{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
- .boutons button{font-weight:bold;color:#fff}
- #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1565c0;color:#fff;
-  padding:8px 18px;border-radius:20px;font-weight:bold;opacity:0;transition:opacity .25s;pointer-events:none}
- svg{display:block}
- .pin{cursor:pointer}
- .pin circle{stroke:#000;stroke-width:1.5}
- .pin text{fill:#fff;font-size:13px;font-weight:bold;text-anchor:middle;dominant-baseline:central;pointer-events:none}
- #modal-trieur{display:none;position:fixed;inset:0;z-index:50;background:#000a;align-items:center;justify-content:center}
- #modal-trieur .boite{background:#1c1c1c;border:1px solid #444;border-radius:12px;padding:24px;max-width:420px;width:90%}
+/* Thème unique sombre ASSUMÉ : outil d'imagerie aérienne pour sessions du soir,
+   comme tous les benchs de labellisation. Un seul accent (lime = récolte/XP),
+   la sémantique des réponses (oui/non/indécis/aucune) est un axe séparé. */
+:root{
+  --bg:#0f1115; --panel:#151920; --raise:#1c2129; --line:#272e39;
+  --ink:#e7ebf2; --mut:#8b94a3; --acc:#a3e635; --acc-ink:#1a2405;
+  --oui:#2fbf71; --non:#e5484d; --unsure:#f0a020; --aucune:#b083f0;
+  --r:10px; --mono:ui-monospace,'SF Mono',Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:var(--bg);color:var(--ink)}
+kbd{font-family:var(--mono);font-size:.82em;background:#0a0c10;border:1px solid var(--line);
+    border-bottom-width:2px;border-radius:5px;padding:1px 7px;color:var(--mut)}
+button{font:inherit;cursor:pointer}
+
+/* ---------- HUD ---------- */
+header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--line)}
+#hud{display:flex;align-items:center;gap:14px;padding:10px 18px;flex-wrap:wrap}
+#marque{font-family:var(--mono);font-weight:bold;letter-spacing:.14em;font-size:.8rem;color:var(--acc)}
+#marque small{display:block;letter-spacing:.02em;color:var(--mut);font-weight:normal;text-transform:none}
+#niveaux{display:flex;gap:6px}
+.niveau{padding:7px 14px;border-radius:999px;background:var(--raise);border:1px solid var(--line);
+        color:var(--mut);font-weight:600;font-size:.88rem;border-bottom-width:2px}
+.niveau.actif{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+.niveau .sous{font-weight:normal;font-size:.78rem;opacity:.8}
+#chips{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.chip{background:var(--raise);border:1px solid var(--line);border-radius:8px;padding:4px 10px;
+      font-size:.78rem;color:var(--mut);text-align:center;min-width:58px}
+.chip b{display:block;font-family:var(--mono);font-size:1rem;color:var(--ink)}
+.chip.acc b{color:var(--acc)}
+#btn-export{background:none;border:1px solid var(--line);border-radius:8px;color:var(--mut);padding:6px 12px}
+#btn-export:hover{color:var(--ink);border-color:var(--mut)}
+#jauge-fond{height:4px;background:var(--raise)}
+#jauge{height:100%;width:0;background:var(--acc);transition:width .25s}
+
+/* ---------- scène ---------- */
+#zone{display:flex;gap:22px;padding:18px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+#cadre{position:relative;background:#000;border:1px solid var(--line);border-radius:var(--r);
+       overflow:hidden;box-shadow:0 10px 40px #0008;flex:0 1 auto;max-width:min(74vh,100%)}
+#cadre img,#cadre svg{display:block;max-width:100%;height:auto}
+#cadre.flash-oui{outline:3px solid var(--oui)}
+#cadre.flash-non{outline:3px solid var(--non)}
+#cadre.flash-incertain,#cadre.flash-indecis{outline:3px solid var(--unsure)}
+#cadre.flash-aucune,#cadre.flash-adresse{outline:3px solid var(--aucune)}
+#badge-vu{position:absolute;top:10px;right:10px;background:#0a0c10cc;border:1px solid var(--line);
+          border-radius:999px;padding:3px 10px;font-size:.75rem;color:var(--mut);font-family:var(--mono)}
+#badge-deja{position:absolute;top:10px;left:10px;background:#0a0c10cc;border:1px solid var(--unsure);
+            border-radius:999px;padding:3px 10px;font-size:.75rem;color:var(--unsure);display:none}
+#panneau{width:380px;max-width:100%;display:flex;flex-direction:column;gap:12px}
+#question{font-size:1.18rem;font-weight:700;line-height:1.3;text-wrap:balance}
+#detail{color:var(--mut);font-size:.85rem;font-family:var(--mono)}
+
+/* réponses = keycaps */
+#boutons{display:flex;flex-direction:column;gap:8px}
+.keycap{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+        background:var(--raise);border:1px solid var(--line);border-bottom-width:3px;
+        border-radius:var(--r);padding:11px 14px;color:var(--ink);font-weight:600;font-size:.95rem;
+        transition:transform .06s,border-color .12s}
+.keycap:hover{border-color:var(--mut)}
+.keycap:active{transform:translateY(2px);border-bottom-width:1px}
+.keycap .k{font-family:var(--mono);font-weight:bold;min-width:2em;text-align:center;
+           border-radius:6px;padding:4px 0;color:#0a0c10}
+.keycap.oui .k{background:var(--oui)}.keycap.non .k{background:var(--non)}
+.keycap.unsure .k{background:var(--unsure)}.keycap.aucune .k{background:var(--aucune)}
+.keycap.neutre .k{background:var(--mut)}
+#liste-adr{max-height:236px;overflow:auto;border:1px solid var(--line);border-radius:var(--r);
+           font-size:.88rem;background:var(--panel)}
+#liste-adr .row{padding:6px 10px;cursor:pointer;display:flex;gap:10px;border-bottom:1px solid var(--line)}
+#liste-adr .row:last-child{border-bottom:none}
+#liste-adr .row:hover{background:var(--raise)}
+#liste-adr .row.choisie{background:#2a3a1a;color:var(--acc)}
+.num{font-family:var(--mono);font-weight:bold;min-width:1.6em;color:var(--mut)}
+#nav-aide{color:var(--mut);font-size:.8rem;line-height:1.9}
+
+/* ---------- historique de session ---------- */
+#histo-barre{position:fixed;bottom:0;left:0;right:0;background:var(--panel);
+             border-top:1px solid var(--line);padding:8px 18px;display:flex;gap:10px;align-items:center}
+#histo-titre{font-size:.72rem;letter-spacing:.1em;color:var(--mut);font-family:var(--mono)}
+#histo{display:flex;gap:5px;overflow-x:auto;flex:1;padding:2px}
+.pas{width:14px;height:14px;border-radius:4px;background:var(--raise);border:1px solid var(--line);
+     flex:0 0 auto;cursor:pointer}
+.pas.oui{background:var(--oui)}.pas.non{background:var(--non)}
+.pas.incertain,.pas.indecis{background:var(--unsure)}.pas.aucune{background:var(--aucune)}
+.pas.adresse{background:var(--acc)}
+.pas.courant{outline:2px solid var(--ink);outline-offset:1px}
+body{padding-bottom:52px}
+
+/* toast + série */
+#toast{position:fixed;bottom:64px;left:50%;transform:translateX(-50%) translateY(6px);
+       background:var(--raise);border:1px solid var(--acc);color:var(--ink);
+       padding:8px 18px;border-radius:999px;font-weight:600;font-size:.88rem;
+       opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+@keyframes pulse{50%{transform:scale(1.35)}}
+.pulse{display:inline-block;animation:pulse .3s}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+/* modal */
+#modal-trieur{display:none;position:fixed;inset:0;z-index:50;background:#000b;
+              align-items:center;justify-content:center}
+#modal-trieur .boite{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+                     padding:26px;max-width:400px;width:90%}
+#modal-trieur h2{margin:0 0 4px}
+#modal-trieur p{color:var(--mut);margin:0 0 14px;font-size:.9rem}
+#champ-trieur{width:100%;padding:11px;border-radius:8px;border:1px solid var(--line);
+              background:var(--bg);color:var(--ink);font:inherit}
+#modal-trieur .go{width:100%;margin-top:10px;background:var(--acc);color:var(--acc-ink);
+                  border:none;border-radius:8px;padding:11px;font-weight:700}
 </style></head><body>
 <div id="modal-trieur"><div class="boite">
- <h2>Qui joue ?</h2>
- <input id="champ-trieur" style="width:100%;box-sizing:border-box;padding:10px;border-radius:6px;border:1px solid #555;background:#111;color:#eee"
-  placeholder="prénom / pseudo" onkeydown="if(event.key==='Enter')definirTrieur(this.value)">
- <button style="width:100%;margin-top:10px;background:#1565c0" onclick="definirTrieur(document.getElementById('champ-trieur').value)">C'est parti</button>
+ <h2>Qui farme ?</h2>
+ <p>Chaque réponse est signée : c'est ce qui permet de croiser les passes et de corriger ses propres votes.</p>
+ <input id="champ-trieur" placeholder="prénom / pseudo" onkeydown="if(event.key==='Enter')definirTrieur(this.value)">
+ <button class="go" onclick="definirTrieur(document.getElementById('champ-trieur').value)">Farmer</button>
 </div></div>
+
 <header>
- <h1>Atelier d'annotation <span style="color:#666">· Bouchemaine · piscines</span></h1>
- <div id="onglets">
-  <div class="onglet actif" id="ong-existence" onclick="changerMode('existence')">Niveau 1 · Existence</div>
-  <div class="onglet" id="ong-adresse" onclick="changerMode('adresse')">Niveau 2 · Adresse <span class="verrou" id="verrou-adresse"></span></div>
+ <div id="hud">
+  <div id="marque">L'ATELIER<small>Bouchemaine · piscines</small></div>
+  <div id="niveaux">
+   <button class="niveau actif" id="ong-existence" onclick="changerMode('existence')">Niveau 1 · Existence</button>
+   <button class="niveau" id="ong-adresse" onclick="changerMode('adresse')">Niveau 2 · Adresse <span class="sous" id="verrou-adresse"></span></button>
+  </div>
+  <div id="chips">
+   <div class="chip">passe<b id="passe">—</b></div>
+   <div class="chip">reste<b id="restants">—</b></div>
+   <div class="chip">accord<b id="accord">—</b></div>
+   <div class="chip acc">xp<b id="xp">—</b></div>
+   <div class="chip acc">série<b id="serie">0</b></div>
+  </div>
+  <button id="btn-export" onclick="location.href='/api/export/'+MODE+'.csv'">Exporter</button>
  </div>
- <div id="barre">
-  <span class="stat">Passe <b id="passe">—</b></span>
-  <span class="stat">Reste <b id="restants">—</b> dans cette passe</span>
-  <div id="jauge-fond"><div id="jauge"></div></div>
-  <span class="stat">Accord <b id="accord">—</b></span>
-  <span class="stat">XP <b id="xp">—</b></span>
-  <span class="stat">Série <b id="serie">0</b>🔥</span>
-  <button onclick="location.href='/api/export/'+MODE+'.csv'">Exporter le consensus</button>
- </div>
- <div id="touches"></div>
+ <div id="jauge-fond"><div id="jauge"></div></div>
 </header>
+
 <div id="zone">
- <div id="cadre"></div>
+ <div id="cadre"><span id="badge-deja">déjà répondu — recliquer corrige</span><span id="badge-vu"></span></div>
  <div id="panneau">
-  <div id="verdict">…</div>
+  <div id="question">…</div>
   <div id="detail"></div>
-  <div id="liste-adr"></div>
-  <div class="boutons" id="boutons"></div>
+  <div id="boutons"></div>
+  <div id="liste-adr" style="display:none"></div>
+  <div id="nav-aide"><kbd>←</kbd>/<kbd>Q</kbd> revenir · <kbd>→</kbd>/<kbd>D</kbd> avancer ·
+   <kbd>S</kbd> passer sans répondre (l'item restera dû)</div>
  </div>
 </div>
+
+<div id="histo-barre"><span id="histo-titre">SESSION</span><div id="histo"></div></div>
 <div id="toast"></div>
+
 <script>
-let MODE = "existence", ITEM = null, serie = 0;
+let MODE = "existence", ITEM = null, MON_DERNIER = null, serie = 0;
+// Historique de session PAR MODE : liste d'items vus + curseur. Reculer montre
+// l'item avec sa réponse ; re-répondre CORRIGE le dernier vote (pas de doublon).
+const histo = {existence: [], adresse: []};   // [{id, rep}]
+const idx = {existence: -1, adresse: -1};
 let TRIEUR = localStorage.getItem("atelier_trieur") || "";
+
 function definirTrieur(n){ n=(n||"").trim(); if(!n) return; TRIEUR=n;
   localStorage.setItem("atelier_trieur", n);
   document.getElementById("modal-trieur").style.display="none"; }
 if (!TRIEUR) document.getElementById("modal-trieur").style.display="flex";
 
-const TOUCHES = {
- existence: '<kbd>O</kbd> piscine · <kbd>N</kbd> non · <kbd>U</kbd> incertain · <kbd>S</kbd> passer',
- adresse: 'rangée des chiffres <kbd>&</kbd><kbd>é</kbd><kbd>"</kbd>… = maison 1,2,3 · <kbd>A</kbd> aucune · <kbd>S</kbd> passer'
-};
-
 async function etat(){
   const e = await (await fetch("/api/etat")).json();
   const m = e[MODE];
-  document.getElementById("passe").textContent = "n°" + m.passe_courante;
+  document.getElementById("passe").textContent = m.passe_courante;
   document.getElementById("restants").textContent = m.restants_cette_passe;
   document.getElementById("jauge").style.width =
     (100 * (m.items - m.restants_cette_passe) / Math.max(1, m.items)) + "%";
@@ -493,81 +618,106 @@ async function etat(){
     m.accord_moyen === null ? "—" : Math.round(m.accord_moyen * 100) + "%";
   document.getElementById("xp").textContent = e.xp;
   const na = e.adresse.items;
-  document.getElementById("verrou-adresse").textContent =
-    na ? `(${na} débloquées)` : "🔒 (valide des piscines au niveau 1)";
+  document.getElementById("verrou-adresse").textContent = na ? `· ${na}` : "· 🔒";
 }
 
 function changerMode(m){
   MODE = m;
   document.getElementById("ong-existence").classList.toggle("actif", m === "existence");
   document.getElementById("ong-adresse").classList.toggle("actif", m === "adresse");
-  document.getElementById("touches").innerHTML = TOUCHES[m];
-  suivant();
+  dessinerHisto();
+  (idx[m] >= 0) ? charger(histo[m][idx[m]].id) : suivant();
 }
 
 async function suivant(){
-  const r = await (await fetch("/api/tache?mode=" + MODE)).json();
-  etat();
-  const cadre = document.getElementById("cadre"), verdict = document.getElementById("verdict");
-  cadre.className = ""; verdict.className = ""; verdict.textContent = "…";
-  document.getElementById("liste-adr").innerHTML = "";
-  if (r.vide){
-    cadre.innerHTML = "";
-    document.getElementById("detail").textContent = "";
-    verdict.textContent = MODE === "adresse"
-      ? "Rien à vérifier ici : valide d'abord des piscines au niveau 1."
-      : "Rien à trier.";
-    document.getElementById("boutons").innerHTML = "";
-    return;
+  // avancer : d'abord dans l'historique, sinon une nouvelle tâche « moins vue »
+  if (idx[MODE] < histo[MODE].length - 1){
+    idx[MODE]++;
+    return charger(histo[MODE][idx[MODE]].id);
   }
-  ITEM = r.item;
+  const r = await (await fetch(`/api/tache?mode=${MODE}&trieur=${encodeURIComponent(TRIEUR)}`)).json();
+  if (r.vide){ afficherVide(); etat(); return; }
+  const id = r.item.id || r.item.id_piscine;
+  histo[MODE].push({id, rep: r.mon_dernier || null});
+  idx[MODE] = histo[MODE].length - 1;
+  afficher(r);
+}
+function precedent(){
+  if (idx[MODE] > 0){ idx[MODE]--; charger(histo[MODE][idx[MODE]].id); }
+}
+async function charger(id){
+  const r = await (await fetch(`/api/item?mode=${MODE}&id=${encodeURIComponent(id)}&trieur=${encodeURIComponent(TRIEUR)}`)).json();
+  if (!r.vide) afficher(r);
+}
+
+function afficherVide(){
+  document.getElementById("cadre").innerHTML = "";
+  document.getElementById("boutons").innerHTML = "";
+  document.getElementById("liste-adr").style.display = "none";
+  document.getElementById("question").textContent = MODE === "adresse"
+    ? "Rien à vérifier ici : valide d'abord des piscines au niveau 1."
+    : "Tout est fait pour cette passe. Respire, puis relance.";
+  document.getElementById("detail").textContent = "";
+}
+
+function afficher(r){
+  ITEM = r.item; MON_DERNIER = r.mon_dernier || null;
+  etat(); dessinerHisto();
+  const cadre = document.getElementById("cadre");
+  cadre.className = "";
+  const badges = `<span id="badge-deja">déjà répondu — recliquer corrige</span>`+
+                 `<span id="badge-vu">${r.deja_vu} vote(s)</span>`;
+  const boutons = document.getElementById("boutons");
+  const liste = document.getElementById("liste-adr");
   if (MODE === "existence"){
-    cadre.innerHTML = `<img src="${ITEM.png}" width="520" height="520" style="display:block;image-rendering:pixelated">`;
+    cadre.innerHTML = `<img src="${ITEM.png}" width="560" height="560" style="image-rendering:pixelated">` + badges;
+    document.getElementById("question").textContent = "Y a-t-il une piscine dans le contour rouge ?";
     document.getElementById("detail").textContent =
-      `${ITEM.surface.toFixed(0)} m² · score ${ITEM.score.toFixed(2)} · déjà vu ${r.deja_vu} fois`;
-    verdict.textContent = "Y a-t-il une piscine dans le contour rouge ?";
-    document.getElementById("boutons").innerHTML =
-      `<button style="background:#2e7d32" onclick="repondre('oui')">O · piscine</button>
-       <button style="background:#c62828" onclick="repondre('non')">N · non</button>
-       <button style="background:#ef6c00" onclick="repondre('incertain')">U · incertain</button>
-       <button onclick="suivant()">S · passer</button>`;
+      `${ITEM.surface.toFixed(0)} m² · score ${ITEM.score.toFixed(2)} · ${ITEM.id}`;
+    liste.style.display = "none"; liste.innerHTML = "";
+    boutons.innerHTML =
+      `<button class="keycap oui" onclick="repondre('oui')"><span class="k">O</span>Piscine</button>
+       <button class="keycap non" onclick="repondre('non')"><span class="k">N</span>Pas une piscine</button>
+       <button class="keycap unsure" onclick="repondre('incertain')"><span class="k">U</span>Impossible à dire</button>`;
   } else {
-    cadre.innerHTML = svgAdresse(ITEM);
+    cadre.innerHTML = svgAdresse(ITEM) + badges;
     cadre.querySelectorAll(".pin").forEach(g =>
       g.addEventListener("click", () => repondre(ITEM.adresses[+g.dataset.k].id_ban)));
-    const liste = document.getElementById("liste-adr");
+    document.getElementById("question").textContent = "À quelle maison appartient cette piscine ?";
+    document.getElementById("detail").textContent = `piscine ${ITEM.id_piscine}`;
+    liste.style.display = "block"; liste.innerHTML = "";
     ITEM.adresses.forEach((a, k) => {
-      const row = document.createElement("div"); row.className = "row";
-      row.innerHTML = `<span class="num">${k+1}</span><span>${a.texte || a.id_ban} <span style="color:#777">· ${a.dist_m} m</span></span>`;
+      const row = document.createElement("div");
+      row.className = "row" + (MON_DERNIER === a.id_ban ? " choisie" : "");
+      row.innerHTML = `<span class="num">${k+1}</span><span>${a.texte || a.id_ban} <span style="color:var(--mut)">· ${a.dist_m} m</span></span>`;
       row.onclick = () => repondre(a.id_ban);
       liste.appendChild(row);
     });
-    document.getElementById("detail").textContent =
-      `piscine ${ITEM.id_piscine} · déjà vu ${r.deja_vu} fois`;
-    verdict.textContent = "À quelle maison appartient cette piscine ?";
-    document.getElementById("boutons").innerHTML =
-      `<button style="background:#8e24aa" onclick="repondre('aucune')">A · aucune de ces adresses</button>
-       <button onclick="suivant()">S · passer</button>`;
+    boutons.innerHTML =
+      `<button class="keycap aucune" onclick="repondre('aucune')"><span class="k">A</span>Aucune de ces adresses</button>
+       <button class="keycap unsure" onclick="repondre('indecis')"><span class="k">U</span>Impossible à dire</button>`;
   }
+  document.getElementById("badge-deja").style.display = MON_DERNIER ? "inline" : "none";
 }
 
 function svgAdresse(it){
   const P = 700;
-  let s = `<svg width="${P}" height="${P}" viewBox="0 0 ${P} ${P}">`;
+  let s = `<svg width="${P}" height="${P}" viewBox="0 0 ${P} ${P}" style="width:min(74vh,92vw);height:auto">`;
   s += `<image x="0" y="0" width="${P}" height="${P}" href="${it.img}"/>`;
   for (const pc of it.parcelles) for (const ring of pc.rings){
     const d = "M" + ring.map(p=>p.join(",")).join(" L") + " Z";
     s += pc.propre
       ? `<path d="${d}" fill="none" stroke="#00e5ff" stroke-width="2.5" opacity="0.9"/>`
-      : `<path d="${d}" fill="none" stroke="#ffeb3b" stroke-width="1" opacity="0.55"/>`;
+      : `<path d="${d}" fill="none" stroke="#ffeb3b" stroke-width="1" opacity="0.5"/>`;
   }
   for (const ring of it.piscine){
     const d = "M" + ring.map(p=>p.join(",")).join(" L") + " Z";
     s += `<path d="${d}" fill="rgba(255,45,85,0.15)" stroke="#ff2d55" stroke-width="2.5"/>`;
   }
   it.adresses.forEach((a, k) => {
-    s += `<g class="pin" data-k="${k}"><circle cx="${a.x}" cy="${a.y}" r="12" fill="#1565c0"/>`+
-         `<text x="${a.x}" y="${a.y}">${k+1}</text></g>`;
+    s += `<g class="pin" data-k="${k}" style="cursor:pointer">`+
+         `<circle cx="${a.x}" cy="${a.y}" r="12" fill="#1565c0" stroke="#000" stroke-width="1.5"/>`+
+         `<text x="${a.x}" y="${a.y}" fill="#fff" font-size="13" font-weight="bold" text-anchor="middle" dominant-baseline="central" pointer-events="none">${k+1}</text></g>`;
   });
   return s + "</svg>";
 }
@@ -576,20 +726,46 @@ async function repondre(rep){
   if (!TRIEUR){ document.getElementById("modal-trieur").style.display="flex"; return; }
   if (!ITEM) return;
   const id = MODE === "existence" ? ITEM.id : ITEM.id_piscine;
+  const correction = MON_DERNIER !== null;
   const r = await (await fetch("/api/reponse", {method:"POST",
     headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({mode: MODE, id_item: id, reponse: rep, trieur: TRIEUR})})).json();
-  serie++;
-  document.getElementById("serie").textContent = serie;
-  toast(`+1 · ${r.n_votes} vote(s) sur cet item` +
-        (r.majorite ? ` · majorité « ${r.majorite} » (${Math.round(r.accord*100)}%)` : " · égalité, il faudra une passe de plus"));
-  suivant();
+    body: JSON.stringify({mode: MODE, id_item: id, reponse: rep, trieur: TRIEUR,
+                          remplacer: correction})})).json();
+  histo[MODE][idx[MODE]].rep = rep;
+  const cadre = document.getElementById("cadre");
+  cadre.className = "flash-" + (["oui","non","incertain","indecis","aucune"].includes(rep) ? rep : "adresse");
+  if (!correction){
+    serie++;
+    const s = document.getElementById("serie");
+    s.textContent = serie; s.classList.remove("pulse"); void s.offsetWidth; s.classList.add("pulse");
+  }
+  toast((correction ? "corrigé" : "+1") + ` · ${r.n_votes} vote(s)` +
+        (r.majorite ? ` · majorité « ${r.majorite} » (${Math.round(r.accord*100)}%)` : " · égalité, une passe de plus tranchera"));
+  setTimeout(suivant, correction ? 350 : 220);
 }
 
 function toast(txt){
   const t = document.getElementById("toast");
-  t.textContent = txt; t.style.opacity = 1;
-  clearTimeout(t._h); t._h = setTimeout(() => t.style.opacity = 0, 1600);
+  t.textContent = txt; t.classList.add("on");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 1700);
+}
+
+function dessinerHisto(){
+  const conteneur = document.getElementById("histo");
+  conteneur.innerHTML = "";
+  const h = histo[MODE];
+  h.slice(-60).forEach((e, kRel) => {
+    const k = h.length - Math.min(60, h.length) + kRel;
+    const d = document.createElement("div");
+    let cls = "pas";
+    if (e.rep) cls += " " + (["oui","non","incertain","indecis","aucune"].includes(e.rep) ? e.rep : "adresse");
+    if (k === idx[MODE]) cls += " courant";
+    d.className = cls;
+    d.title = e.id + (e.rep ? " · " + e.rep : " · sans réponse");
+    d.onclick = () => { idx[MODE] = k; charger(h[k].id); };
+    conteneur.appendChild(d);
+  });
+  conteneur.scrollLeft = conteneur.scrollWidth;
 }
 
 const AZERTY = {"&":0, "é":1, '"':2, "'":3, "(":4, "-":5, "è":6, "_":7, "ç":8};
@@ -597,6 +773,9 @@ document.addEventListener("keydown", e => {
   if (document.getElementById("modal-trieur").style.display === "flex") return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key;
+  if (k === "ArrowLeft" || k === "q" || k === "Q") return precedent();
+  if (k === "ArrowRight" || k === "d" || k === "D") return suivant();
+  if (k === "s" || k === "S" || k === " "){ e.preventDefault(); return suivant(); }
   if (MODE === "existence"){
     if (k === "o" || k === "O") repondre("oui");
     else if (k === "n" || k === "N") repondre("non");
@@ -605,8 +784,8 @@ document.addEventListener("keydown", e => {
     if (k in AZERTY && ITEM && ITEM.adresses[AZERTY[k]]) repondre(ITEM.adresses[AZERTY[k]].id_ban);
     else if (/^[1-9]$/.test(k) && ITEM && ITEM.adresses[+k-1]) repondre(ITEM.adresses[+k-1].id_ban);
     else if (k === "a" || k === "A") repondre("aucune");
+    else if (k === "u" || k === "U") repondre("indecis");
   }
-  if (k === "s" || k === "S" || k === " "){ e.preventDefault(); suivant(); }
 });
 changerMode("existence");
 </script></body></html>
