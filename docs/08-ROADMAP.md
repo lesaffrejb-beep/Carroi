@@ -107,6 +107,16 @@ Géoplateforme) ; téléchargement Bouchemaine + `25_terrasses` **lancés** — 
 run réel du produit 2. Le plan « IA maison » (combien de labels, quels modèles,
 pourquoi des petits) est chiffré dans `18` §IA.
 
+**Nouveau (2026-07-16 nuit, mesure sur labels 2 passes)** : le détecteur v1
+confirme sa précision de 25 % (242 piscines / 977 candidats, ardoises = faux
+positifs dominants). AUCUN seuil simple ne sauve la v1 : score≥0,6 ∪ cadastré
+perd déjà 5 % des piscines, score≥0,7 en perd 17 %. Les 99 corroborés cadastre
+sont à 98 % des oui (auto-validables sans farm). Conclusion inchangée et
+renforcée : **la bascule candidats = CoSIA ∪ SYM=65 (tâche 13) est LE levier**,
+bloquée ce soir uniquement parce que le disque NOIR n'est pas branché. Point
+d'entrée unique créé pour JB : `Atelier.command` (double-clic) + tableau « où
+cliquer » en tête de README.
+
 **Stratégie POC validée par JB (2026-07-16)** : échantillon vérifié humain par
 produit (Bouchemaine = fait pour piscines) → démarchage pour trouver QUI PAYE →
 industrialisation Angers / 49 / Pays de la Loire seulement si un marché niche paye.

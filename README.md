@@ -4,6 +4,18 @@ Business : constituer et vendre à des professionnels locaux (pisciniers, instal
 
 **Aucune donnée nominative, jamais.** Adresses + attributs du bien, point. C'est le pilier légal du modèle (voir `docs/03-LEGAL-RGPD.md`).
 
+## JB : où cliquer (les 3 seuls écrans)
+
+| Toi, tu veux… | Tu cliques… |
+|---|---|
+| **Farmer** (piscines, terrasses — tri + adresses, tout est là) | double-clic sur **`Atelier.command`** à la racine → http://localhost:8199 |
+| Faire trier un ami sans rien installer | envoie-lui `handoff/tri_bouchemaine_49035.html` (double-clic chez lui) |
+| Savoir où en est le projet | [`docs/08-ROADMAP.md`](docs/08-ROADMAP.md), bloc « prochaine session » |
+
+Tout le reste (pipeline, exports, scripts) passe par les sessions LLM : tu n'as
+pas à y toucher. Les anciennes pages `handoff/verif_adresse_*.html` sont
+remplacées par le niveau 2 de l'Atelier.
+
 ## Lire dans l'ordre
 
 | Doc | Contenu |
