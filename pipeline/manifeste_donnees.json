@@ -1,5 +1,5 @@
 {
-  "genere_le": "2026-07-12T08:44:10+00:00",
+  "genere_le": "2026-07-16T17:56:01+00:00",
   "machine": "MacBookPro",
   "note": "Référence partagée des données data/interim/. NE PAS éditer à la main. Régénérer avec : python pipeline/src/verifier_donnees.py --generer, committer, et consigner le changement de millésime dans docs/08.",
   "fichiers": {
@@ -43,6 +43,11 @@
       "taille_octets": 628092,
       "nb_lignes": 977
     },
+    "piscines_detectees_49.parquet": {
+      "sha256": "ea634ee709399ed08defa7a5b97983834355f47f3ecf90bba0f8ab7e61b5f8b7",
+      "taille_octets": 149657,
+      "nb_lignes": 246
+    },
     "piscines_osm_dev.parquet": {
       "sha256": "9f0876321c9347dc2b45570d051b5128aec6214b333bc3966aeb6bbe3a0e8378",
       "taille_octets": 5048516,
@@ -62,6 +67,11 @@
       "sha256": "0a441014aaf208ded1810c44dea77320bc285680fb18e8920b2ddd5b9a735eb9",
       "taille_octets": 41267,
       "nb_lignes": 85
+    },
+    "tri_labels_49_49035_2d460d3dc74e.parquet": {
+      "sha256": "6761cb29c9b7d81dcc647c3dcebe8cdb245dc58862aea46cb64748df61741b95",
+      "taille_octets": 639073,
+      "nb_lignes": 977
     }
   }
 }

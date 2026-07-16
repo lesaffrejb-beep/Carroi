@@ -50,11 +50,20 @@ de tri a un **mode « une par une »** (défaut) : la vignette courante s'affich
 enchaîne. Bascule « Voir la galerie » dans le bandeau, préférence mémorisée par
 planche, mêmes raccourcis + gros boutons cliquables. `handoff/tri_bouchemaine_49035.html`
 régénéré (même empreinte `2d460d3dc74e` : les décisions localStorage en cours sont
-conservées). **Premier lot de tri JB soumis : 226/977 décisions**
-(`handoff/decisions_recus/decisions_20260716_194916_JB_2d460d3dc74e.csv`). Reste ~751
-à trier avant `--apply` (tolérance 2 % de non-triés).
+conservées). **TRI BOUCHEMAINE TERMINÉ ET APPLIQUÉ : 977/977 décisions JB**
+(deux lots dans `handoff/decisions_recus/`, fusion par récence — 6 « oui » du lot
+partiel corrigés en « non » par le lot final). Résultat : **246 oui, 731 non,
+0 incertain → `piscines_detectees_49.parquet` (methode=valide_humain)**. Précision
+brute du détecteur : 25 % (attendu, ratio 3,4:1 assumé). Bilan `18_bilan_tri`
+(`data/validation/bilan_tri_49_49035.md` + dataset labels) : calibration nette
+(score 0.80-1.00 → 98 % oui ; 0.55-0.60 → 5 %), badge cadastre confirmé
+(**corroborés PCI = 98 % oui** vs 17 % sinon), surfaces 60+ m² presque jamais
+piscine (2 %). Suggestion à valider (pas appliquée) : remonter `score_min`
+au-dessus de 0,60-0,65 pour réduire le bruit à trier.
 
-**⚡ PROCHAINE ACTION = 🧑 TRIER.** Soi-même (ouvrir `handoff/tri_bouchemaine_49035.html`
+**⚡ PROCHAINE ACTION** : `20_join_piscines_adresses.py --source-piscines
+data/interim/piscines_detectees_49.parquet` (base adressée validée humain), puis
+protocole précision `06` §2 sur la base finale — et toujours **D0 avant tout code**. Soi-même (ouvrir `handoff/tri_bouchemaine_49035.html`
 ou générer la planche via `16_tri_visuel.py`) OU faire trier par un ami/bénévole via
 `handoff/` (voir `ONBOARDING.md` parcours A). Puis **appliquer les décisions**
 (`appliquer_decisions_recues.py` → `16 --apply`) → **mesurer la précision réelle**
