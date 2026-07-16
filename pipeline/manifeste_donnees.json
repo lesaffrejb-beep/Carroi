@@ -1,5 +1,5 @@
 {
-  "genere_le": "2026-07-16T17:56:01+00:00",
+  "genere_le": "2026-07-16T18:13:16+00:00",
   "machine": "MacBookPro",
   "note": "Référence partagée des données data/interim/. NE PAS éditer à la main. Régénérer avec : python pipeline/src/verifier_donnees.py --generer, committer, et consigner le changement de millésime dans docs/08.",
   "fichiers": {
@@ -32,6 +32,11 @@
       "sha256": "b6d74ec740e266f9613f252cb7facfd4ef5fb1826f2422a1f9267441ac73f3e6",
       "taille_octets": 289863178,
       "nb_lignes": 1231528
+    },
+    "piscines_adressees_49.parquet": {
+      "sha256": "db34036a1ecf4d6ad22527947e76e1f56db6e53350c85ed5105d6cb74420e380",
+      "taille_octets": 173305,
+      "nb_lignes": 246
     },
     "piscines_adressees_49_dev.parquet": {
       "sha256": "8782b85e4a9534a94077f44bbec8b1e3884411da2e355b8ba17f241ed63e0681",

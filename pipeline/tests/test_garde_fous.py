@@ -242,3 +242,38 @@ def test_les_incertains_ne_passent_jamais():
     dec = pd.DataFrame({"id_detection": [0, 1], "decision": ["incertain", "incertain"]})
     out = tri.appliquer_decisions(cand, dec)
     assert out.empty
+
+
+# --------------------------------------------------------------------------
+# 30_score_qualite.remplacer_geometrie_par_adresse — minimisation de livraison
+# Régression 2026-07-16 : sans .rename("geometry"), set_geometry() écrasait la
+# colonne id_ban par des points et laissait le POLYGONE piscine dans le fichier.
+
+score = importlib.import_module("30_score_qualite")
+
+
+def test_geometrie_adresse_preserve_id_ban_et_supprime_le_polygone():
+    from shapely.geometry import Polygon
+
+    gdf = gpd.GeoDataFrame(
+        {"id_ban": ["ban_a", "ban_b"]},
+        geometry=[Polygon([(0, 0), (1, 0), (1, 1)]), Polygon([(2, 2), (3, 2), (3, 3)])],
+        crs="EPSG:2154",
+    )
+    ban = gpd.GeoDataFrame(
+        {"id_ban": ["ban_a", "ban_b"]},
+        geometry=[Point(10, 10), Point(20, 20)],
+        crs="EPSG:2154",
+    ).set_index("id_ban")
+
+    out = score.remplacer_geometrie_par_adresse(gdf, ban, "EPSG:2154")
+
+    # Les identifiants BAN restent des chaînes (pas écrasés par des géométries).
+    assert list(out["id_ban"]) == ["ban_a", "ban_b"]
+    # La géométrie active s'appelle bien "geometry" et porte le POINT adresse.
+    assert out.geometry.name == "geometry"
+    assert set(out.geometry.geom_type) == {"Point"}
+    # Aucun polygone piscine ne survit dans une autre colonne.
+    assert not any(
+        getattr(dt, "name", "") == "geometry" for c, dt in out.dtypes.items() if c != "geometry"
+    )

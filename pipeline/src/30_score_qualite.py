@@ -23,6 +23,20 @@ from common import archiver_copie_datee, ensure_dirs, load_config
 log = logging.getLogger("score")
 
 
+def remplacer_geometrie_par_adresse(gdf: gpd.GeoDataFrame, ban: gpd.GeoDataFrame,
+                                    crs) -> gpd.GeoDataFrame:
+    """Remplace le polygone piscine par le POINT ADRESSE BAN (minimisation : le
+    client reçoit une adresse, jamais le contour de la piscine).
+
+    Pure et testable. Le .rename("geometry") est OBLIGATOIRE : set_geometry()
+    range la série sous son NOM. Sans lui, la série s'appelle "id_ban" → les
+    identifiants BAN sont écrasés par des points ET l'ancienne colonne "geometry"
+    (le polygone piscine, interdit de livraison) survit dans le fichier
+    (régression corrigée le 2026-07-16)."""
+    geom_adresse = gdf["id_ban"].map(ban.geometry).rename("geometry")
+    return gdf.drop(columns="geometry").set_geometry(geom_adresse).set_crs(crs)
+
+
 def calculer_confiance(gdf, dist_max_adresse_m):
     """Score de confiance (docs/06 §4), durci par la corroboration adresse↔parcelle.
 
@@ -110,7 +124,7 @@ def main() -> None:
     # La BAN comporte quelques id_ban en doublon (0,02 % sur le 49 : même id, coords
     # voisines) → index non unique = plantage du .map() de géométrie. On garde la 1re.
     ban = gpd.read_parquet(interim / f"ban_{dept}.parquet").drop_duplicates("id_ban").set_index("id_ban")
-    gdf = gdf.set_geometry(gdf["id_ban"].map(ban.geometry)).set_crs(cfg["crs_metric"])
+    gdf = remplacer_geometrie_par_adresse(gdf, ban, cfg["crs_metric"])
 
     cols = ["id_ban", "adresse", "code_postal", "commune", "code_insee",
             "surface_m2", "dist_batiment_m", "dist_adresse_m", "confiance",

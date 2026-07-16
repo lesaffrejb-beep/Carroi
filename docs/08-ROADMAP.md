@@ -61,9 +61,22 @@ brute du détecteur : 25 % (attendu, ratio 3,4:1 assumé). Bilan `18_bilan_tri`
 piscine (2 %). Suggestion à valider (pas appliquée) : remonter `score_min`
 au-dessus de 0,60-0,65 pour réduire le bruit à trier.
 
-**⚡ PROCHAINE ACTION** : `20_join_piscines_adresses.py --source-piscines
-data/interim/piscines_detectees_49.parquet` (base adressée validée humain), puis
-protocole précision `06` §2 sur la base finale — et toujours **D0 avant tout code**. Soi-même (ouvrir `handoff/tri_bouchemaine_49035.html`
+**Nouveau (2026-07-16 soir, même session — chaîne aval déroulée + bug de livraison
+corrigé)** : `20_join` exécuté sur la base validée humain (246 → 236 adressées, dont
+187 via cad_parcelles, 2 ambiguës) puis `30_score` → **`data/final/
+piscines_qualifiees_49.parquet` : 230 adresses (162 haute / 36 moyenne / 32 basse)**.
+**BUG CORRIGÉ dans `30_score_qualite.py`** : `set_geometry()` sans `.rename("geometry")`
+écrasait la colonne `id_ban` par les points adresse ET laissait le POLYGONE piscine
+dans le fichier final (violation minimisation) — corrigé, fonction extraite
+(`remplacer_geometrie_par_adresse`), test de régression dans `test_garde_fous.py`
+(244 tests verts), base régénérée saine. Page de vérification d'adresse générée pour
+les **68 cas non-haute** : `handoff/verif_adresse_bouchemaine_49035.html` (ortho
+communale, clic sur la maison, export concordance.csv).
+
+**⚡ PROCHAINE ACTION = 🧑 VÉRIFIER LES ADRESSES** (ouvrir
+`handoff/verif_adresse_bouchemaine_49035.html`, 68 cas, exporter concordance.csv),
+puis protocole précision `06` §2 sur la base finale — et toujours **D0 avant tout
+code : aucun prospect appelé, l'inversion de séquence reste LE risque n°1**. Soi-même (ouvrir `handoff/tri_bouchemaine_49035.html`
 ou générer la planche via `16_tri_visuel.py`) OU faire trier par un ami/bénévole via
 `handoff/` (voir `ONBOARDING.md` parcours A). Puis **appliquer les décisions**
 (`appliquer_decisions_recues.py` → `16 --apply`) → **mesurer la précision réelle**
