@@ -222,3 +222,12 @@ def test_rendre_html_raccourcis_azerty_et_auto_avance():
     assert "function passer" in html and "function effacerChoix" in html
     assert "function prochainNonVerifie" in html
     assert "timerAvance" in html
+
+
+def test_rendre_html_choix_aucune():
+    """Retour terrain 2026-07-16 (2) : « aucune des adresses proposées » est une
+    réponse à part entière (touche A + bouton), exportée comme divergence."""
+    html = verif.rendre_html(_items(), "49")
+    assert "function choisirAucune" in html
+    assert 'id="btn-aucune"' in html
+    assert "aucune des adresses proposées ne convient" in html

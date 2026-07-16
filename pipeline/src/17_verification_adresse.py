@@ -279,7 +279,7 @@ HTML_TEMPLATE = """<!doctype html>
  </div>
  <div id="touches">Main gauche clavier, main droite souris :
   <kbd>&amp;</kbd><kbd>é</kbd><kbd>"</kbd><kbd>'</kbd>… (rangée des chiffres) = choisir la maison 1, 2, 3…
-  · <kbd>Q</kbd>/<kbd>D</kbd> = précédent / suivant · <kbd>S</kbd> = passer (prochain non vérifié)
+  · <kbd>A</kbd> = aucune de ces adresses · <kbd>Q</kbd>/<kbd>D</kbd> = précédent / suivant · <kbd>S</kbd> = passer (prochain non vérifié)
   · <kbd>Z</kbd> = effacer mon choix ici · le clic sur un rond bleu marche aussi.
   Après un choix, la piscine suivante s'affiche toute seule.</div>
 </header>
@@ -290,6 +290,7 @@ HTML_TEMPLATE = """<!doctype html>
   <li>Choisissez la maison <strong>desservie</strong> : celle dont le jardin contient la piscine, en vous aidant des limites de parcelles (traits <span style="color:#ffeb3b">jaunes</span> ; la parcelle de la piscine est <span style="color:#00e5ff">cyan</span>).</li>
   <li>L'adresse assignée par l'algo est révélée <strong>après</strong> votre choix (cercle <span style="color:#ffca28">jaune</span>), pour ne pas vous influencer. ✓ vert = vous êtes d'accord avec lui, ✗ rouge = divergence.</li>
   <li>Une divergence n'est pas une erreur de votre part : c'est exactement ce qu'on cherche, une adresse à corriger. Tout est mémorisé et exportable.</li>
+  <li>La bonne maison n'est <strong>pas dans la liste</strong> (entrée trop loin, adresse manquante) ? Touche <kbd>A</kbd> = « aucune de ces adresses » : c'est une vraie réponse, elle compte comme divergence à corriger.</li>
   <li>Vous hésitez entre deux maisons ? <kbd>S</kbd> pour passer, on la retraitera. Après chaque choix, l'outil enchaîne tout seul sur la suivante.</li>
  </ul>
 </details>
@@ -302,6 +303,8 @@ HTML_TEMPLATE = """<!doctype html>
   <div id="assigne-bloc" class="champ" style="display:none">Adresse assignée par l'algo :<br><b id="passigne"></b></div>
   <div class="legende">Adresses dans un rayon de __RAYON__ m (<span class="b">jaune</span> = assignée) :</div>
   <div id="liste-adr"></div>
+  <button id="btn-aucune" onclick="choisirAucune()" style="margin-top:10px;width:100%;border-color:#8e24aa;color:#ce93d8">
+   A · Aucune de ces adresses n'est la bonne</button>
   <div id="nav">
    <button onclick="aller(-1)">← Précédent</button>
    <button onclick="aller(1)">Suivant →</button>
@@ -356,6 +359,12 @@ function verdict(it, idBanChoisi){
   const bloc = document.getElementById("assigne-bloc");
   bloc.style.display = "block";
   document.getElementById("passigne").textContent = it.adresse_assignee || "(aucune)";
+  if (idBanChoisi === "aucune"){
+    v.className = "ko";
+    v.textContent = "✗ aucune des adresses proposées ne convient" +
+      (it.adresse_assignee ? " — l'algo avait assigné : " + it.adresse_assignee : "");
+    return;
+  }
   if (!it.id_ban_assignee){
     v.className = "neutre";
     v.textContent = "L'algo n'avait assigné AUCUNE adresse à cette piscine.";
@@ -399,6 +408,20 @@ function choisir(it, k){
   }, 900);
 }
 
+function choisirAucune(){
+  const it = ITEMS[i];
+  choix[it.id_piscine] = "aucune";
+  localStorage.setItem(CLE, JSON.stringify(choix));
+  render();
+  verdict(it, "aucune");
+  maj();
+  clearTimeout(timerAvance);
+  timerAvance = setTimeout(() => {
+    const j = prochainNonVerifie(i);
+    if (j !== null){ i = j; render(); }
+  }, 900);
+}
+
 function effacerChoix(){
   const it = ITEMS[i];
   if (!(it.id_piscine in choix)) return;
@@ -424,6 +447,8 @@ function render(){
     row.addEventListener("click", () => choisir(it, k));
     liste.appendChild(row);
   });
+  document.getElementById("btn-aucune").style.outline =
+    (dejaChoisi === "aucune") ? "2px solid #ce93d8" : "none";
   document.getElementById("pid").textContent = it.id_piscine;
   document.getElementById("pconf").textContent = it.confiance || "—";
   document.getElementById("psrc").textContent = it.source_jointure || "—";
@@ -476,6 +501,7 @@ document.addEventListener("keydown", e => {
   else if (k === "ArrowRight" || k === "d" || k === "D") aller(1);
   else if (k === "s" || k === "S" || k === " ") { e.preventDefault(); passer(); }
   else if (k === "z" || k === "Z") effacerChoix();
+  else if (k === "a" || k === "A") choisirAucune();
   else if (k in AZERTY) choisir(ITEMS[i], AZERTY[k]);
   else if (/^[1-9]$/.test(k)) choisir(ITEMS[i], +k - 1);
 });
