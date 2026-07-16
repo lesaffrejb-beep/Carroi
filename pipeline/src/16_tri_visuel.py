@@ -278,6 +278,16 @@ HTML_TEMPLATE = """<!doctype html>
  .marque{position:absolute;top:8px;right:8px;font-weight:bold;font-size:1rem;padding:2px 10px;border-radius:6px;color:#fff}
  .dec-oui .marque{background:#2e7d32}.dec-non .marque{background:#c62828}.dec-incertain .marque{background:#ef6c00}
  .cad{position:absolute;top:8px;left:8px;font-size:.85rem;font-weight:bold;padding:2px 8px;border-radius:6px;background:#0d47a1;color:#fff;box-shadow:0 0 0 2px #fff3}
+ #solo{display:none;flex-direction:column;align-items:center;padding:14px 16px;gap:10px}
+ body.mode-solo #galerie{display:none}
+ body.mode-solo #solo{display:flex}
+ #solo .cadre{position:relative;border:4px solid #333;border-radius:10px;overflow:hidden;background:#000;width:min(72vh,92vw)}
+ #solo .cadre img{display:block;width:100%;image-rendering:pixelated}
+ #solo .cadre.dec-oui{border-color:#2e7d32}#solo .cadre.dec-non{border-color:#c62828}#solo .cadre.dec-incertain{border-color:#ef6c00}
+ #solo-legende{font-size:.9rem;color:#aaa;font-variant-numeric:tabular-nums}
+ #solo .boutons{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+ #solo .boutons button{font-size:1.05rem;font-weight:bold;padding:10px 20px;color:#fff}
+ #btn-mode{font-size:.85rem}
  #trieur-actuel b{color:#fff}
  #lien-changer{color:#64b5f6;font-size:.85rem;margin-left:5px}
  #par-trieur{color:#9ccc65;font-variant-numeric:tabular-nums}
@@ -311,6 +321,7 @@ HTML_TEMPLATE = """<!doctype html>
   <div id="jauge-fond"><div id="jauge"></div></div>
   <span id="corrobore_count"></span>
   <span id="par-trieur"></span>
+  <button id="btn-mode" onclick="basculerMode()"></button>
   <button id="btn-export" onclick="exporter()">Exporter decisions.csv</button>
   <button id="btn-reset" onclick="if(confirm('Effacer TOUTES les décisions et repartir de zéro ?')){localStorage.removeItem(CLE);location.reload()}">réinitialiser le tri</button>
  </div>
@@ -331,6 +342,20 @@ HTML_TEMPLATE = """<!doctype html>
   <li><strong>Les traits jaunes</strong> sont les limites de parcelles cadastrales, pour situer.</li>
  </ul>
 </details>
+<div id="solo">
+ <div class="cadre" id="solo-cadre">
+  <img id="solo-img" alt="candidat courant">
+  <span class="cad" id="solo-cad" style="display:none">⌂ cadastré</span>
+  <span class="marque" id="solo-marque"></span>
+ </div>
+ <div id="solo-legende"></div>
+ <div class="boutons">
+  <button style="background:#2e7d32;border-color:#2e7d32" onclick="decider('oui')">O · piscine</button>
+  <button style="background:#c62828;border-color:#c62828" onclick="decider('non')">N · pas une piscine</button>
+  <button style="background:#ef6c00;border-color:#ef6c00" onclick="decider('incertain')">U · incertain</button>
+  <button onclick="annuler()">Z · annuler</button>
+ </div>
+</div>
 <div id="galerie"></div>
 <script>
 const ITEMS = __ITEMS__;
@@ -421,8 +446,39 @@ function focaliser(k, defiler = true){
   i = k;
   const c = cartes[ITEMS[i].id];
   c.classList.add("focus");
-  if (defiler) c.scrollIntoView({block: "center", behavior: "smooth"});
+  if (defiler && MODE !== "solo") c.scrollIntoView({block: "center", behavior: "smooth"});
+  majSolo();
   maj();
+}
+// ------------------------------------------------ mode solo (une photo à la fois)
+// La vignette courante est affichée seule, à taille et POSITION FIXES au centre :
+// le regard du trieur ne bouge jamais, seules les images défilent. Préférence
+// mémorisée par planche (localStorage), galerie toujours accessible en un clic.
+const CLE_MODE = CLE + "_mode";
+let MODE = localStorage.getItem(CLE_MODE) || "solo";
+function majSolo(){
+  if (MODE !== "solo" || i < 0) return;
+  const it = ITEMS[i], o = dec[it.id], d = o ? o.d : null;
+  document.getElementById("solo-img").src = it.png;
+  document.getElementById("solo-cad").style.display = it.corrobore ? "" : "none";
+  const cadre = document.getElementById("solo-cadre");
+  cadre.classList.remove("dec-oui", "dec-non", "dec-incertain");
+  if (d) cadre.classList.add("dec-" + d);
+  document.getElementById("solo-marque").textContent = d ? d.toUpperCase() : "";
+  document.getElementById("solo-legende").textContent =
+    `${i + 1} / ${ITEMS.length} · ${it.surface.toFixed(0)} m² · score ${it.score.toFixed(2)} · ${it.id}`;
+}
+function appliquerMode(){
+  document.body.classList.toggle("mode-solo", MODE === "solo");
+  document.getElementById("btn-mode").textContent =
+    MODE === "solo" ? "Voir la galerie" : "Mode une par une";
+  if (MODE === "solo"){ window.scrollTo(0, 0); majSolo(); }
+  else if (i >= 0) cartes[ITEMS[i].id].scrollIntoView({block: "center"});
+}
+function basculerMode(){
+  MODE = (MODE === "solo") ? "galerie" : "solo";
+  localStorage.setItem(CLE_MODE, MODE);
+  appliquerMode();
 }
 function maj(){
   const faits = Object.keys(dec).length, reste = ITEMS.length - faits;
@@ -485,6 +541,7 @@ document.addEventListener("keydown", e => {
 // Reprise : restaurer les marques puis sauter à la première vignette non triée.
 for (const id of Object.keys(dec)) if (id in cartes) marquer(id);
 focaliser(premierNonTrie(0), Object.keys(dec).length > 0);
+appliquerMode();
 // À l'ouverture : si aucun trieur mémorisé, demander « Qui trie ? » ; sinon l'afficher.
 majTrieur();
 if (!TRIEUR) demanderTrieur();

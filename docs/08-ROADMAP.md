@@ -44,6 +44,16 @@ définitivement ; samgeo/Label Studio/Download-BDOrtho21 écartés (`15` §4). *
 ⚠ Diff CoSIA 2022→2025 piégé (changement de modèle entre millésimes) : E2 exige une
 validation visuelle par ligne. Archives déjà sur NOIR (`COSIA_D049/`).
 
+**Nouveau (2026-07-16, session Fable — mode solo + premier lot de tri)** : la planche
+de tri a un **mode « une par une »** (défaut) : la vignette courante s'affiche seule,
+à taille et position fixes au centre de l'écran — le regard ne bouge plus, O/N/U
+enchaîne. Bascule « Voir la galerie » dans le bandeau, préférence mémorisée par
+planche, mêmes raccourcis + gros boutons cliquables. `handoff/tri_bouchemaine_49035.html`
+régénéré (même empreinte `2d460d3dc74e` : les décisions localStorage en cours sont
+conservées). **Premier lot de tri JB soumis : 226/977 décisions**
+(`handoff/decisions_recus/decisions_20260716_194916_JB_2d460d3dc74e.csv`). Reste ~751
+à trier avant `--apply` (tolérance 2 % de non-triés).
+
 **⚡ PROCHAINE ACTION = 🧑 TRIER.** Soi-même (ouvrir `handoff/tri_bouchemaine_49035.html`
 ou générer la planche via `16_tri_visuel.py`) OU faire trier par un ami/bénévole via
 `handoff/` (voir `ONBOARDING.md` parcours A). Puis **appliquer les décisions**
