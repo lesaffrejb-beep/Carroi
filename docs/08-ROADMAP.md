@@ -84,6 +84,22 @@ les heuristiques → **base finale : 228 adresses, 100 % confiance haute**
 (existence validée humain + adresse confirmée ou corrigée humain sur tous les cas
 douteux). CSV archivés dans `handoff/concordance_recus/`.
 
+**Nouveau (2026-07-16 nuit — ATELIER D'ANNOTATION, demande JB)** :
+`pipeline/src/atelier.py` = bench local unifié (serveur stdlib + une page,
+`.venv/bin/python pipeline/src/atelier.py` → http://localhost:8199). Niveau 1
+existence (O/N/U), niveau 2 adresse (débloqué par majorité de « oui »), **passes
+illimitées** : chaque réponse est un vote horodaté append-only (SQLite
+`data/atelier/`), vérité = majorité, confiance = accord × nb passes. File « moins
+vu d'abord » tirée au hasard, progression (passe courante, jauge, accord moyen,
+XP, série), exports consensus compatibles chaîne existante. Amorcé au premier
+lancement avec les acquis (977 votes tri + 69 concordance = passe 1). Extensible
+même schéma aux produits suivants (terrasses — détecteur 25 déjà codé, attend le
+LiDAR ; **parkings : idée produit 3 consignée, non chiffrée**).
+
+**Stratégie POC validée par JB (2026-07-16)** : échantillon vérifié humain par
+produit (Bouchemaine = fait pour piscines) → démarchage pour trouver QUI PAYE →
+industrialisation Angers / 49 / Pays de la Loire seulement si un marché niche paye.
+
 **⚡ PROCHAINE ACTION** : protocole précision `06` §2 (échantillon aléatoire, borne
 basse de Wilson) pour le chiffre affichable en démo, puis kit de vente — et toujours
 **D0 avant tout code : aucun prospect appelé, l'inversion de séquence reste LE
