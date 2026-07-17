@@ -223,6 +223,12 @@ class Votes:
         with self.lock:
             return self.conn.execute("SELECT COUNT(*) FROM votes").fetchone()[0]
 
+    def lignes(self) -> list[tuple]:
+        """Tous les votes (produit, mode, id_item, reponse, trieur) — classement."""
+        with self.lock:
+            return self.conn.execute(
+                "SELECT produit, mode, id_item, reponse, trieur FROM votes").fetchall()
+
     def vide(self) -> bool:
         return self.total() == 0
 
@@ -638,6 +644,49 @@ class Handler(BaseHTTPRequestHandler):
                         "taux_or": taux_or, "ors_vus": ors_tot,
                         "taux_ct": invite["taux_ct"],
                         "gains_eur": round(gains, 2), "gele": bool(invite["gele"])})
+        elif u.path == "/api/impact":
+            # La preuve que chaque vote « rapporte » : compteurs RÉELS du
+            # pipeline (consensus tranchés, base vendable), jamais inventés.
+            out = {"produits": {}}
+            for nom, dp in self.produits.items():
+                positifs = dp.meta.get("positifs", ["oui"])
+                classes = {c: 0 for c in positifs}
+                tranches = 0
+                for vs in self.votes.tout(nom, "existence").values():
+                    maj, _ = consensus(vs)
+                    if maj is not None:
+                        tranches += 1
+                        if maj in classes:
+                            classes[maj] += 1
+                adresses = sum(1 for vs in self.votes.tout(nom, "adresse").values()
+                               if consensus(vs)[0] not in (None, "aucune", "indecis"))
+                out["produits"][nom] = {"classes": classes, "tranches": tranches,
+                                        "total": len(dp.candidats),
+                                        "adresses_vendables": adresses}
+            self._json(out)
+        elif u.path == "/api/classement":
+            # Volume + accord au consensus par trieur : la qualité s'auto-régule
+            # quand elle est affichée (et rend le multi-trieurs payé motivant).
+            cons = {}
+            for nom in self.produits:
+                for mode in MODES:
+                    for i, vs in self.votes.tout(nom, mode).items():
+                        maj, _ = consensus(vs)
+                        if maj is not None:
+                            cons[(nom, mode, i)] = maj
+            stats: dict[str, dict] = {}
+            for prod, mode, i, rep, trieur in self.votes.lignes():
+                s = stats.setdefault(trieur, {"votes": 0, "vus": 0, "ok": 0})
+                s["votes"] += 1
+                maj = cons.get((prod, mode, i))
+                if maj is not None:
+                    s["vus"] += 1
+                    s["ok"] += int(rep == maj)
+            tableau = [{"trieur": t, "votes": s["votes"],
+                        "accord": round(s["ok"] / s["vus"], 3) if s["vus"] else None}
+                       for t, s in stats.items()]
+            tableau.sort(key=lambda x: -x["votes"])
+            self._json(tableau[:10])
         elif u.path == "/api/export/signalements.csv":
             self._csv(v.signalements_csv(), "signalements.csv")
         elif u.path == "/api/tache":
@@ -895,89 +944,133 @@ class Handler(BaseHTTPRequestHandler):
 PAGE_HTML = """<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><title>L'Atelier — farm d'annotation</title>
 <style>
-/* Thème unique sombre ASSUMÉ : outil d'imagerie aérienne pour sessions du soir,
-   comme tous les benchs de labellisation. Un seul accent (lime = récolte/XP),
-   la sémantique des réponses (oui/non/indécis/aucune) est un axe séparé. */
+/* COCKPIT DE FARM — design issu d'un panel simulé de 10 farmers gamers
+   (2026-07-17) : vitesse VISIBLE (votes/min live + record perso), progression
+   segmentée en %, rentabilité PROUVÉE (chaîne pipeline avec compteurs réels),
+   hotbar clavier façon barre d'action, recap end-of-match au checkpoint.
+   Palette : sombre chaud, encre ivoire, UN accent bleu d'eau, sémantique
+   feutrée. Bannis : lime acide, violets fluo, dégradés décoratifs. */
 :root{
-  /* Palette « salle de cartographie » : sombre chaud (pas de noir bleuté),
-     encre ivoire, UN accent bleu d'eau (le sujet : les bassins), sémantique
-     feutrée. Bannis : lime acide, violets fluo, dégradés — signatures IA. */
-  --bg:#16171a; --panel:#1c1e22; --raise:#25272d; --line:#33353d;
-  --ink:#eae7df; --mut:#98948a; --acc:#5ab5c7; --acc-ink:#0c2830;
-  --oui:#4d9d74; --non:#c86053; --unsure:#cf9c44; --aucune:#9c8bbd;
-  --r:8px; --mono:ui-monospace,'SF Mono',Menlo,monospace;
+  --bg:#131417; --panel:#1a1b1f; --raise:#232529; --line:#2e3037; --line2:#3d404a;
+  --ink:#ebe8e0; --mut:#8f8b81; --acc:#56b6d4; --acc-ink:#06242e; --acc-dim:#23434f;
+  --oui:#55a87c; --non:#c96a5c; --unsure:#d2a04a; --aucune:#9a8cc0;
+  --r:10px; --mono:ui-monospace,'SF Mono',Menlo,monospace;
 }
 *{box-sizing:border-box}
-body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:var(--bg);color:var(--ink)}
-kbd{font-family:var(--mono);font-size:.82em;background:#0a0c10;border:1px solid var(--line);
+body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:var(--bg);
+     color:var(--ink);padding-bottom:52px}
+kbd{font-family:var(--mono);font-size:.82em;background:#0a0b0e;border:1px solid var(--line);
     border-bottom-width:2px;border-radius:5px;padding:1px 7px;color:var(--mut)}
-button{font:inherit;cursor:pointer}
+button{font:inherit;cursor:pointer;color:inherit}
+h3{margin:0 0 10px;font-size:.64rem;letter-spacing:.16em;color:var(--mut);
+   font-family:var(--mono);font-weight:600}
 
-/* ---------- HUD ---------- */
+/* ---------- HUD : une rangée d'instruments ---------- */
 header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--line)}
-#hud{display:flex;align-items:center;gap:14px;padding:10px 18px;flex-wrap:wrap}
+#hud{display:flex;align-items:center;gap:16px;padding:8px 16px;flex-wrap:wrap}
 #marque{font-family:var(--mono);font-weight:bold;letter-spacing:.14em;font-size:.8rem;color:var(--acc)}
-#marque small{display:block;letter-spacing:.02em;color:var(--mut);font-weight:normal;text-transform:none}
-#niveaux{display:flex;gap:6px}
-.niveau{padding:7px 14px;border-radius:999px;background:var(--raise);border:1px solid var(--line);
-        color:var(--mut);font-weight:600;font-size:.88rem;border-bottom-width:2px}
-.niveau.actif{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
-.produit-pill.actif{background:var(--ink);border-color:var(--ink);color:var(--bg)}
-.niveau .sous{font-weight:normal;font-size:.78rem;opacity:.8}
-#chips{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
-.chip{background:var(--raise);border:1px solid var(--line);border-radius:8px;padding:4px 10px;
-      font-size:.78rem;color:var(--mut);text-align:center;min-width:58px}
-.chip b{display:block;font-family:var(--mono);font-size:1rem;color:var(--ink)}
+#marque small{display:block;letter-spacing:.02em;color:var(--mut);font-weight:normal}
+#niveaux{display:flex;gap:2px;background:var(--bg);border:1px solid var(--line);
+         border-radius:9px;padding:3px}
+.niveau{padding:6px 14px;border:none;border-radius:6px;background:none;
+        color:var(--mut);font-weight:650;font-size:.86rem}
+.niveau.actif{background:var(--acc);color:var(--acc-ink)}
+.niveau .sous{font-weight:normal;font-size:.76rem;opacity:.85}
+#chips{display:flex;margin-left:auto;align-items:stretch}
+.chip{padding:1px 13px;border-left:1px solid var(--line);text-align:right;
+      font-size:.6rem;letter-spacing:.1em;color:var(--mut);font-family:var(--mono);
+      text-transform:uppercase;line-height:1.5}
+.chip b{display:block;font-size:1.3rem;line-height:1.15;color:var(--ink);font-weight:600}
 .chip.acc b{color:var(--acc)}
-#btn-export{background:none;border:1px solid var(--line);border-radius:8px;color:var(--mut);padding:6px 12px}
-#btn-export:hover{color:var(--ink);border-color:var(--mut)}
-#jauge-fond{height:4px;background:var(--raise)}
-#jauge{height:100%;width:0;background:var(--acc);transition:width .25s}
+.chip.grand b{font-size:1.65rem}
+#save{font-size:.68rem;color:var(--mut);font-family:var(--mono);text-align:right;line-height:1.6}
+#save a{color:var(--acc)}
 
-/* ---------- scène ---------- */
-#zone{display:flex;gap:22px;padding:18px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+/* rail de progression segmenté (passe courante, tous produits) */
+#rail{position:relative;height:24px;background:#0e0f12;border-top:1px solid var(--line)}
+#jauge{position:absolute;top:0;bottom:0;left:0;width:0;background:var(--acc-dim);
+       border-right:2px solid var(--acc);transition:width .3s}
+#rail-ticks{position:absolute;inset:0;background:repeating-linear-gradient(90deg,
+            transparent 0 calc(5% - 1px),#2e303766 calc(5% - 1px) 5%)}
+#rail-info{position:absolute;inset:0;display:flex;justify-content:space-between;
+           align-items:center;padding:0 16px;font-family:var(--mono);font-size:.7rem;
+           color:var(--mut);pointer-events:none}
+#rail-info b{color:var(--ink)}
+#obj{color:var(--acc)}
+
+/* ---------- plateau : stats | scène | adresses ---------- */
+#zone{display:grid;grid-template-columns:288px minmax(0,1fr) auto;gap:18px;
+      padding:16px;align-items:start;max-width:1560px;margin:0 auto}
+@media (max-width:1080px){#zone{grid-template-columns:1fr}#gauche{order:2}}
+#gauche{display:flex;flex-direction:column;gap:14px;position:sticky;top:88px}
+.carte{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+       padding:12px 14px}
+.etape{display:flex;align-items:baseline;gap:8px;padding:6px 0}
+.etape+.etape{border-top:1px dashed #2e303788}
+.etape .lbl{font-size:.8rem;color:var(--mut);flex:1;min-width:0}
+.etape b{font-family:var(--mono);font-size:1.02rem;font-weight:600}
+.etape .delta{font-family:var(--mono);font-size:.74rem;color:var(--oui);min-width:3em;text-align:right}
+.maillon{text-align:center;color:var(--line2);font-size:.68rem;font-family:var(--mono);
+         letter-spacing:.1em;padding:2px 0}
+.rang{display:flex;gap:8px;align-items:baseline;padding:5px 0;font-size:.84rem}
+.rang+.rang{border-top:1px dashed #2e303788}
+.rang .pos{font-family:var(--mono);color:var(--mut);min-width:1.3em}
+.rang .nom{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rang .acc2{font-family:var(--mono);font-size:.76rem;color:var(--mut)}
+.rang b{font-family:var(--mono)}
+.rang.moi{color:var(--acc)}
+.rang.moi .nom::after{content:" ← toi";font-size:.7rem}
+
+/* ---------- scène : question, image, hotbar ---------- */
+#scene{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0}
+#question{font-size:1.24rem;font-weight:750;line-height:1.3;text-wrap:balance;text-align:center}
+#detail{color:var(--mut);font-size:.76rem;font-family:var(--mono);text-align:center}
 #cadre{position:relative;background:#000;border:1px solid var(--line);border-radius:var(--r);
-       overflow:hidden;box-shadow:0 10px 40px #0008;flex:0 1 auto;max-width:min(74vh,100%)}
-#cadre img,#cadre svg{display:block;max-width:100%;height:auto}
+       overflow:hidden;box-shadow:0 14px 44px #0009;max-width:100%}
+/* l'image ne doit JAMAIS pousser la hotbar sous le pli : hauteur bornée par
+   la place restante (header 118 + question 66 + hotbar 96 + aide 40 + marges) */
+#cadre img,#cadre svg{display:block;max-width:100%;width:auto;height:auto;
+       max-height:calc(100vh - 330px);min-height:300px;transition:transform .12s ease-out}
+#cadre.zoom img,#cadre.zoom svg{transform:scale(2.2);transform-origin:var(--ox,50%) var(--oy,50%)}
 #cadre.flash-oui{outline:3px solid var(--oui)}
-#cadre.flash-unsure{outline:3px solid var(--unsure)}
 #cadre.flash-non{outline:3px solid var(--non)}
-#cadre.flash-incertain,#cadre.flash-indecis{outline:3px solid var(--unsure)}
+#cadre.flash-unsure,#cadre.flash-incertain,#cadre.flash-indecis{outline:3px solid var(--unsure)}
 #cadre.flash-aucune,#cadre.flash-adresse{outline:3px solid var(--aucune)}
-#badge-vu{position:absolute;top:10px;right:10px;background:#0a0c10cc;border:1px solid var(--line);
+#badge-vu{position:absolute;top:10px;right:10px;background:#0a0b0ecc;border:1px solid var(--line);
           border-radius:999px;padding:3px 10px;font-size:.75rem;color:var(--mut);font-family:var(--mono)}
-#badge-deja{position:absolute;top:10px;left:10px;background:#0a0c10cc;border:1px solid var(--unsure);
+#badge-deja{position:absolute;top:10px;left:10px;background:#0a0b0ecc;border:1px solid var(--unsure);
             border-radius:999px;padding:3px 10px;font-size:.75rem;color:var(--unsure);display:none}
-#panneau{width:380px;max-width:100%;display:flex;flex-direction:column;gap:12px}
-#question{font-size:1.18rem;font-weight:700;line-height:1.3;text-wrap:balance}
-#detail{color:var(--mut);font-size:.85rem;font-family:var(--mono)}
 
-/* réponses = keycaps */
-#boutons{display:flex;flex-direction:column;gap:8px}
-.keycap{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+/* hotbar : la barre d'action, sous l'image, une touche = un geste */
+#boutons{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.keycap{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:106px;max-width:150px;
         background:var(--raise);border:1px solid var(--line);border-bottom-width:3px;
-        border-radius:var(--r);padding:11px 14px;color:var(--ink);font-weight:600;font-size:.95rem;
-        transition:transform .06s,border-color .12s}
-.keycap:hover{border-color:var(--mut)}
+        border-radius:var(--r);padding:10px 10px;color:var(--ink);font-weight:600;
+        font-size:.78rem;line-height:1.25;text-align:center;
+        transition:transform .05s,border-color .12s}
+.keycap:hover{border-color:var(--line2);background:#26282d}
 .keycap:active{transform:translateY(2px);border-bottom-width:1px}
-.keycap .k{font-family:var(--mono);font-weight:bold;min-width:2em;text-align:center;
-           border-radius:6px;padding:4px 0;color:#0a0c10}
+.keycap .k{font-family:var(--mono);font-weight:700;font-size:1.05rem;width:2.2em;
+           padding:3px 0;border-radius:7px;color:#0b0c10}
 .keycap.oui .k{background:var(--oui)}.keycap.non .k{background:var(--non)}
 .keycap.unsure .k{background:var(--unsure)}.keycap.aucune .k{background:var(--aucune)}
 .keycap.neutre .k{background:var(--mut)}
-#liste-adr{max-height:236px;overflow:auto;border:1px solid var(--line);border-radius:var(--r);
-           font-size:.88rem;background:var(--panel)}
-#liste-adr .row{padding:6px 10px;cursor:pointer;display:flex;gap:10px;border-bottom:1px solid var(--line)}
+#nav-aide{color:var(--mut);font-size:.78rem;line-height:2;text-align:center;max-width:60ch}
+
+/* ---------- adresses (mode SITUER) ---------- */
+#droite{width:330px;max-width:100%;position:sticky;top:88px}
+#liste-adr{max-height:72vh;overflow:auto;border:1px solid var(--line);border-radius:var(--r);
+           font-size:.86rem;background:var(--panel)}
+#liste-adr .row{padding:7px 10px;cursor:pointer;display:flex;gap:10px;border-bottom:1px solid #2e303788}
 #liste-adr .row:last-child{border-bottom:none}
 #liste-adr .row:hover{background:var(--raise)}
-#liste-adr .row.choisie{background:#2a3a1a;color:var(--acc)}
+#liste-adr .row.choisie{background:var(--acc-dim);color:var(--acc)}
 .num{font-family:var(--mono);font-weight:bold;min-width:1.6em;color:var(--mut)}
-#nav-aide{color:var(--mut);font-size:.8rem;line-height:1.9}
 
-/* ---------- historique de session ---------- */
+/* ---------- ruban de session ---------- */
 #histo-barre{position:fixed;bottom:0;left:0;right:0;background:var(--panel);
-             border-top:1px solid var(--line);padding:8px 18px;display:flex;gap:10px;align-items:center}
-#histo-titre{font-size:.72rem;letter-spacing:.1em;color:var(--mut);font-family:var(--mono)}
+             border-top:1px solid var(--line);padding:8px 16px;display:flex;gap:10px;align-items:center}
+#histo-titre{font-size:.66rem;letter-spacing:.14em;color:var(--mut);font-family:var(--mono)}
 #histo{display:flex;gap:5px;overflow-x:auto;flex:1;padding:2px}
 .pas{width:14px;height:14px;border-radius:4px;background:var(--raise);border:1px solid var(--line);
      flex:0 0 auto;cursor:pointer}
@@ -985,19 +1078,33 @@ header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1p
 .pas.incertain,.pas.indecis,.pas.unsure{background:var(--unsure)}.pas.aucune{background:var(--aucune)}
 .pas.adresse{background:var(--acc)}
 .pas.courant{outline:2px solid var(--ink);outline-offset:1px}
-body{padding-bottom:52px}
 
-/* toast + série */
+/* toast + pulsations */
 #toast{position:fixed;bottom:64px;left:50%;transform:translateX(-50%) translateY(6px);
        background:var(--raise);border:1px solid var(--acc);color:var(--ink);
        padding:8px 18px;border-radius:999px;font-weight:600;font-size:.88rem;
-       opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
+       opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:40}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 @keyframes pulse{50%{transform:scale(1.35)}}
 .pulse{display:inline-block;animation:pulse .3s}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 
-/* modal */
+/* ---------- checkpoint : écran de fin de manche ---------- */
+#pause{display:none;position:fixed;inset:0;z-index:60;background:#000d;
+       align-items:center;justify-content:center}
+#pause .recap{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+              padding:26px 30px;max-width:520px;width:92%;text-align:center}
+#pause h2{margin:0;font-family:var(--mono);letter-spacing:.2em;font-size:.8rem;color:var(--mut)}
+#pause-n{font-size:2.6rem;font-family:var(--mono);color:var(--acc);font-weight:700;margin:6px 0 2px}
+#recap-grille{display:flex;justify-content:center;gap:0;margin:12px 0}
+#recap-grille .chip{border-left:1px solid var(--line);text-align:center}
+#recap-grille .chip:first-child{border-left:none}
+#pause-stats{color:var(--mut);font-size:.86rem}
+#recap-impact{margin:12px 0;padding:10px;background:var(--bg);border-radius:8px;
+              font-size:.86rem;color:var(--ink);line-height:1.6}
+#pause .hint{color:var(--mut);font-size:.8rem;margin-top:10px}
+
+/* modal pseudo */
 #modal-trieur{display:none;position:fixed;inset:0;z-index:50;background:#000b;
               align-items:center;justify-content:center}
 #modal-trieur .boite{background:var(--panel);border:1px solid var(--line);border-radius:14px;
@@ -1018,45 +1125,79 @@ body{padding-bottom:52px}
 
 <header>
  <div id="hud">
-  <div id="marque">L'ATELIER<small>Bouchemaine</small></div>
-  <div id="niveaux" style="display:flex;gap:6px;align-items:center">
+  <div id="marque">L'ATELIER<small>Bouchemaine · 49</small></div>
+  <div id="niveaux">
    <button class="niveau actif" id="ong-fast" onclick="changerMode('fast')">⚡ CLASSER <span class="sous">clavier</span></button>
    <button class="niveau" id="ong-slow" onclick="changerMode('slow')">🧭 SITUER <span class="sous" id="verrou-adresse">souris</span></button>
   </div>
   <div id="chips">
-   <div class="chip">passe<b id="passe">—</b></div>
-   <div class="chip">reste<b id="restants">—</b></div>
-   <div class="chip">accord<b id="accord">—</b></div>
-   <div class="chip acc">xp<b id="xp">—</b></div>
+   <div class="chip acc grand" title="votes de la dernière minute — ta vitesse instantanée">v/min<b id="vpm">0</b></div>
+   <div class="chip" title="ton record de votes sur une minute (toutes sessions)">record<b id="pb">0</b></div>
    <div class="chip acc">série<b id="serie">0</b></div>
+   <div class="chip" title="accord moyen entre trieurs sur les items votés">accord<b id="accord">—</b></div>
+   <div class="chip acc">xp<b id="xp">—</b></div>
    <div class="chip acc" id="chip-gains" style="display:none">gains<b id="gains">—</b></div>
    <div class="chip">session<b id="chrono">0:00</b></div>
-   <div class="chip">rythme<b id="rythme">—</b></div>
+   <div class="chip" style="display:none">rythme<b id="rythme">—</b></div>
   </div>
-  <span style="font-size:.72rem;color:var(--mut);font-family:var(--mono)" title="Chaque réponse est écrite en base à l'instant du clic. Le CSV n'est qu'une copie de consultation.">✓ sauvegarde auto<br>
-   <a href="#" onclick="location.href='/api/export/'+MODE+'.csv?produit='+PRODUIT;return false" style="color:var(--acc)">télécharger le CSV</a></span>
+  <span id="save" title="Chaque réponse est écrite en base à l'instant du clic. Le CSV n'est qu'une copie de consultation.">✓ sauvegarde auto<br>
+   <a href="#" onclick="location.href='/api/export/'+REEL()+'.csv?produit='+PRODUIT;return false">télécharger le CSV</a></span>
  </div>
- <div id="jauge-fond"><div id="jauge"></div></div>
+ <div id="rail">
+  <div id="jauge"></div><div id="rail-ticks"></div>
+  <div id="rail-info"><span>passe <b id="passe">—</b> · reste <b id="restants">—</b></span>
+   <span id="rail-pct"></span><span id="obj"></span></div>
+ </div>
 </header>
 
 <div id="zone">
- <div id="cadre"><span id="badge-deja">déjà répondu — recliquer corrige</span><span id="badge-vu"></span></div>
- <div id="panneau">
+ <aside id="gauche">
+  <section class="carte">
+   <h3>LA CHAÎNE — CE QUE TES VOTES FABRIQUENT</h3>
+   <div class="etape"><span class="lbl">réponses signées</span><b id="pipe-votes">—</b><span class="delta" id="pipe-votes-d"></span></div>
+   <div class="maillon">↓ consensus multi-passes</div>
+   <div class="etape"><span class="lbl">zones tranchées</span><b id="pipe-tranches">—</b><span class="delta" id="pipe-tranches-d"></span></div>
+   <div class="maillon">↓ la base qui se vend</div>
+   <div class="etape"><span class="lbl">🏊 piscines confirmées</span><b id="pipe-oui">—</b><span class="delta" id="pipe-oui-d"></span></div>
+   <div class="etape"><span class="lbl">🪨 terrasses</span><b id="pipe-terrasse">—</b><span class="delta" id="pipe-terrasse-d"></span></div>
+   <div class="etape"><span class="lbl">🌿 jardins</span><b id="pipe-jardin">—</b><span class="delta" id="pipe-jardin-d"></span></div>
+   <div class="etape"><span class="lbl">📍 adresses vendables</span><b id="pipe-adresses">—</b><span class="delta" id="pipe-adresses-d"></span></div>
+   <div class="maillon">↓ et l'IA de pré-tri apprend de chaque vote<br>(farm ÷50 sur la prochaine commune)</div>
+  </section>
+  <section class="carte">
+   <h3>FARMERS</h3>
+   <div id="classement-corps"><span style="color:var(--mut);font-size:.8rem">—</span></div>
+  </section>
+ </aside>
+
+ <div id="scene">
   <div id="question">…</div>
   <div id="detail"></div>
+  <div id="cadre"><span id="badge-deja">déjà répondu — recliquer corrige</span><span id="badge-vu"></span></div>
   <div id="boutons"></div>
-  <div id="liste-adr" style="display:none"></div>
   <div id="nav-aide" style="display:none"></div>
  </div>
+
+ <aside id="droite" style="display:none">
+  <div id="liste-adr" style="display:none"></div>
+ </aside>
 </div>
 
 <div id="histo-barre"><span id="histo-titre">SESSION</span><div id="histo"></div></div>
 <div id="toast"></div>
-<div id="pause" style="display:none;position:fixed;inset:0;z-index:60;background:#000d;
-     align-items:center;justify-content:center;flex-direction:column;gap:10px;text-align:center">
- <div style="font-size:2.2rem;font-family:var(--mono);color:var(--acc)" id="pause-n"></div>
- <div style="color:var(--mut)" id="pause-stats"></div>
- <div style="color:var(--mut);font-size:.85rem">sauvegardé · respire · <span id="pause-cpt">3</span> s</div>
+<div id="pause">
+ <div class="recap">
+  <h2>CHECKPOINT</h2>
+  <div id="pause-n"></div>
+  <div id="recap-grille">
+   <div class="chip">session<b id="recap-session">—</b></div>
+   <div class="chip acc">v/min<b id="recap-vpm">—</b></div>
+   <div class="chip">record<b id="recap-pb">—</b></div>
+  </div>
+  <div id="recap-impact"></div>
+  <div id="pause-stats"></div>
+  <div class="hint">consensus sauvegardé sur disque · <kbd>ESPACE</kbd> reprendre · auto dans <span id="pause-cpt">5</span> s</div>
+ </div>
 </div>
 
 <script>
@@ -1071,13 +1212,27 @@ let PRODUIT = "piscines", PRODUITS = {}, MODE = "fast", ITEM = null, MON_DERNIER
 // fast = existence (clavier), slow = adresse (souris) — le serveur fait la même équivalence
 const REEL = () => MODE === "slow" ? "adresse" : "existence";
 let actifS = 0, dernierVoteT = null;   // chrono de session (temps ACTIF)
+// Vitesse VISIBLE (panel farmers №1) : votes de la dernière minute, en live,
+// face au record perso toutes sessions. Le record ne se bat qu'en jouant.
+let voteTimes = [], sessionVotes = 0;
+let PB = +(localStorage.getItem("atelier_pb") || 0), pbBattu = false;
 setInterval(() => {
   if (dernierVoteT && (Date.now() - dernierVoteT) < 60000){
     actifS++;
     const m = Math.floor(actifS / 60), s = actifS % 60;
     document.getElementById("chrono").textContent = m + ":" + String(s).padStart(2, "0");
   }
+  voteTimes = voteTimes.filter(t => Date.now() - t < 60000);
+  document.getElementById("vpm").textContent = voteTimes.length;
+  if (voteTimes.length > PB){
+    PB = voteTimes.length;
+    localStorage.setItem("atelier_pb", PB);
+    const e = document.getElementById("pb");
+    e.textContent = PB; e.classList.remove("pulse"); void e.offsetWidth; e.classList.add("pulse");
+    if (!pbBattu && PB >= 8){ pbBattu = true; toast("🏆 NOUVEAU RECORD : " + PB + " votes/min"); }
+  }
 }, 1000);
+document.getElementById("pb").textContent = PB;
 // Historique de session PAR produit/mode : liste d'items vus + curseur. Reculer
 // montre l'item avec sa réponse ; re-répondre CORRIGE le dernier vote.
 const histo = {};   // cle() -> [{id, rep}]
@@ -1118,7 +1273,50 @@ async function etat(){
     document.getElementById("rythme").textContent = e.rythme.votes_par_h + "/h";
   const na = e.adresse.items;
   document.getElementById("verrou-adresse").textContent = na ? `· ${na}` : "· 🔒";
+  // rail : % de couverture de la passe + prochain jalon (le checkpoint des 100)
+  const pct = Math.round(100 * (m.items - m.restants_cette_passe) / Math.max(1, m.items));
+  document.getElementById("rail-pct").textContent = pct + " % de la passe";
+  document.getElementById("obj").textContent = "◈ checkpoint dans " + (100 - (e.xp % 100)) + " votes";
+  document.getElementById("pipe-votes").textContent = e.xp;
 }
+
+// LA CHAÎNE (panel farmers №3) : compteurs RÉELS du pipeline + delta de session.
+// Voir « +1 adresse vendable » apparaître à cause de SOI, c'est le moteur du farm.
+let IMPACT0 = null, IMPACT = null;
+const esc = s => String(s).replace(/[<>&]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]));
+async function majImpact(){
+  IMPACT = await (await fetch("/api/impact")).json();
+  if (!IMPACT0) IMPACT0 = JSON.parse(JSON.stringify(IMPACT));
+  const P = IMPACT.produits, P0 = IMPACT0.produits;
+  const somme = (obj, f) => Object.values(obj).reduce((a, p) => a + f(p), 0);
+  const pose = (id, v, v0) => {
+    document.getElementById(id).textContent = v;
+    document.getElementById(id + "-d").textContent = v > v0 ? "+" + (v - v0) : "";
+  };
+  pose("pipe-tranches", somme(P, p => p.tranches), somme(P0, p => p.tranches));
+  pose("pipe-oui", (P.piscines || {classes:{}}).classes.oui || 0,
+                   (P0.piscines || {classes:{}}).classes.oui || 0);
+  pose("pipe-terrasse", (P.terrasses || {classes:{}}).classes.terrasse || 0,
+                        (P0.terrasses || {classes:{}}).classes.terrasse || 0);
+  pose("pipe-jardin", (P.terrasses || {classes:{}}).classes.jardin || 0,
+                      (P0.terrasses || {classes:{}}).classes.jardin || 0);
+  pose("pipe-adresses", somme(P, p => p.adresses_vendables),
+                        somme(P0, p => p.adresses_vendables));
+  document.getElementById("pipe-votes-d").textContent = sessionVotes ? "+" + sessionVotes : "";
+}
+setInterval(majImpact, 20000); majImpact();
+
+// FARMERS (panel №4) : volume + accord au consensus. La précision affichée
+// s'auto-régule — personne ne veut être le spammeur du tableau.
+async function majClassement(){
+  const t = await (await fetch("/api/classement")).json();
+  document.getElementById("classement-corps").innerHTML = t.slice(0, 5).map((r, i) =>
+    `<div class="rang${r.trieur === TRIEUR ? " moi" : ""}"><span class="pos">${i + 1}</span>` +
+    `<span class="nom">${esc(r.trieur)}</span>` +
+    `<span class="acc2">${r.accord === null ? "—" : Math.round(r.accord * 100) + "%"}</span>` +
+    `<b>${r.votes}</b></div>`).join("") || "<span style='color:var(--mut)'>—</span>";
+}
+setInterval(majClassement, 60000); majClassement();
 
 function changerMode(m){
   MODE = m;
@@ -1207,10 +1405,11 @@ function afficher(r){
     document.getElementById("detail").textContent =
       `${PRODUIT} · ${ITEM.surface.toFixed(0)} m² · score ${ITEM.score.toFixed(2)} · ${ITEM.id}`;
     liste.style.display = "none"; liste.innerHTML = "";
+    document.getElementById("droite").style.display = "none";
     document.getElementById("nav-aide").style.display = "";
     document.getElementById("nav-aide").innerHTML =
       VOCAB.map(r => `<kbd>${r.touche.toUpperCase()}</kbd> ${r.libelle.toLowerCase()}`).join(" · ") +
-      ` · <kbd>A</kbd> revenir · <kbd>E</kbd> avancer · <kbd>ESPACE</kbd> passer (restera dû)` +
+      ` · <kbd>V</kbd> loupe · <kbd>A</kbd> revenir · <kbd>E</kbd> avancer · <kbd>ESPACE</kbd> passer (restera dû)` +
       (PRODUIT === "piscines" ? ` · <kbd>F</kbd> puis clic = piscine vue ailleurs` : "");
     boutons.innerHTML =
       VOCAB.map(r => `<button class="keycap ${r.style}" onclick="repondre('${r.code}')">` +
@@ -1223,6 +1422,7 @@ function afficher(r){
       g.addEventListener("click", () => repondre(ITEM.adresses[+g.dataset.k].id_ban)));
     document.getElementById("question").textContent = "À quelle maison appartient la zone rouge ?";
     document.getElementById("detail").textContent = `${PRODUIT} · ${ITEM.id_piscine}`;
+    document.getElementById("droite").style.display = "";
     liste.style.display = "block"; liste.innerHTML = "";
     ITEM.adresses.forEach((a, k) => {
       const row = document.createElement("div");
@@ -1237,7 +1437,7 @@ function afficher(r){
     document.getElementById("nav-aide").style.display = "";
     document.getElementById("nav-aide").innerHTML =
       `rangée des chiffres <kbd>&</kbd><kbd>é</kbd><kbd>"</kbd>… = maison 1,2,3 · <kbd>A</kbd> aucune ·
-       <kbd>S</kbd> impossible · <kbd>←</kbd>/<kbd>→</kbd> ou <kbd>E</kbd> naviguer · <kbd>ESPACE</kbd> passer`;
+       <kbd>S</kbd> impossible · <kbd>V</kbd> loupe · <kbd>←</kbd>/<kbd>→</kbd> ou <kbd>E</kbd> naviguer · <kbd>ESPACE</kbd> passer`;
   }
   document.getElementById("badge-deja").style.display = MON_DERNIER ? "inline" : "none";
   // en bout d'historique (item neuf) : précharger le prochain pendant la réflexion
@@ -1246,7 +1446,7 @@ function afficher(r){
 
 function svgAdresse(it){
   const P = 700;
-  let s = `<svg width="${P}" height="${P}" viewBox="0 0 ${P} ${P}" style="width:min(74vh,92vw);height:auto">`;
+  let s = `<svg width="${P}" height="${P}" viewBox="0 0 ${P} ${P}" style="width:auto;height:auto">`;
   s += `<image x="0" y="0" width="${P}" height="${P}" href="${it.img}"/>`;
   for (const pc of it.parcelles) for (const ring of pc.rings){
     const d = "M" + ring.map(p=>p.join(",")).join(" L") + " Z";
@@ -1310,32 +1510,53 @@ async function repondre(rep){
     : null;
   cadre.className = "flash-" + (styleRep || (["aucune","indecis"].includes(rep) ? rep : "adresse"));
   if (!correction){
-    serie++;
+    serie++; sessionVotes++; voteTimes.push(Date.now());
     const s = document.getElementById("serie");
     s.textContent = serie; s.classList.remove("pulse"); void s.offsetWidth; s.classList.add("pulse");
   }
-  toast((correction ? "corrigé" : "+1") + ` · ${r.n_votes} vote(s)` +
-        (r.majorite ? ` · majorité « ${r.majorite} » (${Math.round(r.accord*100)}%)` : " · égalité, une passe de plus tranchera"));
-  if (r.checkpoint){
-    // Pause forcée : 3 s toutes les 100 réponses, pendant que le serveur dumpe
-    // le consensus sur disque. Les yeux aussi ont un localStorage.
-    const p = document.getElementById("pause");
-    document.getElementById("pause-n").textContent = r.total + " votes";
-    document.getElementById("pause-stats").textContent =
-      `série ${serie} · ${document.getElementById("rythme").textContent} · session ${document.getElementById("chrono").textContent}`;
-    p.style.display = "flex";
-    let cpt = 3;
-    document.getElementById("pause-cpt").textContent = cpt;
-    const h = setInterval(() => {
-      cpt--;
-      document.getElementById("pause-cpt").textContent = cpt;
-      if (cpt <= 0){ clearInterval(h); p.style.display = "none"; suivant(); }
-    }, 1000);
-    return;
-  }
+  if (!correction && serie > 0 && serie % 25 === 0)
+    toast(`🔥 SÉRIE ${serie} — sans faute ni pause`);
+  else
+    toast((correction ? "corrigé" : "+1") + ` · ${r.n_votes} vote(s)` +
+          (r.majorite ? ` · majorité « ${r.majorite} » (${Math.round(r.accord*100)}%)` : " · égalité, une passe de plus tranchera"));
+  if (r.checkpoint){ montrerRecap(r); return; }
   // avance IMMÉDIATE : le flash et le toast vivent leur vie pendant que
   // l'item suivant (préchargé) s'affiche — aucun timer, les navigateurs
   // les étranglent dès que l'onglet perd le focus.
+  suivant();
+}
+
+// Checkpoint des 100 = écran de fin de manche (panel farmers №6) : stats de
+// session + ce que la session a débloqué DERRIÈRE. ESPACE saute — un farmer
+// lancé ne se laisse pas interrompre.
+let PAUSE_H = null;
+function montrerRecap(r){
+  document.getElementById("pause-n").textContent = r.total + " votes";
+  document.getElementById("recap-session").textContent = sessionVotes;
+  document.getElementById("recap-vpm").textContent = voteTimes.length;
+  document.getElementById("recap-pb").textContent = PB;
+  document.getElementById("pause-stats").textContent =
+    `série ${serie} · session ${document.getElementById("chrono").textContent}`;
+  majImpact().then(() => {
+    const P = IMPACT.produits, P0 = IMPACT0.produits;
+    const d = (f) => Object.keys(P).reduce((a, n) => a + f(P[n]) - (P0[n] ? f(P0[n]) : f(P[n])), 0);
+    const dt = d(p => p.tranches), da = d(p => p.adresses_vendables);
+    document.getElementById("recap-impact").textContent = (dt || da)
+      ? `Cette session a tranché ${dt} zone(s) et rendu ${da} adresse(s) vendable(s). Chaque vote a servi.`
+      : "Tes votes épaississent le consensus : la prochaine passe tranchera.";
+  });
+  document.getElementById("pause").style.display = "flex";
+  let cpt = 5;
+  document.getElementById("pause-cpt").textContent = cpt;
+  PAUSE_H = setInterval(() => {
+    cpt--;
+    document.getElementById("pause-cpt").textContent = cpt;
+    if (cpt <= 0) finirRecap();
+  }, 1000);
+}
+function finirRecap(){
+  clearInterval(PAUSE_H); PAUSE_H = null;
+  document.getElementById("pause").style.display = "none";
   suivant();
 }
 
@@ -1365,6 +1586,14 @@ async function clicImage(ev){
     toast("piscine signalée · recoupée plus tard avec le cadastre");
   }
 }
+// Loupe V (panel farmers №7) : zoom 2,2× dont l'origine SUIT la souris —
+// on inspecte un doute sans jamais quitter le flux ni changer de mode.
+document.getElementById("cadre").addEventListener("mousemove", ev => {
+  const el = ev.currentTarget, rc = el.getBoundingClientRect();
+  el.style.setProperty("--ox", ((ev.clientX - rc.left) / rc.width * 100) + "%");
+  el.style.setProperty("--oy", ((ev.clientY - rc.top) / rc.height * 100) + "%");
+});
+
 function toast(txt){
   const t = document.getElementById("toast");
   t.textContent = txt; t.classList.add("on");
@@ -1401,12 +1630,16 @@ const AZERTY = {"&":0, "é":1, '"':2, "'":3, "(":4, "-":5, "è":6, "_":7, "ç":8
 // navigation y passe par les flèches (et E pour avancer).
 document.addEventListener("keydown", e => {
   if (document.getElementById("modal-trieur").style.display === "flex") return;
-  if (document.getElementById("pause").style.display === "flex") return;
+  if (document.getElementById("pause").style.display === "flex"){
+    if (e.key === " "){ e.preventDefault(); finirRecap(); }
+    return;
+  }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === "arrowleft") return precedent();
   if (k === "arrowright" || k === "e") return suivant();
   if (k === " "){ e.preventDefault(); return suivant(); }
+  if (k === "v") return document.getElementById("cadre").classList.toggle("zoom");
   if (REEL() === "existence"){
     const rep = VOCAB.find(r => r.touche === k);
     if (rep) repondre(rep.code);

@@ -145,6 +145,24 @@ en fast. Vérifié en vrai (serveur 8199 relancé, UI testée navigateur, 0 erre
 console) ; l'export consensus archivé de JB (235 adresses, 08:42) est dans
 `data/atelier/exports/`. 266 tests verts.
 
+**Nouveau (2026-07-17 après-midi bis — COCKPIT DE FARM, session Fable, retour
+JB « trop moche, pense ergonomie »)** : refonte du front de l'Atelier pilotée
+par un panel SIMULÉ de 10 farmers gamers (méthode : générer leurs attentes,
+concevoir contre, jeter le doc). Huit exigences convergentes implémentées :
+**vitesse visible** (votes/min live + record perso persistant), **progression
+en % segmentée** (rail pleine largeur, prochain checkpoint annoncé),
+**rentabilité prouvée** (panneau « LA CHAÎNE » : réponses → zones tranchées →
+piscines/terrasses/jardins confirmés → adresses vendables, compteurs RÉELS via
+`/api/impact` + deltas de session), **classement farmers** (volume + accord au
+consensus via `/api/classement` — la qualité s'auto-régule affichée),
+**checkpoint = écran de fin de manche** (stats + impact session, ESPACE saute),
+**loupe V** (zoom 2,2× origine sous la souris, sans quitter le flux),
+**hotbar** façon barre d'action sous l'image (jamais sous le pli),
+**typo instrument** (numéraux mono géants, un accent). Sources méthode :
+guides UI d'annotation (hotkeys/zéro friction) + principes HUD jeu (juice,
+paliers). Vérifié navigateur (CLASSER, SITUER, recap), 0 erreur console,
+266 tests verts, serveur 8199 relancé.
+
 ## Arbre des tâches (mis à jour 2026-07-17)
 
 - **[HUMAIN] D0 — pré-vente** : inchangé, priorité n°1, rien ne le remplace.
