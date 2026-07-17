@@ -304,11 +304,19 @@ def consensus(votes: list[str]) -> tuple[str | None, float]:
     return c[0][0], c[0][1] / len(votes)
 
 
+def votes_compatibles(a: str, b: str) -> bool:
+    """Deux réponses concordent si elles partagent un composant : les combos
+    multi-classes (« piscine+jardin » — une zone rouge peut contenir plusieurs
+    choses) restent compatibles avec un vote simple « piscine ». Pure."""
+    return bool(set(a.split("+")) & set(b.split("+")))
+
+
 def existence_acquise(votes: list[str], positifs: tuple = ("oui",)) -> bool:
     """Le niveau adresse se débloque quand la majorité des votes est une classe
-    POSITIVE du produit (piscines : oui ; terrasses : terrasse OU jardin). Pure."""
+    POSITIVE du produit (piscines : oui ; terrasses : terrasse OU jardin) —
+    un combo compte positif dès qu'un de ses composants l'est. Pure."""
     maj, _ = consensus(votes)
-    return maj in positifs
+    return maj is not None and bool(set(maj.split("+")) & set(positifs))
 
 
 def choisir_moins_vu(ids: list[str], compte: Counter, rng: random.Random,
@@ -630,10 +638,10 @@ class Handler(BaseHTTPRequestHandler):
                             continue
                         total_v += 1
                         maj, acc = consensus(vs)
-                        conforme = (maj is None) or (dern == maj)
+                        conforme = (maj is None) or votes_compatibles(dern, maj)
                         if i in ors:
                             ors_tot += 1
-                            ors_ok += int(dern == ors[i])
+                            ors_ok += int(votes_compatibles(dern, ors[i]))
                         if conforme:
                             valides += 1
             taux_or = (ors_ok / ors_tot) if ors_tot else None
@@ -656,8 +664,9 @@ class Handler(BaseHTTPRequestHandler):
                     maj, _ = consensus(vs)
                     if maj is not None:
                         tranches += 1
-                        if maj in classes:
-                            classes[maj] += 1
+                        for part in maj.split("+"):   # un combo compte partout
+                            if part in classes:
+                                classes[part] += 1
                 adresses = sum(1 for vs in self.votes.tout(nom, "adresse").values()
                                if consensus(vs)[0] not in (None, "aucune", "indecis"))
                 out["produits"][nom] = {"classes": classes, "tranches": tranches,
@@ -681,7 +690,7 @@ class Handler(BaseHTTPRequestHandler):
                 maj = cons.get((prod, mode, i))
                 if maj is not None:
                     s["vus"] += 1
-                    s["ok"] += int(rep == maj)
+                    s["ok"] += int(votes_compatibles(rep, maj))
             tableau = [{"trieur": t, "votes": s["votes"],
                         "accord": round(s["ok"] / s["vus"], 3) if s["vus"] else None}
                        for t, s in stats.items()]
@@ -899,14 +908,28 @@ class Handler(BaseHTTPRequestHandler):
             trieur = invite["nom"]          # l'identité vient du serveur
         # 'indecis' = « je ne peux pas répondre » : un vrai vote (l'item ne
         # reviendra pas cette passe), jamais vendu, exclu du consensus utile.
-        valides = {"existence": {r[0] for r in PRODUITS[produit]["reponses"]}
-                   | {v[0] for v in VOCAB_FAST}}
-        if mode not in MODES or (mode in valides and reponse not in valides[mode]):
+        if mode not in MODES:
             self._json({"erreur": "mode ou réponse invalide"}, 400)
             return
-        # Canonise le vocabulaire FAST vers celui du produit (« piscine » → « oui »)
-        # AVANT écriture : une seule classe positive en base, or et consensus intacts.
-        reponse = PRODUITS[produit].get("canonique", {}).get(reponse, reponse)
+        if mode == "existence":
+            # Combos multi-classes (« piscine+jardin » : une zone rouge qui fait
+            # le tour d'une maison peut contenir plusieurs choses). Seules les
+            # classes POSITIVES se cumulent ; non/incertain restent seuls.
+            valides = ({r[0] for r in PRODUITS[produit]["reponses"]}
+                       | {v[0] for v in VOCAB_FAST})
+            positifs_fast = ({v[0] for v in VOCAB_FAST if v[3] == "oui"}
+                             | set(PRODUITS[produit]["positifs"]))
+            parts = reponse.split("+")
+            ok = (reponse in valides if len(parts) == 1
+                  else all(p in positifs_fast for p in parts))
+            if not ok:
+                self._json({"erreur": "mode ou réponse invalide"}, 400)
+                return
+            # Canonise chaque composant vers le vocabulaire du produit
+            # (« piscine » → « oui ») AVANT écriture : une seule classe positive
+            # en base, or et consensus intacts. Combo trié = forme unique.
+            canon = PRODUITS[produit].get("canonique", {})
+            reponse = "+".join(sorted({canon.get(p, p) for p in parts}))
         remplace = bool(corps.get("remplacer"))
         if remplace:
             self.votes.remplacer_dernier(produit, mode, id_item, reponse, trieur)
@@ -1028,9 +1051,23 @@ header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1p
 #cadre{position:relative;background:#000;border:1px solid var(--line);border-radius:var(--r);
        overflow:hidden;box-shadow:0 14px 44px #0009;max-width:100%}
 /* l'image ne doit JAMAIS pousser la hotbar sous le pli : hauteur bornée par
-   la place restante (header 118 + question 66 + hotbar 96 + aide 40 + marges) */
-#cadre img,#cadre svg{display:block;max-width:100%;width:auto;height:auto;
-       max-height:calc(100vh - 330px);min-height:300px;transition:transform .12s ease-out}
+   la place restante — et chaque panneau PLIÉ lui rend ses pixels */
+/* vignettes et fonds sont CARRÉS : on pilote par la largeur = hauteur dispo,
+   upscale autorisé (rendu pixelated, net) — l'image prend TOUTE la place */
+#cadre img,#cadre svg{display:block;height:auto;min-width:300px;
+       width:min(calc(100vh - 350px), 86vw);transition:transform .12s ease-out}
+body.sans-hotbar #boutons{display:none}
+body.sans-aide #nav-aide{display:none!important}
+body.sans-stats #gauche{display:none}
+body.sans-stats #zone{grid-template-columns:minmax(0,1fr) auto}
+body.sans-hotbar #cadre img,body.sans-hotbar #cadre svg{width:min(calc(100vh - 248px), 86vw)}
+body.sans-aide #cadre img,body.sans-aide #cadre svg{width:min(calc(100vh - 300px), 86vw)}
+body.sans-aide.sans-hotbar #cadre img,body.sans-aide.sans-hotbar #cadre svg{width:min(calc(100vh - 200px), 86vw)}
+#plis{display:flex;gap:4px}
+.pli{background:none;border:1px solid var(--line);border-radius:7px;padding:4px 9px;
+     font-size:.72rem;color:var(--mut);font-family:var(--mono)}
+.pli:hover{border-color:var(--line2);color:var(--ink)}
+.pli.off{opacity:.4;text-decoration:line-through}
 #cadre.zoom img,#cadre.zoom svg{transform:scale(2.2);transform-origin:var(--ox,50%) var(--oy,50%)}
 #cadre.flash-oui{outline:3px solid var(--oui)}
 #cadre.flash-non{outline:3px solid var(--non)}
@@ -1055,6 +1092,7 @@ header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1p
 .keycap.oui .k{background:var(--oui)}.keycap.non .k{background:var(--non)}
 .keycap.unsure .k{background:var(--unsure)}.keycap.aucune .k{background:var(--aucune)}
 .keycap.neutre .k{background:var(--mut)}
+.keycap.sel{border-color:var(--acc);background:#1d2b31;box-shadow:0 0 0 1px var(--acc)}
 #nav-aide{color:var(--mut);font-size:.78rem;line-height:2;text-align:center;max-width:60ch}
 
 /* ---------- adresses (mode SITUER) ---------- */
@@ -1129,6 +1167,11 @@ header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1p
   <div id="niveaux">
    <button class="niveau actif" id="ong-fast" onclick="changerMode('fast')">⚡ CLASSER <span class="sous">clavier</span></button>
    <button class="niveau" id="ong-slow" onclick="changerMode('slow')">🧭 SITUER <span class="sous" id="verrou-adresse">souris</span></button>
+  </div>
+  <div id="plis">
+   <button class="pli" id="pli-stats" onclick="basculerPli('stats')" title="montrer / cacher la chaîne et le classement">📊 stats</button>
+   <button class="pli" id="pli-hotbar" onclick="basculerPli('hotbar')" title="montrer / cacher les boutons (le clavier marche toujours)">🎛 boutons</button>
+   <button class="pli" id="pli-aide" onclick="basculerPli('aide')" title="montrer / cacher l'aide clavier">❔ aide</button>
   </div>
   <div id="chips">
    <div class="chip acc grand" title="votes de la dernière minute — ta vitesse instantanée">v/min<b id="vpm">0</b></div>
@@ -1390,6 +1433,7 @@ function afficherVide(){
 function afficher(r){
   ITEM = r.item; MON_DERNIER = r.mon_dernier || null;
   PRODUIT = ITEM.produit || PRODUIT;   // le vote part vers le produit de L'ITEM
+  CHORD.clear(); HELD.clear();         // l'accord de touches ne survit pas à l'item
   etat(); dessinerHisto();
   const cadre = document.getElementById("cadre");
   cadre.className = "";
@@ -1409,10 +1453,13 @@ function afficher(r){
     document.getElementById("nav-aide").style.display = "";
     document.getElementById("nav-aide").innerHTML =
       VOCAB.map(r => `<kbd>${r.touche.toUpperCase()}</kbd> ${r.libelle.toLowerCase()}`).join(" · ") +
-      ` · <kbd>V</kbd> loupe · <kbd>A</kbd> revenir · <kbd>E</kbd> avancer · <kbd>ESPACE</kbd> passer (restera dû)` +
-      (PRODUIT === "piscines" ? ` · <kbd>F</kbd> puis clic = piscine vue ailleurs` : "");
+      ` · <kbd>V</kbd> loupe · <kbd>Z</kbd> zen · <kbd>A</kbd> revenir · <kbd>E</kbd> avancer · <kbd>ESPACE</kbd> passer (restera dû)` +
+      (PRODUIT === "piscines" ? ` · <kbd>F</kbd> puis clic = piscine vue ailleurs` : "") +
+      `<br>plusieurs choses dans la zone ? <b>maintiens</b> une touche et tape les autres` +
+      ` (ou Shift+clic) : un seul vote « piscine + jardin »`;
     boutons.innerHTML =
-      VOCAB.map(r => `<button class="keycap ${r.style}" onclick="repondre('${r.code}')">` +
+      VOCAB.map(r => `<button class="keycap ${r.style}" data-code="${r.code}" ` +
+                    `onclick="clicRep(event,'${r.code}','${r.style}')">` +
                     `<span class="k">${r.touche.toUpperCase()}</span>${r.libelle}</button>`).join("") +
       (PRODUIT === "piscines"
         ? `<button class="keycap aucune" onclick="armerSignal()"><span class="k">F</span>Je vois une piscine ailleurs</button>` : "");
@@ -1506,7 +1553,7 @@ async function repondre(rep){
   dernierVoteT = Date.now();
   const cadre = document.getElementById("cadre");
   const styleRep = REEL() === "existence"
-    ? (VOCAB.find(r => r.code === rep) || {}).style
+    ? (rep.includes("+") ? "oui" : (VOCAB.find(r => r.code === rep) || {}).style)
     : null;
   cadre.className = "flash-" + (styleRep || (["aucune","indecis"].includes(rep) ? rep : "adresse"));
   if (!correction){
@@ -1609,9 +1656,9 @@ function dessinerHisto(){
     const d = document.createElement("div");
     let cls = "pas";
     if (e.rep){
-      // « oui » = code canonique serveur (fast « piscine » réécrit à l'écriture)
+      // « oui » = code canonique serveur ; un combo « x+y » est positif
       const st = (VOCAB.find(r => r.code === e.rep) || {}).style ||
-                 (e.rep === "oui" ? "oui" : null);
+                 (e.rep === "oui" || e.rep.includes("+") ? "oui" : null);
       cls += " " + (st || (["aucune","indecis"].includes(e.rep) ? e.rep : "adresse"));
     }
     if (k === idx[cle()]) cls += " courant";
@@ -1622,6 +1669,55 @@ function dessinerHisto(){
   });
   conteneur.scrollLeft = conteneur.scrollWidth;
 }
+
+// Plis : chaque panneau se cache pour rendre ses pixels à l'image. Persisté.
+const PLIS = ["stats", "hotbar", "aide"];
+function basculerPli(p, etat){
+  const off = etat !== undefined ? etat : !document.body.classList.contains("sans-" + p);
+  document.body.classList.toggle("sans-" + p, off);
+  document.getElementById("pli-" + p).classList.toggle("off", off);
+  localStorage.setItem("atelier_pli_" + p, off ? "1" : "0");
+}
+PLIS.forEach(p => { if (localStorage.getItem("atelier_pli_" + p) === "1") basculerPli(p, true); });
+function modeZen(){   // Z : tout plier / tout rouvrir d'un coup
+  const tout = PLIS.every(p => document.body.classList.contains("sans-" + p));
+  PLIS.forEach(p => basculerPli(p, !tout));
+}
+
+// État de l'accord de touches (multi-classes). HELD = touches physiquement
+// enfoncées, CHORD = classes accumulées ; tout relâché → le combo part.
+const HELD = new Set(), CHORD = new Set();
+function majSel(){
+  document.querySelectorAll("#boutons .keycap[data-code]").forEach(b =>
+    b.classList.toggle("sel", CHORD.has(b.dataset.code)));
+}
+function validerChord(){
+  const combo = [...CHORD].sort().join("+");
+  CHORD.clear(); HELD.clear(); majSel();
+  repondre(combo);
+}
+// À la souris : clic = vote instantané ; Shift+clic (ou clic pendant un accord
+// en cours) = cumul, ENTRÉE ou re-clic simple pour valider.
+function clicRep(ev, code, style){
+  if (style === "oui"){
+    if (ev.shiftKey || CHORD.size){
+      CHORD.has(code) ? CHORD.delete(code) : CHORD.add(code);
+      majSel();
+      if (CHORD.size) toast("cumul : " + [...CHORD].join(" + ") + " · ENTRÉE pour valider");
+      return;
+    }
+    return repondre(code);
+  }
+  CHORD.clear(); HELD.clear(); majSel();   // « non »/« incertain » ne se cumulent pas
+  repondre(code);
+}
+document.addEventListener("keyup", e => {
+  if (REEL() !== "existence" || !CHORD.size) return;
+  const rep = VOCAB.find(r => r.touche === e.key.toLowerCase() && r.style === "oui");
+  if (!rep) return;
+  HELD.delete(rep.code);
+  if (HELD.size === 0) validerChord();
+});
 
 const AZERTY = {"&":0, "é":1, '"':2, "'":3, "(":4, "-":5, "è":6, "_":7, "ç":8};
 // Mapping main gauche défini par JB (2026-07-16) : Q=oui, D=non, A=arrière,
@@ -1640,9 +1736,20 @@ document.addEventListener("keydown", e => {
   if (k === "arrowright" || k === "e") return suivant();
   if (k === " "){ e.preventDefault(); return suivant(); }
   if (k === "v") return document.getElementById("cadre").classList.toggle("zoom");
+  if (k === "z") return modeZen();
   if (REEL() === "existence"){
     const rep = VOCAB.find(r => r.touche === k);
-    if (rep) repondre(rep.code);
+    if (rep){
+      if (rep.style === "oui"){
+        // ACCORD DE TOUCHES : maintiens une classe et tape les autres — le
+        // vote part au relâchement, cumulé (« piscine+jardin »). Un tap seul
+        // reste un vote instantané : keydown sélectionne, keyup envoie.
+        if (!e.repeat){ HELD.add(rep.code); CHORD.add(rep.code); majSel(); }
+      } else {
+        CHORD.clear(); HELD.clear(); majSel(); repondre(rep.code);
+      }
+    }
+    else if (k === "enter" && CHORD.size) validerChord();
     else if (k === "n") repondre("non");
     else if (k === "u") repondre("incertain");
     else if (k === "a") precedent();

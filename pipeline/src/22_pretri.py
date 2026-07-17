@@ -157,7 +157,9 @@ def labels_consensus(db: Path, produit: str) -> pd.Series:
         c = Counter(vs).most_common()
         if len(c) > 1 and c[0][1] == c[1][1]:
             continue
-        if c[0][0] == "oui":
+        # Les votes multi-classes de l'Atelier sont des combos « jardin+oui » :
+        # un composant « oui » suffit (la piscine est là, peu importe le reste).
+        if "oui" in c[0][0].split("+"):
             lab[i] = 1
         elif c[0][0] == "non":
             lab[i] = 0

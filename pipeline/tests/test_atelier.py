@@ -117,3 +117,16 @@ def test_vocab_fast_coherent_avec_les_produits():
     assert atelier.PRODUITS["piscines"]["canonique"]["piscine"] == "oui"
     # terrasses : les codes fast positifs sont déjà natifs
     assert {"terrasse", "jardin"} <= {c for c, *_ in atelier.PRODUITS["terrasses"]["reponses"]}
+
+
+def test_combos_multi_classes():
+    """Une zone rouge peut contenir plusieurs choses : le combo « x+y » compte
+    positif dès qu'un composant l'est, et reste compatible avec un vote simple."""
+    assert atelier.votes_compatibles("piscine+jardin", "piscine")
+    assert atelier.votes_compatibles("oui", "jardin+oui")
+    assert not atelier.votes_compatibles("non", "jardin+terrasse")
+    # majorité combo → débloque le niveau adresse si un composant est positif
+    assert atelier.existence_acquise(["jardin+oui", "jardin+oui"], positifs=("oui",))
+    assert atelier.existence_acquise(["jardin+terrasse"], positifs=("terrasse", "jardin"))
+    assert not atelier.existence_acquise(["non", "non"], positifs=("oui",))
+    assert not atelier.existence_acquise([], positifs=("oui",))

@@ -163,6 +163,24 @@ guides UI d'annotation (hotkeys/zéro friction) + principes HUD jeu (juice,
 paliers). Vérifié navigateur (CLASSER, SITUER, recap), 0 erreur console,
 266 tests verts, serveur 8199 relancé.
 
+**Nouveau (2026-07-17 soir — COMBOS + PLIS, session Fable, retours JB)** :
+(1) **Votes multi-classes** : une zone rouge qui fait le tour d'une maison peut
+contenir piscine ET terrasse ET jardin → **accord de touches** (maintenir Q et
+taper W/X : le vote part au relâchement, cumulé « jardin+oui+terrasse » ;
+Shift+clic à la souris ; ENTRÉE valide). Serveur : combos limités aux classes
+POSITIVES, canonisés composant par composant, triés (forme unique) ;
+`existence_acquise`/or/gains/classement passent en **compatibilité par
+composants** (`votes_compatibles`) ; `/api/impact` compte chaque composant ;
+`22_pretri.labels_consensus` reconnaît « oui » dans un combo (sinon items
+silencieusement écartés de l'entraînement). ⚠ Le consensus entre un combo et
+un vote simple reste STRICT (majorité de chaînes) : si les combos se
+généralisent, passer à un consensus par composant (noté, pas bloquant).
+(2) **Plis** : boutons 📊 stats / 🎛 boutons / ❔ aide dans le header — chaque
+panneau caché rend ses pixels à l'image (dimensionnement par largeur, upscale
+pixelated autorisé) ; **Z = mode zen** (tout plier). Préférences persistées.
+Vérifié navigateur (accord Q+X → « jardin+piscine », POST canonisé
+« jardin+oui », rejet « non+piscine », zen sans débord), 267 tests verts.
+
 ## Arbre des tâches (mis à jour 2026-07-17)
 
 - **[HUMAIN] D0 — pré-vente** : inchangé, priorité n°1, rien ne le remplace.
