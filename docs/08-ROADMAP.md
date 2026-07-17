@@ -133,11 +133,16 @@ candidats constante. Rapport : `data/interim/pretri/piscines_evaluation.md`.
 ## Arbre des tâches (mis à jour 2026-07-17)
 
 - **[HUMAIN] D0 — pré-vente** : inchangé, priorité n°1, rien ne le remplace.
-- **[OPUS] 13 — CoSIA via WMS (débloqué SANS le disque NOIR, veille 2026-07-17)** :
-  couche `IGNF_COSIA_2021-2023` sur data.geopf.fr/wms-r ; requêter chaque crop
-  candidat, compter les pixels classe Piscine → feature du pré-tri + mesure
-  rappel/précision vs consensus humain Bouchemaine. Le disque NOIR ne sert plus
-  qu'au bulk départemental.
+- **[OPUS] 13 — CoSIA via WMS : PRÊT À LANCER (module écrit, non exécuté —
+  décision JB 2026-07-17 : attendre plus de farm pour une vérité plus épaisse)**.
+  Module `14_cosia.py` : couche `IGNF_COSIA_2021-2023` (millésime = notre BD
+  ORTHO 2022), classe Piscine auto-calibrée RGB(98,208,255), crop 40 m / 64 px
+  par candidat, cache disque reprise-compatible, politesse 0,05 s/requête.
+  **Relance en UNE commande** :
+  `.venv/bin/python pipeline/src/14_cosia.py --candidats data/interim/piscines_candidates_49_49035.parquet`
+  → ajoute `cosia_frac` au parquet (le pré-tri 22 la prendra comme feature au
+  prochain `train`) + imprime rappel/précision CoSIA vs consensus humain.
+  ~977 requêtes ≈ 3-5 min. Puis réentraîner : `22_pretri.py train`.
 - **[FABLE] CNN anti-bâchées via FLAIR** : fine-tuner un modèle IGN pré-entraîné
   sur BD ORTHO avec classe piscine (HF : IGNF/FLAIR-INC_rgb_15cl_resnet34-deeplabv3)
   — remplace l'entraînement from scratch envisagé.
