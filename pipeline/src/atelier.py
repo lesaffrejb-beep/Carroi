@@ -57,6 +57,18 @@ log = logging.getLogger("atelier")
 
 MODES = ("existence", "adresse")
 
+# Mode FAST : UNE question pour tous les thèmes — « que voyez-vous dans la zone
+# rouge ? » — binds façon barre d'action de jeu (main gauche, sans Shift).
+# Chaque code compte pour TOUS les produits : « terrasse » sur un candidat
+# piscine = négatif piscines ET exemple d'entraînement multi-classes (docs/18).
+VOCAB_FAST = [
+    ("piscine",  "q", "Piscine",                    "oui"),
+    ("terrasse", "w", "Terrasse / dallage",         "oui"),
+    ("jardin",   "x", "Jardin / pelouse dégagée",   "oui"),
+    ("non",      "d", "Rien de tout ça",            "non"),
+    ("incertain","s", "Impossible à dire",          "unsure"),
+]
+
 # Registre des produits farmables. En ajouter un = une entrée ici + un parquet de
 # candidats + des vignettes (16_tri_visuel --out-dir dédié). Le niveau adresse
 # n'existe que si le produit a une base adressée (20_join).
@@ -71,6 +83,10 @@ PRODUITS = {
             ("incertain", "s", "Impossible à dire", "unsure"),
         ],
         "positifs": ["oui"],
+        # Le vocabulaire FAST dit « piscine » là où le produit dit « oui » :
+        # on canonise À L'ÉCRITURE, sinon le consensus se scinde en deux
+        # classes positives et les items-or (semés en « oui ») ne matchent plus.
+        "canonique": {"piscine": "oui"},
         "candidats": "piscines_candidates_49_49035.parquet",
         "vignettes": "tri/vignettes",
         "vignette_m": 60,
@@ -542,6 +558,31 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = parse_qs(u.query)
         d, v = self._produit(q), self.votes
+        if u.path == "/api/etat" and q.get("produit", [""])[0] == "tous":
+            # État agrégé sur TOUS les produits (HUD des modes fast/slow, qui
+            # servent l'union des files) : sommes, passe = min, accord pondéré.
+            etats = [etat_global(p, v) for p in self.produits.values()]
+            out = {}
+            for mode in MODES:
+                accs = [(e[mode]["accord_moyen"], e[mode]["votes"])
+                        for e in etats if e[mode]["accord_moyen"] is not None]
+                poids = sum(w for _, w in accs)
+                passes = [e[mode]["passe_courante"] for e in etats if e[mode]["items"]]
+                out[mode] = {
+                    "items": sum(e[mode]["items"] for e in etats),
+                    "passe_courante": min(passes) if passes else 0,
+                    "restants_cette_passe": sum(e[mode]["restants_cette_passe"]
+                                                for e in etats),
+                    "votes": sum(e[mode]["votes"] for e in etats),
+                    "accord_moyen": round(sum(a * w for a, w in accs) / poids, 3)
+                                    if poids else None,
+                }
+            out["xp"] = v.total()
+            trieur = q.get("trieur", [""])[0]
+            if trieur:
+                out["rythme"] = v.stats_trieur(trieur)
+            self._json(out)
+            return
         if d is None:
             self.send_error(404, "produit inconnu")
             return
@@ -601,6 +642,65 @@ class Handler(BaseHTTPRequestHandler):
             self._csv(v.signalements_csv(), "signalements.csv")
         elif u.path == "/api/tache":
             mode = q.get("mode", ["existence"])[0]
+            if mode in ("fast", "slow"):
+                # Union des files de tous les produits : on sert le produit qui a
+                # le plus de restants dans la passe courante (couverture équilibrée).
+                reel = "existence" if mode == "fast" else "adresse"
+                sauf = q.get("sauf", [None])[0]
+                invite = self._invite(q.get("jeton", [None])[0])
+                if invite and invite["gele"]:
+                    self._json({"gele": True}, 403)
+                    return
+                if reel == "existence" and invite and self.rng.random() < 0.10:
+                    for nom_or in self.rng.sample(list(self.produits), len(self.produits)):
+                        ors = self._ors(nom_or, "existence")
+                        if ors:
+                            item = self.produits[nom_or].item_existence(
+                                self.rng.choice(list(ors)))
+                            if item:
+                                item["produit"] = nom_or
+                                self._json({"item": item, "deja_vu": 0,
+                                            "mon_dernier": None})
+                                return
+                meilleurs = []
+                for nom, dp in self.produits.items():
+                    if reel == "existence":
+                        dispo = dp.ids_disponibles()
+                        ids = [i for i in dp.candidats["id_detection"]
+                               if i in dispo and i != sauf]
+                    else:
+                        ids = [i for i in ids_adresse_debloques(
+                                   dp, v.tout(nom, "existence"))
+                               if i != sauf and dp.item_adresse(i)]
+                    if not ids:
+                        continue
+                    compte = v.compte_par_item(nom, reel)
+                    mini = min(compte.get(i, 0) for i in ids)
+                    restants = sum(1 for i in ids if compte.get(i, 0) == mini)
+                    meilleurs.append((mini, -restants, nom, ids, compte))
+                if not meilleurs:
+                    self._json({"vide": True})
+                    return
+                meilleurs.sort()
+                _, _, nom, ids, compte = meilleurs[0]
+                dp = self.produits[nom]
+                tout = v.tout(nom, reel)
+                contestes = {i for i, vs in tout.items()
+                             if consensus(vs)[0] is None and vs}
+                id_item = choisir_moins_vu(ids, compte, self.rng,
+                                           prioritaires=contestes)
+                item = (dp.item_existence(id_item) if reel == "existence"
+                        else dp.item_adresse(id_item))
+                if item is None:
+                    self._json({"vide": True})
+                    return
+                item["produit"] = nom
+                trieur = q.get("trieur", [""])[0]
+                self._json({"item": item,
+                            "deja_vu": len(v.votes_item(nom, reel, id_item)),
+                            "mon_dernier": v.dernier_de(nom, reel, id_item, trieur)
+                                           if trieur else None})
+                return
             sauf = q.get("sauf", [None])[0]
             invite = self._invite(q.get("jeton", [None])[0])
             if invite and invite["gele"]:
@@ -639,6 +739,7 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/api/item":
             # Item PRÉCIS (navigation avant/arrière dans l'historique de session).
             mode = q.get("mode", ["existence"])[0]
+            mode = {"fast": "existence", "slow": "adresse"}.get(mode, mode)
             id_item = q.get("id", [""])[0]
             trieur = q.get("trieur", [""])[0]
             item = d.item_existence(id_item) if mode == "existence" else d.item_adresse(id_item)
@@ -739,6 +840,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"erreur": "produit inconnu"}, 400)
             return
         mode, id_item = corps["mode"], str(corps["id_item"])
+        mode = {"fast": "existence", "slow": "adresse"}.get(mode, mode)
         reponse, trieur = str(corps["reponse"]), str(corps.get("trieur") or "anonyme")
         invite = self._invite(corps.get("jeton"))
         if invite:
@@ -748,10 +850,14 @@ class Handler(BaseHTTPRequestHandler):
             trieur = invite["nom"]          # l'identité vient du serveur
         # 'indecis' = « je ne peux pas répondre » : un vrai vote (l'item ne
         # reviendra pas cette passe), jamais vendu, exclu du consensus utile.
-        valides = {"existence": {r[0] for r in PRODUITS[produit]["reponses"]}}
+        valides = {"existence": {r[0] for r in PRODUITS[produit]["reponses"]}
+                   | {v[0] for v in VOCAB_FAST}}
         if mode not in MODES or (mode in valides and reponse not in valides[mode]):
             self._json({"erreur": "mode ou réponse invalide"}, 400)
             return
+        # Canonise le vocabulaire FAST vers celui du produit (« piscine » → « oui »)
+        # AVANT écriture : une seule classe positive en base, or et consensus intacts.
+        reponse = PRODUITS[produit].get("canonique", {}).get(reponse, reponse)
         remplace = bool(corps.get("remplacer"))
         if remplace:
             self.votes.remplacer_dernier(produit, mode, id_item, reponse, trieur)
@@ -913,16 +1019,9 @@ body{padding-bottom:52px}
 <header>
  <div id="hud">
   <div id="marque">L'ATELIER<small>Bouchemaine</small></div>
-  <div style="display:flex;flex-direction:column;gap:5px">
-   <div style="display:flex;gap:6px;align-items:center">
-    <span style="font-size:.68rem;letter-spacing:.12em;color:var(--mut);font-family:var(--mono)">THÈME</span>
-    <span id="produits-sel" style="display:flex;gap:6px"></span>
-   </div>
-   <div id="niveaux" style="display:flex;gap:6px;align-items:center">
-    <span style="font-size:.68rem;letter-spacing:.12em;color:var(--mut);font-family:var(--mono)">NIVEAU</span>
-    <button class="niveau actif" id="ong-existence" onclick="changerMode('existence')">1 · Existence</button>
-    <button class="niveau" id="ong-adresse" onclick="changerMode('adresse')">2 · Adresse <span class="sous" id="verrou-adresse"></span></button>
-   </div>
+  <div id="niveaux" style="display:flex;gap:6px;align-items:center">
+   <button class="niveau actif" id="ong-fast" onclick="changerMode('fast')">⚡ CLASSER <span class="sous">clavier</span></button>
+   <button class="niveau" id="ong-slow" onclick="changerMode('slow')">🧭 SITUER <span class="sous" id="verrou-adresse">souris</span></button>
   </div>
   <div id="chips">
    <div class="chip">passe<b id="passe">—</b></div>
@@ -961,7 +1060,16 @@ body{padding-bottom:52px}
 </div>
 
 <script>
-let PRODUIT = "piscines", PRODUITS = {}, MODE = "existence", ITEM = null, MON_DERNIER = null, serie = 0;
+const VOCAB = [
+  {code:"piscine",  touche:"q", libelle:"Piscine",                  style:"oui"},
+  {code:"terrasse", touche:"w", libelle:"Terrasse / dallage",       style:"oui"},
+  {code:"jardin",   touche:"x", libelle:"Jardin / pelouse dégagée", style:"oui"},
+  {code:"non",      touche:"d", libelle:"Rien de tout ça",          style:"non"},
+  {code:"incertain",touche:"s", libelle:"Impossible à dire",        style:"unsure"},
+];
+let PRODUIT = "piscines", PRODUITS = {}, MODE = "fast", ITEM = null, MON_DERNIER = null, serie = 0;
+// fast = existence (clavier), slow = adresse (souris) — le serveur fait la même équivalence
+const REEL = () => MODE === "slow" ? "adresse" : "existence";
 let actifS = 0, dernierVoteT = null;   // chrono de session (temps ACTIF)
 setInterval(() => {
   if (dernierVoteT && (Date.now() - dernierVoteT) < 60000){
@@ -974,7 +1082,7 @@ setInterval(() => {
 // montre l'item avec sa réponse ; re-répondre CORRIGE le dernier vote.
 const histo = {};   // cle() -> [{id, rep}]
 const idx = {};     // cle() -> curseur
-function cle(){ return PRODUIT + "/" + MODE; }
+function cle(){ return MODE; }
 function H(){ if(!(cle() in histo)){ histo[cle()] = []; idx[cle()] = -1; } return histo[cle()]; }
 const JETON = new URLSearchParams(location.search).get("jeton") || "";
 let TRIEUR = localStorage.getItem("atelier_trieur") || "";
@@ -997,8 +1105,8 @@ async function majGains(){
 setInterval(majGains, 30000); majGains();
 
 async function etat(){
-  const e = await (await fetch("/api/etat?produit=" + PRODUIT + "&trieur=" + encodeURIComponent(TRIEUR))).json();
-  const m = e[MODE];
+  const e = await (await fetch("/api/etat?produit=tous&trieur=" + encodeURIComponent(TRIEUR))).json();
+  const m = e[REEL()];
   document.getElementById("passe").textContent = m.passe_courante;
   document.getElementById("restants").textContent = m.restants_cette_passe;
   document.getElementById("jauge").style.width =
@@ -1014,10 +1122,11 @@ async function etat(){
 
 function changerMode(m){
   MODE = m;
-  document.getElementById("ong-existence").classList.toggle("actif", m === "existence");
-  document.getElementById("ong-adresse").classList.toggle("actif", m === "adresse");
+  document.getElementById("ong-fast").classList.toggle("actif", m === "fast");
+  document.getElementById("ong-slow").classList.toggle("actif", m === "slow");
   dessinerHisto();
-  (idx[cle()] >= 0) ? charger(H()[idx[cle()]].id) : suivant();
+  const h = H();
+  (idx[cle()] >= 0) ? charger(h[idx[cle()]].id, h[idx[cle()]].produit) : suivant();
 }
 
 // Préchargement : pendant que le trieur regarde l'item courant, on va chercher
@@ -1043,7 +1152,8 @@ async function suivant(){
   // avancer : d'abord dans l'historique, sinon une nouvelle tâche « moins vue »
   if (idx[cle()] < H().length - 1){
     idx[cle()]++;
-    return charger(H()[idx[cle()]].id);
+    const e = H()[idx[cle()]];
+    return charger(e.id, e.produit);
   }
   let r;
   if (PRECHARGE && PRECHARGE.cle === cle()){
@@ -1057,30 +1167,31 @@ async function suivant(){
   }
   if (r.vide){ afficherVide(); etat(); return; }
   const id = r.item.id || r.item.id_piscine;
-  H().push({id, rep: r.mon_dernier || null});
+  H().push({id, rep: r.mon_dernier || null, produit: r.item.produit || PRODUIT});
   idx[cle()] = H().length - 1;
   afficher(r);
 }
 function precedent(){
-  if (idx[cle()] > 0){ idx[cle()]--; charger(H()[idx[cle()]].id); }
+  if (idx[cle()] > 0){ idx[cle()]--; const e = H()[idx[cle()]]; charger(e.id, e.produit); }
 }
-async function charger(id){
-  const r = await (await fetch(`/api/item?produit=${PRODUIT}&mode=${MODE}&id=${encodeURIComponent(id)}&trieur=${encodeURIComponent(TRIEUR)}`)).json();
-  if (!r.vide) afficher(r);
+async function charger(id, produit){
+  const r = await (await fetch(`/api/item?produit=${produit || PRODUIT}&mode=${MODE}&id=${encodeURIComponent(id)}&trieur=${encodeURIComponent(TRIEUR)}`)).json();
+  if (!r.vide){ r.item.produit = produit || PRODUIT; afficher(r); }
 }
 
 function afficherVide(){
   document.getElementById("cadre").innerHTML = "";
   document.getElementById("boutons").innerHTML = "";
   document.getElementById("liste-adr").style.display = "none";
-  document.getElementById("question").textContent = MODE === "adresse"
-    ? "Rien à vérifier ici : valide d'abord des piscines au niveau 1."
+  document.getElementById("question").textContent = MODE === "slow"
+    ? "Rien à situer : classe d'abord des zones en mode ⚡."
     : "Tout est fait pour cette passe. Respire, puis relance.";
   document.getElementById("detail").textContent = "";
 }
 
 function afficher(r){
   ITEM = r.item; MON_DERNIER = r.mon_dernier || null;
+  PRODUIT = ITEM.produit || PRODUIT;   // le vote part vers le produit de L'ITEM
   etat(); dessinerHisto();
   const cadre = document.getElementById("cadre");
   cadre.className = "";
@@ -1088,22 +1199,21 @@ function afficher(r){
                  `<span id="badge-vu">${r.deja_vu} vote(s)</span>`;
   const boutons = document.getElementById("boutons");
   const liste = document.getElementById("liste-adr");
-  if (MODE === "existence"){
+  if (REEL() === "existence"){
     cadre.innerHTML = `<img src="${ITEM.png}" width="560" height="560" style="image-rendering:pixelated">` + badges;
     cadre.querySelector("img").addEventListener("click", clicImage);
     modeSignal = false; cadre.style.cursor = "";
-    document.getElementById("question").textContent = PRODUITS[PRODUIT].question;
+    document.getElementById("question").textContent = "Que voyez-vous dans la zone rouge ?";
     document.getElementById("detail").textContent =
-      `${ITEM.surface.toFixed(0)} m² · score ${ITEM.score.toFixed(2)} · ${ITEM.id}`;
+      `${PRODUIT} · ${ITEM.surface.toFixed(0)} m² · score ${ITEM.score.toFixed(2)} · ${ITEM.id}`;
     liste.style.display = "none"; liste.innerHTML = "";
-    const reps = PRODUITS[PRODUIT].reponses;
     document.getElementById("nav-aide").style.display = "";
     document.getElementById("nav-aide").innerHTML =
-      reps.map(r => `<kbd>${r.touche.toUpperCase()}</kbd> ${r.libelle.toLowerCase()}`).join(" · ") +
+      VOCAB.map(r => `<kbd>${r.touche.toUpperCase()}</kbd> ${r.libelle.toLowerCase()}`).join(" · ") +
       ` · <kbd>A</kbd> revenir · <kbd>E</kbd> avancer · <kbd>ESPACE</kbd> passer (restera dû)` +
       (PRODUIT === "piscines" ? ` · <kbd>F</kbd> puis clic = piscine vue ailleurs` : "");
     boutons.innerHTML =
-      reps.map(r => `<button class="keycap ${r.style}" onclick="repondre('${r.code}')">` +
+      VOCAB.map(r => `<button class="keycap ${r.style}" onclick="repondre('${r.code}')">` +
                     `<span class="k">${r.touche.toUpperCase()}</span>${r.libelle}</button>`).join("") +
       (PRODUIT === "piscines"
         ? `<button class="keycap aucune" onclick="armerSignal()"><span class="k">F</span>Je vois une piscine ailleurs</button>` : "");
@@ -1111,8 +1221,8 @@ function afficher(r){
     cadre.innerHTML = svgAdresse(ITEM) + badges;
     cadre.querySelectorAll(".pin").forEach(g =>
       g.addEventListener("click", () => repondre(ITEM.adresses[+g.dataset.k].id_ban)));
-    document.getElementById("question").textContent = "À quelle maison appartient cette piscine ?";
-    document.getElementById("detail").textContent = `piscine ${ITEM.id_piscine}`;
+    document.getElementById("question").textContent = "À quelle maison appartient la zone rouge ?";
+    document.getElementById("detail").textContent = `${PRODUIT} · ${ITEM.id_piscine}`;
     liste.style.display = "block"; liste.innerHTML = "";
     ITEM.adresses.forEach((a, k) => {
       const row = document.createElement("div");
@@ -1185,9 +1295,8 @@ function svgAdresse(it){
 async function repondre(rep){
   if (!TRIEUR){ document.getElementById("modal-trieur").style.display="flex"; return; }
   if (!ITEM) return;
-  const id = MODE === "existence" ? ITEM.id : ITEM.id_piscine;
+  const id = REEL() === "existence" ? ITEM.id : ITEM.id_piscine;
   const correction = MON_DERNIER !== null;
-  const rep403 = null;
   const r = await (await fetch("/api/reponse", {method:"POST",
     headers:{"Content-Type":"application/json"},
     body: JSON.stringify({produit: PRODUIT, mode: MODE, id_item: id, reponse: rep,
@@ -1196,8 +1305,8 @@ async function repondre(rep){
   H()[idx[cle()]].rep = rep;
   dernierVoteT = Date.now();
   const cadre = document.getElementById("cadre");
-  const styleRep = (MODE === "existence" && PRODUITS[PRODUIT])
-    ? (PRODUITS[PRODUIT].reponses.find(r => r.code === rep) || {}).style
+  const styleRep = REEL() === "existence"
+    ? (VOCAB.find(r => r.code === rep) || {}).style
     : null;
   cadre.className = "flash-" + (styleRep || (["aucune","indecis"].includes(rep) ? rep : "adresse"));
   if (!correction){
@@ -1232,13 +1341,13 @@ async function repondre(rep){
 
 let modeSignal = false;
 function armerSignal(){
-  if (MODE !== "existence") return;
+  if (REEL() !== "existence") return;
   modeSignal = !modeSignal;
   document.getElementById("cadre").style.cursor = modeSignal ? "crosshair" : "";
   toast(modeSignal ? "clique sur la piscine que tu vois (F pour annuler)" : "signalement annulé");
 }
 async function clicImage(ev){
-  if (!modeSignal || MODE !== "existence" || !ITEM) return;
+  if (!modeSignal || REEL() !== "existence" || !ITEM) return;
   const img = ev.currentTarget;
   const rect = img.getBoundingClientRect();
   const fx = (ev.clientX - rect.left) / rect.width;
@@ -1271,13 +1380,15 @@ function dessinerHisto(){
     const d = document.createElement("div");
     let cls = "pas";
     if (e.rep){
-      const st = (PRODUITS[PRODUIT] ? (PRODUITS[PRODUIT].reponses.find(r => r.code === e.rep) || {}).style : null);
+      // « oui » = code canonique serveur (fast « piscine » réécrit à l'écriture)
+      const st = (VOCAB.find(r => r.code === e.rep) || {}).style ||
+                 (e.rep === "oui" ? "oui" : null);
       cls += " " + (st || (["aucune","indecis"].includes(e.rep) ? e.rep : "adresse"));
     }
     if (k === idx[cle()]) cls += " courant";
     d.className = cls;
     d.title = e.id + (e.rep ? " · " + e.rep : " · sans réponse");
-    d.onclick = () => { idx[cle()] = k; charger(h[k].id); };
+    d.onclick = () => { idx[cle()] = k; charger(h[k].id, h[k].produit); };
     conteneur.appendChild(d);
   });
   conteneur.scrollLeft = conteneur.scrollWidth;
@@ -1296,12 +1407,11 @@ document.addEventListener("keydown", e => {
   if (k === "arrowleft") return precedent();
   if (k === "arrowright" || k === "e") return suivant();
   if (k === " "){ e.preventDefault(); return suivant(); }
-  if (MODE === "existence"){
-    const rep = (PRODUITS[PRODUIT] ? PRODUITS[PRODUIT].reponses : []).find(r => r.touche === k);
+  if (REEL() === "existence"){
+    const rep = VOCAB.find(r => r.touche === k);
     if (rep) repondre(rep.code);
-    else if (k === "o") repondre("oui");
     else if (k === "n") repondre("non");
-    else if (k === "u" && PRODUITS[PRODUIT].reponses.some(r=>r.code==="incertain")) repondre("incertain");
+    else if (k === "u") repondre("incertain");
     else if (k === "a") precedent();
     else if (k === "f" && PRODUIT === "piscines") armerSignal();
   } else {
@@ -1311,27 +1421,13 @@ document.addEventListener("keydown", e => {
     else if (k === "s" || k === "u") repondre("indecis");
   }
 });
-function changerProduit(p){
-  PRODUIT = p;
-  document.querySelectorAll("#produits-sel .produit-pill").forEach(b =>
-    b.classList.toggle("actif", b.dataset.p === p));
-  const aAdresse = PRODUITS[p].adresse;
-  document.getElementById("ong-adresse").style.display = aAdresse ? "" : "none";
-  if (!aAdresse && MODE === "adresse") MODE = "existence";
-  changerMode(MODE);
-}
 (async () => {
+  // Plus de sélecteur de thème : les modes fast/slow servent l'UNION des files
+  // de tous les produits, le serveur choisit l'item et son thème.
   const liste = await (await fetch("/api/produits")).json();
-  const sel = document.getElementById("produits-sel");
-  liste.forEach(p => {
-    PRODUITS[p.nom] = p;
-    const b = document.createElement("button");
-    b.className = "niveau produit-pill"; b.dataset.p = p.nom;
-    b.textContent = p.nom.charAt(0).toUpperCase() + p.nom.slice(1);
-    b.onclick = () => changerProduit(p.nom);
-    sel.appendChild(b);
-  });
-  changerProduit(liste[0].nom);
+  liste.forEach(p => { PRODUITS[p.nom] = p; });
+  PRODUIT = liste[0].nom;
+  changerMode("fast");
 })();
 </script></body></html>
 """

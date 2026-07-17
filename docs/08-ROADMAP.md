@@ -130,6 +130,21 @@ candidat vs son voisinage, GroupKFold par dalle = zéro fuite spatiale).
 4 à farmer.** Le farm des prochaines communes est divisé par ~50 à source de
 candidats constante. Rapport : `data/interim/pretri/piscines_evaluation.md`.
 
+**Nouveau (2026-07-17 après-midi — ATELIER FAST/SLOW, session Fable, demande JB)** :
+l'Atelier abandonne les onglets thème×niveau pour **deux flux façon jeu** :
+**⚡ CLASSER** (clavier, une seule question « Que voyez-vous dans la zone
+rouge ? », vocabulaire global Q=piscine / W=terrasse / X=jardin / D=rien /
+S=impossible, le serveur sert l'UNION des files piscines+terrasses en équilibrant
+la couverture) et **🧭 SITUER** (souris, rattachement adresse, union des files
+adresse). Chaque réponse nourrit TOUS les produits d'un coup et construit le
+dataset multi-classes du futur modèle (docs/18 §IA). Détails techniques :
+codes fast **canonisés à l'écriture** vers le vocabulaire du produit
+(« piscine »→« oui » pour piscines : consensus et items-or intacts),
+`/api/etat?produit=tous` agrège les produits pour le HUD, items-or injectés
+en fast. Vérifié en vrai (serveur 8199 relancé, UI testée navigateur, 0 erreur
+console) ; l'export consensus archivé de JB (235 adresses, 08:42) est dans
+`data/atelier/exports/`. 266 tests verts.
+
 ## Arbre des tâches (mis à jour 2026-07-17)
 
 - **[HUMAIN] D0 — pré-vente** : inchangé, priorité n°1, rien ne le remplace.

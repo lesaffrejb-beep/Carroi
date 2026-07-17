@@ -102,3 +102,18 @@ def test_cadence_suspecte(tmp_path):
         v.ajouter("piscines", "existence", f"p{k}", "non", "bot")
     assert v.cadence_suspecte("bot")
     assert not v.cadence_suspecte("personne_inconnue")
+
+
+def test_vocab_fast_coherent_avec_les_produits():
+    """Mode FAST : les touches sont uniques, et chaque canonisation pointe vers
+    un code natif du produit (sinon un vote « piscine » casserait consensus/or)."""
+    touches = [t for _, t, _, _ in atelier.VOCAB_FAST]
+    assert len(touches) == len(set(touches))
+    for nom, pcfg in atelier.PRODUITS.items():
+        codes = {c for c, *_ in pcfg["reponses"]}
+        for source, cible in pcfg.get("canonique", {}).items():
+            assert cible in codes, f"{nom}: canonique {source}->{cible} hors vocabulaire"
+    # piscines : le code fast « piscine » DOIT se réécrire en « oui »
+    assert atelier.PRODUITS["piscines"]["canonique"]["piscine"] == "oui"
+    # terrasses : les codes fast positifs sont déjà natifs
+    assert {"terrasse", "jardin"} <= {c for c, *_ in atelier.PRODUITS["terrasses"]["reponses"]}
