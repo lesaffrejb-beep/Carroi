@@ -734,7 +734,8 @@ class Handler(BaseHTTPRequestHandler):
         if mode not in MODES or (mode in valides and reponse not in valides[mode]):
             self._json({"erreur": "mode ou réponse invalide"}, 400)
             return
-        if corps.get("remplacer"):
+        remplace = bool(corps.get("remplacer"))
+        if remplace:
             self.votes.remplacer_dernier(produit, mode, id_item, reponse, trieur)
         else:
             self.votes.ajouter(produit, mode, id_item, reponse, trieur)
@@ -746,7 +747,10 @@ class Handler(BaseHTTPRequestHandler):
         vs = self.votes.votes_item(produit, mode, id_item)
         maj, acc = consensus(vs)
         total = self.votes.total()
-        if total % 100 == 0:
+        # Un REMPLACEMENT ne change pas le total : sans ce garde, un compteur
+        # posé pile sur un multiple de 100 redéclenchait la pause à CHAQUE
+        # correction (bug signalé par JB le 2026-07-17).
+        if not remplace and total % 100 == 0:
             # Point de sauvegarde : consensus du produit dumpé sur disque (en plus
             # du SQLite qui, lui, est écrit à CHAQUE vote).
             dossier = Path(self.produits[produit].cache_dir).parent / "exports"
@@ -758,7 +762,8 @@ class Handler(BaseHTTPRequestHandler):
             (dossier / f"{produit}_{mode}_consensus.csv").write_text(
                 "\n".join(lignes) + "\n", encoding="utf-8")
         self._json({"ok": True, "n_votes": len(vs), "majorite": maj, "accord": acc,
-                    "total": total, "checkpoint": total % 100 == 0})
+                    "total": total,
+                    "checkpoint": (not remplace) and total % 100 == 0})
 
 
 # ------------------------------------------------------------------ page HTML
@@ -770,10 +775,13 @@ PAGE_HTML = """<!doctype html>
    comme tous les benchs de labellisation. Un seul accent (lime = récolte/XP),
    la sémantique des réponses (oui/non/indécis/aucune) est un axe séparé. */
 :root{
-  --bg:#0f1115; --panel:#151920; --raise:#1c2129; --line:#272e39;
-  --ink:#e7ebf2; --mut:#8b94a3; --acc:#a3e635; --acc-ink:#1a2405;
-  --oui:#2fbf71; --non:#e5484d; --unsure:#f0a020; --aucune:#b083f0;
-  --r:10px; --mono:ui-monospace,'SF Mono',Menlo,monospace;
+  /* Palette « salle de cartographie » : sombre chaud (pas de noir bleuté),
+     encre ivoire, UN accent bleu d'eau (le sujet : les bassins), sémantique
+     feutrée. Bannis : lime acide, violets fluo, dégradés — signatures IA. */
+  --bg:#16171a; --panel:#1c1e22; --raise:#25272d; --line:#33353d;
+  --ink:#eae7df; --mut:#98948a; --acc:#5ab5c7; --acc-ink:#0c2830;
+  --oui:#4d9d74; --non:#c86053; --unsure:#cf9c44; --aucune:#9c8bbd;
+  --r:8px; --mono:ui-monospace,'SF Mono',Menlo,monospace;
 }
 *{box-sizing:border-box}
 body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:var(--bg);color:var(--ink)}
@@ -790,6 +798,7 @@ header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1p
 .niveau{padding:7px 14px;border-radius:999px;background:var(--raise);border:1px solid var(--line);
         color:var(--mut);font-weight:600;font-size:.88rem;border-bottom-width:2px}
 .niveau.actif{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+.produit-pill.actif{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .niveau .sous{font-weight:normal;font-size:.78rem;opacity:.8}
 #chips{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
 .chip{background:var(--raise);border:1px solid var(--line);border-radius:8px;padding:4px 10px;
@@ -885,10 +894,16 @@ body{padding-bottom:52px}
 <header>
  <div id="hud">
   <div id="marque">L'ATELIER<small>Bouchemaine</small></div>
-  <div id="produits-sel" style="display:flex;gap:6px"></div>
-  <div id="niveaux">
-   <button class="niveau actif" id="ong-existence" onclick="changerMode('existence')">Niveau 1 · Existence</button>
-   <button class="niveau" id="ong-adresse" onclick="changerMode('adresse')">Niveau 2 · Adresse <span class="sous" id="verrou-adresse"></span></button>
+  <div style="display:flex;flex-direction:column;gap:5px">
+   <div style="display:flex;gap:6px;align-items:center">
+    <span style="font-size:.68rem;letter-spacing:.12em;color:var(--mut);font-family:var(--mono)">THÈME</span>
+    <span id="produits-sel" style="display:flex;gap:6px"></span>
+   </div>
+   <div id="niveaux" style="display:flex;gap:6px;align-items:center">
+    <span style="font-size:.68rem;letter-spacing:.12em;color:var(--mut);font-family:var(--mono)">NIVEAU</span>
+    <button class="niveau actif" id="ong-existence" onclick="changerMode('existence')">1 · Existence</button>
+    <button class="niveau" id="ong-adresse" onclick="changerMode('adresse')">2 · Adresse <span class="sous" id="verrou-adresse"></span></button>
+   </div>
   </div>
   <div id="chips">
    <div class="chip">passe<b id="passe">—</b></div>
@@ -900,7 +915,8 @@ body{padding-bottom:52px}
    <div class="chip">session<b id="chrono">0:00</b></div>
    <div class="chip">rythme<b id="rythme">—</b></div>
   </div>
-  <button id="btn-export" onclick="location.href='/api/export/'+MODE+'.csv?produit='+PRODUIT">Exporter</button>
+  <span style="font-size:.72rem;color:var(--mut);font-family:var(--mono)" title="Chaque réponse est écrite en base à l'instant du clic. Le CSV n'est qu'une copie de consultation.">✓ sauvegarde auto<br>
+   <a href="#" onclick="location.href='/api/export/'+MODE+'.csv?produit='+PRODUIT;return false" style="color:var(--acc)">télécharger le CSV</a></span>
  </div>
  <div id="jauge-fond"><div id="jauge"></div></div>
 </header>
@@ -1111,10 +1127,36 @@ function svgAdresse(it){
     const d = "M" + ring.map(p=>p.join(",")).join(" L") + " Z";
     s += `<path d="${d}" fill="rgba(255,45,85,0.15)" stroke="#ff2d55" stroke-width="2.5"/>`;
   }
+  // Anti-chevauchement : les pastilles proches se repoussent (répulsion
+  // itérative), un trait fin relie chaque pastille à sa VRAIE position —
+  // en lotissement dense, 5 numéros pouvaient se superposer et bloquer le clic.
+  const pos = it.adresses.map(a => ({x: a.x, y: a.y}));
+  const R = 13, MIN = 2 * R + 2;
+  for (let iter = 0; iter < 60; iter++){
+    let bouge = false;
+    for (let i = 0; i < pos.length; i++) for (let j = i + 1; j < pos.length; j++){
+      let dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y;
+      let d = Math.hypot(dx, dy);
+      if (d < MIN){
+        if (d < 1){ dx = 1; dy = 0; d = 1; }
+        const p = (MIN - d) / 2 / d;
+        pos[i].x -= dx * p; pos[i].y -= dy * p;
+        pos[j].x += dx * p; pos[j].y += dy * p;
+        bouge = true;
+      }
+    }
+    if (!bouge) break;
+  }
+  pos.forEach(q => { q.x = Math.min(P - R, Math.max(R, q.x));
+                     q.y = Math.min(P - R, Math.max(R, q.y)); });
   it.adresses.forEach((a, k) => {
-    s += `<g class="pin" data-k="${k}" style="cursor:pointer">`+
-         `<circle cx="${a.x}" cy="${a.y}" r="12" fill="#1565c0" stroke="#000" stroke-width="1.5"/>`+
-         `<text x="${a.x}" y="${a.y}" fill="#fff" font-size="13" font-weight="bold" text-anchor="middle" dominant-baseline="central" pointer-events="none">${k+1}</text></g>`;
+    const q = pos[k];
+    const deplace = Math.hypot(q.x - a.x, q.y - a.y) > 2;
+    s += `<g class="pin" data-k="${k}" style="cursor:pointer">` +
+         (deplace ? `<line x1="${a.x}" y1="${a.y}" x2="${q.x}" y2="${q.y}" stroke="#eae7df" stroke-width="1" opacity="0.55"/>` +
+                    `<circle cx="${a.x}" cy="${a.y}" r="2.5" fill="#eae7df" opacity="0.8"/>` : "") +
+         `<circle cx="${q.x}" cy="${q.y}" r="${R}" fill="#2b5f8a" stroke="#000" stroke-width="1.5"/>` +
+         `<text x="${q.x}" y="${q.y}" fill="#fff" font-size="13" font-weight="bold" text-anchor="middle" dominant-baseline="central" pointer-events="none">${k+1}</text></g>`;
   });
   return s + "</svg>";
 }
@@ -1242,7 +1284,7 @@ document.addEventListener("keydown", e => {
 });
 function changerProduit(p){
   PRODUIT = p;
-  document.querySelectorAll("#produits-sel .niveau").forEach(b =>
+  document.querySelectorAll("#produits-sel .produit-pill").forEach(b =>
     b.classList.toggle("actif", b.dataset.p === p));
   const aAdresse = PRODUITS[p].adresse;
   document.getElementById("ong-adresse").style.display = aAdresse ? "" : "none";
@@ -1255,7 +1297,7 @@ function changerProduit(p){
   liste.forEach(p => {
     PRODUITS[p.nom] = p;
     const b = document.createElement("button");
-    b.className = "niveau"; b.dataset.p = p.nom;
+    b.className = "niveau produit-pill"; b.dataset.p = p.nom;
     b.textContent = p.nom.charAt(0).toUpperCase() + p.nom.slice(1);
     b.onclick = () => changerProduit(p.nom);
     sel.appendChild(b);
