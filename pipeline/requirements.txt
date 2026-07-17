@@ -14,3 +14,4 @@ scipy>=1.11          # binary_fill_holes (détection 15_)
 pillow>=10.0         # vignettes PNG du tri visuel (16_)
 openpyxl>=3.1        # livrable client .xlsx (40_export : en-tête figé, filtres, largeurs)
 pytest>=8.0          # suite de tests pipeline/tests/ (garde-fous algorithmiques)
+scikit-learn

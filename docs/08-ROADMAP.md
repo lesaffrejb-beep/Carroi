@@ -121,6 +121,37 @@ cliquer » en tête de README.
 produit (Bouchemaine = fait pour piscines) → démarchage pour trouver QUI PAYE →
 industrialisation Angers / 49 / Pays de la Loire seulement si un marché niche paye.
 
+**Nouveau (2026-07-17 matin — PRÉ-TRI APPRIS, session Fable)** :
+`22_pretri.py` entraîne un HistGradientBoosting calibré sur les labels
+multi-passes de l'Atelier (features : géométrie + couleur DANS le polygone
+candidat vs son voisinage, GroupKFold par dalle = zéro fuite spatiale).
+**Mesuré sur Bouchemaine : AUC 0,997 → 977 candidats coupés en 718 auto-non
+(4 piscines bâchées perdues, 1,7 % assumé) / 249 auto-oui (précision 95 %) /
+4 à farmer.** Le farm des prochaines communes est divisé par ~50 à source de
+candidats constante. Rapport : `data/interim/pretri/piscines_evaluation.md`.
+
+## Arbre des tâches (mis à jour 2026-07-17)
+
+- **[HUMAIN] D0 — pré-vente** : inchangé, priorité n°1, rien ne le remplace.
+- **[HUMAIN] Brancher le disque NOIR** → débloque la tâche 13.
+- **[OPUS] 13 — valider CoSIA** à l'échelle du département (mesures seules).
+- **[OPUS] 12 — bascule candidats CoSIA ∪ SYM=65** (après 13) ; puis réentraîner
+  le pré-tri (`22 train`) sur ces candidats.
+- **[OPUS] Boucle commune suivante** (recette complète) : 12_extraire_dalles →
+  15/CoSIA → 16 (vignettes) → **22 apply (ne farmer que `pretri_verdict=farm`)**
+  → Atelier → exports consensus → 16 --apply → 20 → 17/Atelier niv. 2 → 21 → 30.
+- **[OPUS] Adapter l'Atelier au pré-tri** : la file existence saute les
+  `auto_non`/`auto_oui` (colonnes déjà écrites par `22 apply`) ; les auto-oui
+  passent directement au niveau adresse.
+- **[OPUS] Terrasses : chaîne adresse** — les zones portent déjà `id_parcelle`,
+  brancher parcelle→BAN (réutiliser la voie cad_parcelles de 20_join) puis
+  `30 --produit terrasses` ; définir la doctrine « oui » commerciale (docs/05 §4).
+- **[FABLE] Consommer les signalements** : points L93 → dédoublonner, croiser
+  cadastre/CoSIA, générer des candidats « signalés humain » réinjectés au farm.
+- **[FABLE] CNN léger sur crops bruts** (si le pré-tri plafonne sur les
+  communes suivantes) : fine-tuning d'un petit backbone torch, cible = rattraper
+  les piscines couvertes que les features couleur ne voient pas.
+
 **⚡ PROCHAINE ACTION** : protocole précision `06` §2 (échantillon aléatoire, borne
 basse de Wilson) pour le chiffre affichable en démo, puis kit de vente — et toujours
 **D0 avant tout code : aucun prospect appelé, l'inversion de séquence reste LE
