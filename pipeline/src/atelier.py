@@ -75,7 +75,7 @@ PRODUITS = {
         "candidats": "terrasses_a_farmer_49_49035.parquet",
         "vignettes": "tri_terrasses/vignettes",
         "vignette_m": 100,
-        "adressees": None,          # pas de niveau adresse (pas encore de 20_join terrasses)
+        "adressees": "terrasses_adressees_49.parquet",   # 26_terrasses_adresses
     },
 }
 
