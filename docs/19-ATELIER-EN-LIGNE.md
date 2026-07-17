@@ -1,8 +1,24 @@
 # 19 — Atelier en ligne : multi-user, PoW rémunéré, et la suite techno
 
 > Créé 2026-07-17 (demande JB : farm multi-user en ligne, amis rémunérés au
-> proof-of-work). Statut : ARCHITECTURE — l'implémentation est découpée en
-> tâches en fin de doc.
+> proof-of-work). Statut 2026-07-17 : **v1 IMPLÉMENTÉE** (tokens, WAL,
+> questions d'or 1/10, gel cadence robot, /api/gains avec bonus qualité,
+> exports Dawid-Skene dès 3 trieurs — `agregation.py`). Reste : le tunnel.
+
+## 0. Mode d'emploi (v1)
+
+```bash
+# inviter un ami (imprime son lien personnel)
+.venv/bin/python pipeline/src/atelier.py --inviter Azan --taux-ct 1.5
+# lister / surveiller
+.venv/bin/python pipeline/src/atelier.py --trieurs
+# mise en ligne : tunnel Cloudflare (compte gratuit, 1 commande)
+#   cloudflared tunnel --url http://localhost:8199
+# → donner aux amis l'URL https://xxx.trycloudflare.com/?jeton=…
+```
+L'ami ouvre son lien : pas de compte, son nom vient du serveur, ses gains
+s'affichent en direct (chip « gains », détail au survol). Triche = gel
+automatique (or < 90 % à venir sur la paie, cadence robot immédiate).
 
 ## 1. Ce qu'on a déjà (et qui est déjà multi-user)
 

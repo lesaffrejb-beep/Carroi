@@ -82,3 +82,23 @@ def test_signalements_et_stats(tmp_path):
     v.ajouter("piscines", "existence", "p2", "non", "JB")
     s = v.stats_trieur("JB")
     assert s["votes"] == 2 and s["temps_actif_s"] >= 0
+
+
+def test_trieurs_invites_et_gel(tmp_path):
+    """Mode en ligne : invitation par token, identité côté serveur, gel."""
+    v = atelier.Votes(tmp_path / "v.sqlite")
+    token = v.inviter("Azan", 1.5)
+    tr = v.trieur_par_token(token)
+    assert tr["nom"] == "Azan" and tr["taux_ct"] == 1.5 and not tr["gele"]
+    assert v.trieur_par_token("zzz") is None
+    v.geler(token)
+    assert v.trieur_par_token(token)["gele"]
+    assert v.lister_trieurs()[0]["nom"] == "Azan"
+
+
+def test_cadence_suspecte(tmp_path):
+    v = atelier.Votes(tmp_path / "v.sqlite")
+    for k in range(25):                        # rafale instantanée = robot
+        v.ajouter("piscines", "existence", f"p{k}", "non", "bot")
+    assert v.cadence_suspecte("bot")
+    assert not v.cadence_suspecte("personne_inconnue")

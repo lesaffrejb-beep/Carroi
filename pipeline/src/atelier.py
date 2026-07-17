@@ -90,6 +90,7 @@ class Votes:
     def __init__(self, chemin: Path):
         chemin.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(chemin, check_same_thread=False)
+        self.conn.execute("PRAGMA journal_mode=WAL")   # multi-user : lecteurs jamais bloqués
         self.lock = threading.Lock()
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS votes ("
@@ -104,7 +105,55 @@ class Votes:
             "CREATE TABLE IF NOT EXISTS signalements ("
             " produit TEXT, id_item TEXT, x_l93 REAL, y_l93 REAL,"
             " trieur TEXT, ts TEXT)")
+        # Trieurs invités (mode en ligne) : un lien-token = une personne, révocable.
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS trieurs ("
+            " token TEXT PRIMARY KEY, nom TEXT, taux_ct REAL,"
+            " gele INTEGER DEFAULT 0, cree_ts TEXT)")
         self.conn.commit()
+
+    # ------------------------------------------------------- trieurs invités
+    def inviter(self, nom: str, taux_ct: float) -> str:
+        import secrets
+        token = secrets.token_urlsafe(9)
+        with self.lock:
+            self.conn.execute("INSERT INTO trieurs VALUES (?,?,?,0,?)",
+                              (token, nom, taux_ct,
+                               datetime.now(timezone.utc).isoformat()))
+            self.conn.commit()
+        return token
+
+    def trieur_par_token(self, token: str) -> dict | None:
+        with self.lock:
+            row = self.conn.execute(
+                "SELECT token, nom, taux_ct, gele FROM trieurs WHERE token=?",
+                (token,)).fetchone()
+        return None if row is None else dict(zip(("token", "nom", "taux_ct", "gele"), row))
+
+    def geler(self, token: str, gele: bool = True):
+        with self.lock:
+            self.conn.execute("UPDATE trieurs SET gele=? WHERE token=?",
+                              (int(gele), token))
+            self.conn.commit()
+
+    def lister_trieurs(self) -> list[dict]:
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT token, nom, taux_ct, gele FROM trieurs").fetchall()
+        return [dict(zip(("token", "nom", "taux_ct", "gele"), r)) for r in rows]
+
+    def cadence_suspecte(self, trieur: str, n: int = 20, seuil_s: float = 0.8) -> bool:
+        """Médiane des 20 derniers écarts < 0,8 s = plus vite qu'un humain qui
+        REGARDE l'image : robot ou spam. Pure vis-à-vis du reste."""
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT ts FROM votes WHERE trieur=? ORDER BY rowid DESC LIMIT ?",
+                (trieur, n + 1)).fetchall()
+        if len(rows) < n + 1:
+            return False
+        ts = [datetime.fromisoformat(r[0]) for r in rows]
+        ecarts = sorted((a - b).total_seconds() for a, b in zip(ts, ts[1:]))
+        return ecarts[len(ecarts) // 2] < seuil_s
 
     def ajouter(self, produit: str, mode: str, id_item: str, reponse: str, trieur: str):
         with self.lock:
@@ -421,6 +470,27 @@ class Handler(BaseHTTPRequestHandler):
     def _produit(self, q) -> Donnees | None:
         return self.produits.get(q.get("produit", ["piscines"])[0])
 
+    def _invite(self, jeton: str | None) -> dict | None:
+        """Résout un token d'invitation. None = mode local (JB sur sa machine),
+        dict = invité (le nom vient du serveur, jamais du client)."""
+        return self.votes.trieur_par_token(jeton) if jeton else None
+
+    def _ors(self, produit: str, mode: str) -> dict[str, str]:
+        """Questions d'or : items à >= 3 votes, 100 % d'accord. Recalcul <= 1/min."""
+        import time
+        cache = getattr(Handler, "_cache_ors", {})
+        cle_c = (produit, mode)
+        ts, val = cache.get(cle_c, (0.0, {}))
+        if time.monotonic() - ts > 60:
+            val = {}
+            for i, vs in self.votes.tout(produit, mode).items():
+                maj, acc = consensus(vs)
+                if maj and acc == 1.0 and len(vs) >= 3:
+                    val[i] = maj
+            cache[cle_c] = (time.monotonic(), val)
+            Handler._cache_ors = cache
+        return val
+
     def log_message(self, fmt, *args):   # silence le log par requête
         pass
 
@@ -474,12 +544,60 @@ class Handler(BaseHTTPRequestHandler):
             if trieur:
                 e["rythme"] = v.stats_trieur(trieur)
             self._json(e)
+        elif u.path == "/api/gains":
+            invite = self._invite(q.get("jeton", [None])[0])
+            if invite is None:
+                self._json({"erreur": "jeton requis"}, 403)
+                return
+            nom = invite["nom"]
+            # Validité = conformité au consensus Dawid-Skene sur les items
+            # multi-trieurs + taux d'or (items certains réinjectés).
+            valides = total_v = ors_ok = ors_tot = 0
+            for prod in self.produits:
+                for mode in MODES:
+                    tout = self.votes.tout(prod, mode)
+                    ors = self._ors(prod, mode)
+                    # conformité par item : dernier vote du trieur vs majorité
+                    # (les exports consensus, eux, passent par Dawid-Skene)
+                    for i, vs in tout.items():
+                        dern = self.votes.dernier_de(prod, mode, i, nom)
+                        if dern is None:
+                            continue
+                        total_v += 1
+                        maj, acc = consensus(vs)
+                        conforme = (maj is None) or (dern == maj)
+                        if i in ors:
+                            ors_tot += 1
+                            ors_ok += int(dern == ors[i])
+                        if conforme:
+                            valides += 1
+            taux_or = (ors_ok / ors_tot) if ors_tot else None
+            gains = valides * invite["taux_ct"] / 100.0
+            if taux_or is not None and taux_or >= 0.98:
+                gains *= 1.5                       # bonus qualité (docs/19)
+            self._json({"nom": nom, "votes": total_v, "valides": valides,
+                        "taux_or": taux_or, "ors_vus": ors_tot,
+                        "taux_ct": invite["taux_ct"],
+                        "gains_eur": round(gains, 2), "gele": bool(invite["gele"])})
         elif u.path == "/api/export/signalements.csv":
             self._csv(v.signalements_csv(), "signalements.csv")
         elif u.path == "/api/tache":
             mode = q.get("mode", ["existence"])[0]
             sauf = q.get("sauf", [None])[0]
+            invite = self._invite(q.get("jeton", [None])[0])
+            if invite and invite["gele"]:
+                self._json({"gele": True}, 403)
+                return
             if mode == "existence":
+                # Question d'or ~1/10 pour les invités : un item dont la vérité
+                # est déjà certaine, indiscernable d'une tâche normale.
+                ors = self._ors(produit, mode) if invite else {}
+                if ors and self.rng.random() < 0.10:
+                    id_or = self.rng.choice(list(ors))
+                    item = d.item_existence(id_or)
+                    if item:
+                        self._json({"item": item, "deja_vu": 0, "mon_dernier": None})
+                        return
                 dispo = d.ids_disponibles()
                 ids = [i for i in d.candidats["id_detection"] if i in dispo and i != sauf]
                 tout = v.tout(produit, "existence")
@@ -530,10 +648,27 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._binaire(data, "image/jpeg")
         elif u.path == "/api/export/existence.csv":
-            lignes = ["id_detection,decision,n_votes,accord"]
-            for i, vs in sorted(v.tout(produit, "existence").items()):
-                maj, acc = consensus(vs)
-                lignes.append(f"{i},{maj or 'incertain'},{len(vs)},{acc:.2f}")
+            # Dawid-Skene pondère chaque trieur par sa matrice de confusion
+            # apprise — il faut les IDENTITÉS, pas juste les réponses.
+            import importlib as _il
+            ag = _il.import_module("agregation")
+            with v.lock:
+                rows = v.conn.execute(
+                    "SELECT id_item, trieur, reponse FROM votes WHERE produit=? "
+                    "AND mode='existence'", (produit,)).fetchall()
+            par_item: dict[str, list[tuple[str, str]]] = {}
+            for i, tr, r in rows:
+                par_item.setdefault(i, []).append((tr, r))
+            multi = len({tr for vs in par_item.values() for tr, _ in vs}) >= 3
+            ds = ag.consensus_dawid_skene(par_item) if multi else {}
+            lignes = ["id_detection,decision,n_votes,accord,methode"]
+            for i, vs in sorted(par_item.items()):
+                if multi:
+                    dec, confiance = ds[i]
+                    lignes.append(f"{i},{dec},{len(vs)},{confiance:.2f},dawid-skene")
+                else:
+                    maj, acc = consensus([r for _, r in vs])
+                    lignes.append(f"{i},{maj or 'incertain'},{len(vs)},{acc:.2f},majorite")
             self._csv("\n".join(lignes) + "\n", f"existence_consensus_{produit}.csv")
         elif u.path == "/api/export/adresse.csv":
             if d.adressees is None:
@@ -587,6 +722,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         mode, id_item = corps["mode"], str(corps["id_item"])
         reponse, trieur = str(corps["reponse"]), str(corps.get("trieur") or "anonyme")
+        invite = self._invite(corps.get("jeton"))
+        if invite:
+            if invite["gele"]:
+                self._json({"gele": True}, 403)
+                return
+            trieur = invite["nom"]          # l'identité vient du serveur
         # 'indecis' = « je ne peux pas répondre » : un vrai vote (l'item ne
         # reviendra pas cette passe), jamais vendu, exclu du consensus utile.
         valides = {"existence": {"oui", "non", "incertain"}}
@@ -597,6 +738,11 @@ class Handler(BaseHTTPRequestHandler):
             self.votes.remplacer_dernier(produit, mode, id_item, reponse, trieur)
         else:
             self.votes.ajouter(produit, mode, id_item, reponse, trieur)
+        if invite and self.votes.cadence_suspecte(trieur):
+            self.votes.geler(invite["token"])
+            log.warning("Trieur %s GELÉ : cadence de robot.", trieur)
+            self._json({"gele": True}, 403)
+            return
         vs = self.votes.votes_item(produit, mode, id_item)
         maj, acc = consensus(vs)
         total = self.votes.total()
@@ -750,6 +896,7 @@ body{padding-bottom:52px}
    <div class="chip">accord<b id="accord">—</b></div>
    <div class="chip acc">xp<b id="xp">—</b></div>
    <div class="chip acc">série<b id="serie">0</b></div>
+   <div class="chip acc" id="chip-gains" style="display:none">gains<b id="gains">—</b></div>
    <div class="chip">session<b id="chrono">0:00</b></div>
    <div class="chip">rythme<b id="rythme">—</b></div>
   </div>
@@ -794,12 +941,25 @@ const histo = {};   // cle() -> [{id, rep}]
 const idx = {};     // cle() -> curseur
 function cle(){ return PRODUIT + "/" + MODE; }
 function H(){ if(!(cle() in histo)){ histo[cle()] = []; idx[cle()] = -1; } return histo[cle()]; }
+const JETON = new URLSearchParams(location.search).get("jeton") || "";
 let TRIEUR = localStorage.getItem("atelier_trieur") || "";
+if (JETON) TRIEUR = "(invité)";   // l'identité réelle est résolue par le serveur
 
 function definirTrieur(n){ n=(n||"").trim(); if(!n) return; TRIEUR=n;
   localStorage.setItem("atelier_trieur", n);
   document.getElementById("modal-trieur").style.display="none"; }
-if (!TRIEUR) document.getElementById("modal-trieur").style.display="flex";
+if (!TRIEUR && !JETON) document.getElementById("modal-trieur").style.display="flex";
+
+async function majGains(){
+  if (!JETON) return;
+  const g = await (await fetch("/api/gains?jeton=" + JETON)).json();
+  if (g.gele){ document.body.innerHTML = "<p style='padding:40px;font-size:1.2rem'>Compte suspendu — contacte JB.</p>"; return; }
+  const c = document.getElementById("chip-gains");
+  c.style.display = "";
+  document.getElementById("gains").textContent = g.gains_eur.toFixed(2) + " €";
+  c.title = `${g.valides}/${g.votes} validés · or ${g.taux_or===null?"—":Math.round(g.taux_or*100)+"%"} · ${g.taux_ct} ct/label`;
+}
+setInterval(majGains, 30000); majGains();
 
 async function etat(){
   const e = await (await fetch("/api/etat?produit=" + PRODUIT + "&trieur=" + encodeURIComponent(TRIEUR))).json();
@@ -835,7 +995,7 @@ function precharger(){
   PRECHARGE = {cle: c, r: null};
   PRECHARGE.pret = (async () => {
     const r = await (await fetch(`/api/tache?produit=${PRODUIT}&mode=${MODE}` +
-      `&trieur=${encodeURIComponent(TRIEUR)}&sauf=${encodeURIComponent(courant)}`)).json();
+      `&trieur=${encodeURIComponent(TRIEUR)}&sauf=${encodeURIComponent(courant)}&jeton=${JETON}`)).json();
     if (!r.vide){
       const src = r.item.png || r.item.img;
       await new Promise(res => { const im = new Image(); im.onload = im.onerror = res; im.src = src; });
@@ -858,7 +1018,7 @@ async function suivant(){
     // le préchargé peut avoir déjà été vu dans la session (rare) : on le montre
     // quand même, le serveur l'a choisi parmi les moins vus.
   } else {
-    r = await (await fetch(`/api/tache?produit=${PRODUIT}&mode=${MODE}&trieur=${encodeURIComponent(TRIEUR)}`)).json();
+    r = await (await fetch(`/api/tache?produit=${PRODUIT}&mode=${MODE}&trieur=${encodeURIComponent(TRIEUR)}&jeton=${JETON}`)).json();
   }
   if (r.vide){ afficherVide(); etat(); return; }
   const id = r.item.id || r.item.id_piscine;
@@ -964,10 +1124,12 @@ async function repondre(rep){
   if (!ITEM) return;
   const id = MODE === "existence" ? ITEM.id : ITEM.id_piscine;
   const correction = MON_DERNIER !== null;
+  const rep403 = null;
   const r = await (await fetch("/api/reponse", {method:"POST",
     headers:{"Content-Type":"application/json"},
     body: JSON.stringify({produit: PRODUIT, mode: MODE, id_item: id, reponse: rep,
-                          trieur: TRIEUR, remplacer: correction})})).json();
+                          trieur: TRIEUR, remplacer: correction, jeton: JETON})})).json();
+  if (r.gele){ majGains(); return; }
   H()[idx[cle()]].rep = rep;
   dernierVoteT = Date.now();
   const cadre = document.getElementById("cadre");
@@ -1106,6 +1268,12 @@ function changerProduit(p){
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--inviter", metavar="NOM",
+                   help="créer un lien d'invitation pour NOM et sortir")
+    p.add_argument("--taux-ct", type=float, default=1.5,
+                   help="rémunération en centimes par label validé (défaut 1,5)")
+    p.add_argument("--trieurs", action="store_true",
+                   help="lister les invités (token, nom, taux, gelé) et sortir")
     p.add_argument("--port", type=int, default=8199)
     p.add_argument("--candidats",
                    help="parquet des candidats (défaut : Bouchemaine 49035)")
@@ -1121,6 +1289,17 @@ def main() -> None:
         repo / "data" / "raw" / "bdortho" / "49035" / "rvb"
 
     votes = Votes(interim.parent / "atelier" / "atelier.sqlite")
+    if args.inviter:
+        token = votes.inviter(args.inviter, args.taux_ct)
+        print(f"Invitation {args.inviter} ({args.taux_ct} ct/label) :")
+        print(f"  http://localhost:{args.port}/?jeton={token}")
+        print("(remplacer localhost par l'URL du tunnel une fois en ligne)")
+        return
+    if args.trieurs:
+        for tr in votes.lister_trieurs():
+            print(f"{tr['nom']:<16} taux {tr['taux_ct']} ct  "
+                  f"{'GELÉ' if tr['gele'] else 'actif'}  ?jeton={tr['token']}")
+        return
     if votes.vide():
         amorcer_depuis_acquis(votes, repo)
 
