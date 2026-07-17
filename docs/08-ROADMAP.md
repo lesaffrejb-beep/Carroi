@@ -133,8 +133,19 @@ candidats constante. Rapport : `data/interim/pretri/piscines_evaluation.md`.
 ## Arbre des tâches (mis à jour 2026-07-17)
 
 - **[HUMAIN] D0 — pré-vente** : inchangé, priorité n°1, rien ne le remplace.
-- **[HUMAIN] Brancher le disque NOIR** → débloque la tâche 13.
-- **[OPUS] 13 — valider CoSIA** à l'échelle du département (mesures seules).
+- **[OPUS] 13 — CoSIA via WMS (débloqué SANS le disque NOIR, veille 2026-07-17)** :
+  couche `IGNF_COSIA_2021-2023` sur data.geopf.fr/wms-r ; requêter chaque crop
+  candidat, compter les pixels classe Piscine → feature du pré-tri + mesure
+  rappel/précision vs consensus humain Bouchemaine. Le disque NOIR ne sert plus
+  qu'au bulk départemental.
+- **[FABLE] CNN anti-bâchées via FLAIR** : fine-tuner un modèle IGN pré-entraîné
+  sur BD ORTHO avec classe piscine (HF : IGNF/FLAIR-INC_rgb_15cl_resnet34-deeplabv3)
+  — remplace l'entraînement from scratch envisagé.
+- **[OPUS] Durcir les questions d'or (design CVAT)** : jeu or FIGÉ (snapshot à
+  l'invitation, pas recalculé), golds exclus des exports consensus, + golds
+  gratuits depuis les polygones OSM data.gouv.
+- **[OPUS] Active learning passes N+2** : file = proba GB ∈ [0,3-0,7] + k-means
+  embeddings, échantillonnage par cluster (recette ICCV 2025, cf. veille).
 - **[OPUS] 12 — bascule candidats CoSIA ∪ SYM=65** (après 13) ; puis réentraîner
   le pré-tri (`22 train`) sur ces candidats.
 - **[OPUS] Boucle commune suivante** (recette complète) : 12_extraire_dalles →
