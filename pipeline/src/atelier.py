@@ -63,15 +63,31 @@ MODES = ("existence", "adresse")
 PRODUITS = {
     "piscines": {
         "question": "Y a-t-il une piscine dans le contour rouge ?",
-        "bouton_oui": "Piscine", "bouton_non": "Pas une piscine",
+        # (code, touche, libellé, style) — le code part dans les exports ;
+        # "positif" débloque le niveau adresse.
+        "reponses": [
+            ("oui", "q", "Piscine", "oui"),
+            ("non", "d", "Pas une piscine", "non"),
+            ("incertain", "s", "Impossible à dire", "unsure"),
+        ],
+        "positifs": ["oui"],
         "candidats": "piscines_candidates_49_49035.parquet",
         "vignettes": "tri/vignettes",
         "vignette_m": 60,
         "adressees": "piscines_adressees_49.parquet",
     },
     "terrasses": {
-        "question": "La zone rouge est-elle un jardin / une terrasse dégagé(e) au soleil ?",
-        "bouton_oui": "Oui, dégagé", "bouton_non": "Non (toit, route, artefact…)",
+        # Un vote RICHE au lieu d'un oui/non : terrasse minérale et pelouse ne
+        # se vendent pas au même client (pergoliste vs paysagiste/pisciniste).
+        # Un seul passage humain, la base se découpe par acheteur en aval.
+        "question": "Qu'y a-t-il dans la zone rouge ?",
+        "reponses": [
+            ("terrasse", "q", "Terrasse / dallage minéral", "oui"),
+            ("jardin", "w", "Jardin / pelouse dégagée", "oui"),
+            ("non", "d", "Ni l'un ni l'autre (toit, route, artefact…)", "non"),
+            ("incertain", "s", "Impossible à dire", "unsure"),
+        ],
+        "positifs": ["terrasse", "jardin"],
         "candidats": "terrasses_a_farmer_49_49035.parquet",
         "vignettes": "tri_terrasses/vignettes",
         "vignette_m": 100,
@@ -266,10 +282,11 @@ def consensus(votes: list[str]) -> tuple[str | None, float]:
     return c[0][0], c[0][1] / len(votes)
 
 
-def existence_acquise(votes: list[str]) -> bool:
-    """Le niveau adresse se débloque quand la majorité des votes dit « oui ». Pure."""
+def existence_acquise(votes: list[str], positifs: tuple = ("oui",)) -> bool:
+    """Le niveau adresse se débloque quand la majorité des votes est une classe
+    POSITIVE du produit (piscines : oui ; terrasses : terrasse OU jardin). Pure."""
     maj, _ = consensus(votes)
-    return maj == "oui"
+    return maj in positifs
 
 
 def choisir_moins_vu(ids: list[str], compte: Counter, rng: random.Random,
@@ -453,8 +470,9 @@ def ids_adresse_debloques(donnees: Donnees, votes_existence: dict[str, list[str]
     if donnees.adressees is None:
         return []
     ids = []
+    positifs = tuple(donnees.meta.get("positifs", ["oui"]))
     for _, r in donnees.adressees.iterrows():
-        if existence_acquise(votes_existence.get(r["id_detection"], [])):
+        if existence_acquise(votes_existence.get(r["id_detection"], []), positifs):
             ids.append(r["id_piscine"])
     return ids
 
@@ -534,8 +552,8 @@ class Handler(BaseHTTPRequestHandler):
             self._binaire(data, "text/html; charset=utf-8")
         elif u.path == "/api/produits":
             self._json([{"nom": n, "question": p.meta["question"],
-                         "bouton_oui": p.meta["bouton_oui"],
-                         "bouton_non": p.meta["bouton_non"],
+                         "reponses": [{"code": c, "touche": k, "libelle": l,
+                                       "style": s} for c, k, l, s in p.meta["reponses"]],
                          "adresse": p.adressees is not None}
                         for n, p in self.produits.items()])
         elif u.path == "/api/etat":
@@ -730,7 +748,7 @@ class Handler(BaseHTTPRequestHandler):
             trieur = invite["nom"]          # l'identité vient du serveur
         # 'indecis' = « je ne peux pas répondre » : un vrai vote (l'item ne
         # reviendra pas cette passe), jamais vendu, exclu du consensus utile.
-        valides = {"existence": {"oui", "non", "incertain"}}
+        valides = {"existence": {r[0] for r in PRODUITS[produit]["reponses"]}}
         if mode not in MODES or (mode in valides and reponse not in valides[mode]):
             self._json({"erreur": "mode ou réponse invalide"}, 400)
             return
@@ -816,6 +834,7 @@ header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1p
        overflow:hidden;box-shadow:0 10px 40px #0008;flex:0 1 auto;max-width:min(74vh,100%)}
 #cadre img,#cadre svg{display:block;max-width:100%;height:auto}
 #cadre.flash-oui{outline:3px solid var(--oui)}
+#cadre.flash-unsure{outline:3px solid var(--unsure)}
 #cadre.flash-non{outline:3px solid var(--non)}
 #cadre.flash-incertain,#cadre.flash-indecis{outline:3px solid var(--unsure)}
 #cadre.flash-aucune,#cadre.flash-adresse{outline:3px solid var(--aucune)}
@@ -857,7 +876,7 @@ header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1p
 .pas{width:14px;height:14px;border-radius:4px;background:var(--raise);border:1px solid var(--line);
      flex:0 0 auto;cursor:pointer}
 .pas.oui{background:var(--oui)}.pas.non{background:var(--non)}
-.pas.incertain,.pas.indecis{background:var(--unsure)}.pas.aucune{background:var(--aucune)}
+.pas.incertain,.pas.indecis,.pas.unsure{background:var(--unsure)}.pas.aucune{background:var(--aucune)}
 .pas.adresse{background:var(--acc)}
 .pas.courant{outline:2px solid var(--ink);outline-offset:1px}
 body{padding-bottom:52px}
@@ -1077,15 +1096,17 @@ function afficher(r){
     document.getElementById("detail").textContent =
       `${ITEM.surface.toFixed(0)} m² · score ${ITEM.score.toFixed(2)} · ${ITEM.id}`;
     liste.style.display = "none"; liste.innerHTML = "";
+    const reps = PRODUITS[PRODUIT].reponses;
     document.getElementById("nav-aide").style.display = "";
     document.getElementById("nav-aide").innerHTML =
-      `<kbd>Q</kbd> oui · <kbd>D</kbd> non · <kbd>S</kbd> impossible à dire · <kbd>A</kbd> revenir ·
-       <kbd>E</kbd> avancer · <kbd>ESPACE</kbd> passer (restera dû) · <kbd>F</kbd> puis clic = piscine vue ailleurs`;
+      reps.map(r => `<kbd>${r.touche.toUpperCase()}</kbd> ${r.libelle.toLowerCase()}`).join(" · ") +
+      ` · <kbd>A</kbd> revenir · <kbd>E</kbd> avancer · <kbd>ESPACE</kbd> passer (restera dû)` +
+      (PRODUIT === "piscines" ? ` · <kbd>F</kbd> puis clic = piscine vue ailleurs` : "");
     boutons.innerHTML =
-      `<button class="keycap oui" onclick="repondre('oui')"><span class="k">Q</span>${PRODUITS[PRODUIT].bouton_oui}</button>
-       <button class="keycap non" onclick="repondre('non')"><span class="k">D</span>${PRODUITS[PRODUIT].bouton_non}</button>
-       <button class="keycap unsure" onclick="repondre('incertain')"><span class="k">S</span>Impossible à dire</button>
-       <button class="keycap aucune" onclick="armerSignal()"><span class="k">F</span>Je vois une piscine ailleurs</button>`;
+      reps.map(r => `<button class="keycap ${r.style}" onclick="repondre('${r.code}')">` +
+                    `<span class="k">${r.touche.toUpperCase()}</span>${r.libelle}</button>`).join("") +
+      (PRODUIT === "piscines"
+        ? `<button class="keycap aucune" onclick="armerSignal()"><span class="k">F</span>Je vois une piscine ailleurs</button>` : "");
   } else {
     cadre.innerHTML = svgAdresse(ITEM) + badges;
     cadre.querySelectorAll(".pin").forEach(g =>
@@ -1175,7 +1196,10 @@ async function repondre(rep){
   H()[idx[cle()]].rep = rep;
   dernierVoteT = Date.now();
   const cadre = document.getElementById("cadre");
-  cadre.className = "flash-" + (["oui","non","incertain","indecis","aucune"].includes(rep) ? rep : "adresse");
+  const styleRep = (MODE === "existence" && PRODUITS[PRODUIT])
+    ? (PRODUITS[PRODUIT].reponses.find(r => r.code === rep) || {}).style
+    : null;
+  cadre.className = "flash-" + (styleRep || (["aucune","indecis"].includes(rep) ? rep : "adresse"));
   if (!correction){
     serie++;
     const s = document.getElementById("serie");
@@ -1246,7 +1270,10 @@ function dessinerHisto(){
     const k = h.length - Math.min(60, h.length) + kRel;
     const d = document.createElement("div");
     let cls = "pas";
-    if (e.rep) cls += " " + (["oui","non","incertain","indecis","aucune"].includes(e.rep) ? e.rep : "adresse");
+    if (e.rep){
+      const st = (PRODUITS[PRODUIT] ? (PRODUITS[PRODUIT].reponses.find(r => r.code === e.rep) || {}).style : null);
+      cls += " " + (st || (["aucune","indecis"].includes(e.rep) ? e.rep : "adresse"));
+    }
     if (k === idx[cle()]) cls += " courant";
     d.className = cls;
     d.title = e.id + (e.rep ? " · " + e.rep : " · sans réponse");
@@ -1270,11 +1297,13 @@ document.addEventListener("keydown", e => {
   if (k === "arrowright" || k === "e") return suivant();
   if (k === " "){ e.preventDefault(); return suivant(); }
   if (MODE === "existence"){
-    if (k === "q" || k === "o") repondre("oui");
-    else if (k === "d" || k === "n") repondre("non");
-    else if (k === "s" || k === "u") repondre("incertain");
+    const rep = (PRODUITS[PRODUIT] ? PRODUITS[PRODUIT].reponses : []).find(r => r.touche === k);
+    if (rep) repondre(rep.code);
+    else if (k === "o") repondre("oui");
+    else if (k === "n") repondre("non");
+    else if (k === "u" && PRODUITS[PRODUIT].reponses.some(r=>r.code==="incertain")) repondre("incertain");
     else if (k === "a") precedent();
-    else if (k === "f") armerSignal();
+    else if (k === "f" && PRODUIT === "piscines") armerSignal();
   } else {
     if (e.key in AZERTY && ITEM && ITEM.adresses[AZERTY[e.key]]) repondre(ITEM.adresses[AZERTY[e.key]].id_ban);
     else if (/^[1-9]$/.test(k) && ITEM && ITEM.adresses[+k-1]) repondre(ITEM.adresses[+k-1].id_ban);
