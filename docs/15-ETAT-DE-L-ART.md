@@ -138,6 +138,49 @@ le moat est intact. Arbitrages pièce par pièce :
   ci-dessus reste exacte mais est rendue CADUQUE par CoSIA — ne réévaluer que si CoSIA
   était retiré ou sa qualité s'effondrait sur un autre département.
 
+## 5. VLM propriétaires payants — arbitrage (2026-08-05, session Fable, demande JB)
+
+Contexte : la vague X d'août 2026 (Qwen3.8-Max « meilleur VLM de détection d'objets »,
+démo Tilebox = 247 centrales PV détectées zero-shot sur tout le Brandebourg en trois
+prompts) pose la question « faut-il PAYER un modèle pour détecter nos piscines ? ».
+**Réponse arbitrée : NON pour détecter, OUI marginalement pour arbitrer.** Le
+raisonnement, à conserver car il resservira à chaque nouvelle vague de modèles :
+
+**Fait n°1 — la démo Brandebourg est exactement notre situation, sauf qu'en France
+l'État a déjà payé la facture.** Tilebox a dû faire tourner un VLM généraliste parce
+qu'aucune couche publique de centrales PV n'existait. Pour les piscines du 49, CoSIA
+donne le même livrable, produit par un modèle *spécialiste* entraîné sur nos propres
+dalles, gratuit, en Licence Ouverte, sur 3 millésimes (§4 ci-dessus, mesuré : rappel
+88,1 %, CoSIA ∪ SYM=65 = 89,5 %). Payer un généraliste pour reproduire un spécialiste
+gratuit est un anti-pattern : **avant de payer un modèle, vérifier que l'État ne l'a
+pas déjà fait tourner.**
+
+**Fait n°2 — les benchmarks cités ne mesurent pas notre tâche.** Le « 60 % mAP (single
+box) / 80 % mAP (multi-box) » de Qwen3.8-Max est un mAP de détection généraliste :
+loin des 95 % de précision exigés par `06`, et le mAP ne dit rien du mode d'échec qui
+nous tue (bâches, ardoises bleues, trampolines). Notre pré-tri maison, lui, est mesuré
+sur NOS données : AUC 0,997, 249 auto-oui à 95 % de précision. Règle R10 de `17`
+appliquée : un chiffre de benchmark public ne déclenche aucune décision coûteuse.
+
+**Fait n°3 — le coût API n'est jamais le poste dominant ; le temps humain l'est.**
+Prix constatés au 2026-08-05, par vignette (~1 image + prompt court, ~2 000 tokens) :
+Gemini 3 Flash ~0,004 $ · Qwen3.8-Max ~0,011 $ (2 $/M in, 6 $/M out, GA 2026-08-03) ·
+Claude Opus 5 ~0,018 $. À l'échelle du 49 (~30-40 k candidats), un passage VLM complet
+coûte 140-700 € — non-bloquant en absolu, mais **inutile** vu le fait n°1, alors que
+50 h de tri humain brut (à ~600-700 vignettes/h mesurées sur la planche) coûtent la
+seule ressource réellement rare du projet. Chiffrage complet : `16` §4 bis.
+
+**Décision.** Ordre de préséance des sources de candidats, non négociable sans mesure :
+**(1) CoSIA ∪ SYM=65 gratuit → (2) pré-tri maison `22_pretri` gratuit → (3) VLM payant
+en DEUXIÈME AVIS sur la seule bande incertaine → (4) humain sur les désaccords + tirage
+aléatoire de validation.** Un VLM ne devient candidat au rang (1) que si CoSIA disparaît,
+s'effondre sur un autre département, ou pour un produit SANS couche publique équivalente
+(cf. `14` : ombrières, friches — c'est là que la démo Tilebox est réellement transposable).
+
+**Ré-évaluation** : ne rouvrir ce dossier que sur un fait mesuré (nouveau département
+sans CoSIA, ou test §E de `06` montrant le VLM au-dessus du pré-tri sur NOS 977 labels
+Bouchemaine), jamais sur une annonce de modèle.
+
 ## Sources
 
 - [impots.gouv.fr — Généralisation du Foncier innovant](https://www.impots.gouv.fr/actualite/generalisation-du-foncier-innovant)
@@ -148,3 +191,4 @@ le moat est intact. Arbitrages pièce par pièce :
 - [satellite-image-deep-learning/techniques (GitHub)](https://github.com/satellite-image-deep-learning/techniques)
 - [CoSIA — Géoplateforme, ressource de téléchargement](https://data.geopf.fr/telechargement/resource/COSIA) · [fiche data.gouv.fr](https://www.data.gouv.fr/datasets/cosia) · [modèles FLAIR (IGNF, Hugging Face)](https://huggingface.co/IGNF)
 - [opengeos/segment-geospatial (samgeo)](https://github.com/opengeos/segment-geospatial) · [retour d'expérience piscines (granular.ai)](https://www.granular.ai/resources/blog/detecting-pools-in-urban-areas-using-sam-geo)
+- §5 (VLM payants, 2026-08-05) : [Qwen 3.8 Max — 2 $/6 $ par MTok, GA 2026-08-03](https://www.developersdigest.tech/blog/qwen-3-8-max-release-2026) · [OpenRouter — qwen3.8-max](https://openrouter.ai/qwen/qwen3.8-max) · [eesel — Qwen3.8-Max pricing & hidden costs](https://www.eesel.ai/blog/qwen38-max-pricing) · posts X du 2026-08-04/05 (@skalskip92 : mAP single/multi-box ; @__snamber : run Brandebourg via Tilebox) — captures fournies par JB, non archivées dans le repo.
