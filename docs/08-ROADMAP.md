@@ -223,6 +223,10 @@ comme résolveur d'incertitudes (« superposer 10 images ») — tâche [OPUS] c
 téléchargée sur NOIR (`maps-bdortho/D049_2025/`) avec la **2020**
 (`D049_2020/`) et **CoSIA 2020** (`COSIA_D049/COSIA_D049_2020.7z`) : B1 est
 tranché, le diff 2022→2025 (« nouvelles piscines ») devient possible.
+Téléchargements TERMINÉS et VÉRIFIÉS (`7z t` OK) : 2025 = 8 parties / 713
+fichiers / 33 Go ; 2020 = 8 parties / 712 fichiers / 33 Go ; reste ~97 Go
+libres sur NOIR. Les archives restent en 7z (extraction ciblée par commune via
+`12_extraire_dalles_ortho.py`, comme pour 2022).
 **Suite (même session, retours JB)** : modale « Qui farme ? » avec boutons des
 farmers connus (`/api/farmers` : aze 1191 / JB 1046 — un clic, pas de doublon de
 pseudo) ; **ONBOARDING parcours A-bis** (Azan : farm via lien invité de JB, ou
