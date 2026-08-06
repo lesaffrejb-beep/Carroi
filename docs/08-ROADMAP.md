@@ -205,7 +205,26 @@ stratégique consigné : CoSIA étant public, **notre avance n'est PAS la détec
 la vérification humaine, le verrou parcellaire adresse et la fraîcheur — raison de plus
 pour ne pas dépenser en détection. **Priorité inchangée : D0.**
 
-## Arbre des tâches (mis à jour 2026-08-05)
+**Nouveau (2026-08-06 — DÉCISIONS JB : focus piscines, incertitudes, cadastre,
+multi-millésimes — session Fable)** : cinq décisions consignées dans **`16` §8**
+et implémentées : (1) **terrasses EN PAUSE** (`PRODUITS["terrasses"]["actif"]=False`,
+vocabulaire multi-classes conservé) ; (2) doctrine **quasi-100 %** : on ne vend que
+le quasi certain, le reste part en classe « incertitudes » ; (3) **règle des
+3 signaux** (`classer_incertitude` : desaccord / instable — un trieur qui change
+d'avis > 2 fois, journal SQLite `corrections` / vote_incertain) — exports enrichis
+`statut,raison`, décision forcée `incertain` (invendable même par un vieux script),
+nouvel export `/api/export/incertitudes.csv` ; (4) **clic-piscine ↔ cadastre** en
+SITUER : clic sur la piscine → `/api/parcelle_clic` → parcelle du point +
+surlignage des maisons candidates dont le BAN est dans CETTE parcelle (le farmer
+reste juge) ; les signalements F portent `id_parcelle` ; (5) **multi-millésimes**
+comme résolveur d'incertitudes (« superposer 10 images ») — tâche [OPUS] ci-dessous.
+**Découverte : la BD ORTHO 2025 D49 est PUBLIÉE** (catalogue geopf vérifié ce jour,
+`BDORTHO_2-0_RVB-0M20_JP2-E080_LAMB93_D049_2025-01-01`, 8 parties ≤ 4 Go) →
+téléchargée sur NOIR (`maps-bdortho/D049_2025/`) avec la **2020**
+(`D049_2020/`) et **CoSIA 2020** (`COSIA_D049/COSIA_D049_2020.7z`) : B1 est
+tranché, le diff 2022→2025 (« nouvelles piscines ») devient possible.
+
+## Arbre des tâches (mis à jour 2026-08-06)
 
 - **[HUMAIN] D0 — pré-vente** : inchangé, priorité n°1, rien ne le remplace.
 - **[OPUS] Test VLM contre nos labels (facultatif, ~10 €, APRÈS la tâche 13)** :
@@ -240,9 +259,19 @@ pour ne pas dépenser en détection. **Priorité inchangée : D0.**
 - **[OPUS] Adapter l'Atelier au pré-tri** : la file existence saute les
   `auto_non`/`auto_oui` (colonnes déjà écrites par `22 apply`) ; les auto-oui
   passent directement au niveau adresse.
-- **[OPUS] Terrasses : chaîne adresse** — les zones portent déjà `id_parcelle`,
-  brancher parcelle→BAN (réutiliser la voie cad_parcelles de 20_join) puis
-  `30 --produit terrasses` ; définir la doctrine « oui » commerciale (docs/05 §4).
+- **[OPUS] Multi-millésimes — résolveur d'incertitudes (décision JB 2026-08-06,
+  `16` §8.4)** : nouveau `23_multimillesime.py` — pour chaque candidat, crops
+  2020/2022/2025 depuis les archives NOIR (réutiliser `12_extraire_dalles` +
+  `16.extraire_vignette`) + `cosia_frac` par millésime (le module 14 sait déjà
+  faire pour 2022). Sorties : colonnes `vu_2020/vu_2022/vu_2025` (CoSIA) +
+  planche comparative 3 vignettes côte à côte pour l'Atelier. Règles : vu sur
+  ≥ 2 millésimes → quasi certain ; vu 2025 seulement → segment « nouvelle
+  piscine » ; incertitude 2022 tranchée par les autres années. Features
+  supplémentaires pour `22_pretri train`.
+- ⏸ `[EN PAUSE — décision JB 2026-08-06]` **Terrasses : chaîne adresse** — les
+  zones portent déjà `id_parcelle`, brancher parcelle→BAN (réutiliser la voie
+  cad_parcelles de 20_join) puis `30 --produit terrasses` ; définir la doctrine
+  « oui » commerciale (docs/05 §4). Reprise quand le focus piscines aura payé.
 - **[FABLE] Consommer les signalements** : points L93 → dédoublonner, croiser
   cadastre/CoSIA, générer des candidats « signalés humain » réinjectés au farm.
 - **[FABLE] CNN léger sur crops bruts** (si le pré-tri plafonne sur les

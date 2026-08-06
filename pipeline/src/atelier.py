@@ -93,6 +93,11 @@ PRODUITS = {
         "adressees": "piscines_adressees_49.parquet",
     },
     "terrasses": {
+        # ⏸ EN PAUSE (décision JB 2026-08-06) : hard focus piscines + adresse.
+        # Le vocabulaire multi-classes de CLASSER reste intact (le dataset du
+        # futur modèle continue de s'enrichir) ; seule la FILE terrasses n'est
+        # plus servie. Repasser actif=True pour relancer le produit.
+        "actif": False,
         # Un vote RICHE au lieu d'un oui/non : terrasse minérale et pelouse ne
         # se vendent pas au même client (pergoliste vs paysagiste/pisciniste).
         # Un seul passage humain, la base se découpe par acheteur en aval.
@@ -137,6 +142,18 @@ class Votes:
             "CREATE TABLE IF NOT EXISTS signalements ("
             " produit TEXT, id_item TEXT, x_l93 REAL, y_l93 REAL,"
             " trieur TEXT, ts TEXT)")
+        # Migration : chaque signalement porte la parcelle cadastrale du point
+        # cliqué (croisement cadastre au moment du clic, décision JB 2026-08-06).
+        cols = [r[1] for r in self.conn.execute("PRAGMA table_info(signalements)")]
+        if "id_parcelle" not in cols:
+            self.conn.execute("ALTER TABLE signalements ADD COLUMN id_parcelle TEXT")
+        # Journal des changements d'avis : remplacer_dernier avec une réponse
+        # DIFFÉRENTE. Nourrit le signal « instable » de la règle d'incertitude
+        # (un trieur qui change plus de 2 fois sur la même image = zone gelée).
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS corrections ("
+            " produit TEXT, mode TEXT, id_item TEXT, trieur TEXT,"
+            " ancienne TEXT, nouvelle TEXT, ts TEXT)")
         # Trieurs invités (mode en ligne) : un lien-token = une personne, révocable.
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS trieurs ("
@@ -232,20 +249,23 @@ class Votes:
     def vide(self) -> bool:
         return self.total() == 0
 
-    def signaler(self, produit: str, id_item: str, x: float, y: float, trieur: str):
+    def signaler(self, produit: str, id_item: str, x: float, y: float, trieur: str,
+                 id_parcelle: str | None = None):
         with self.lock:
             self.conn.execute(
-                "INSERT INTO signalements VALUES (?,?,?,?,?,?)",
+                "INSERT INTO signalements (produit,id_item,x_l93,y_l93,trieur,ts,id_parcelle)"
+                " VALUES (?,?,?,?,?,?,?)",
                 (produit, str(id_item), float(x), float(y), trieur,
-                 datetime.now(timezone.utc).isoformat()))
+                 datetime.now(timezone.utc).isoformat(), id_parcelle))
             self.conn.commit()
 
     def signalements_csv(self) -> str:
         with self.lock:
             rows = self.conn.execute(
-                "SELECT produit,id_item,x_l93,y_l93,trieur,ts FROM signalements").fetchall()
-        lignes = ["produit,id_item,x_l93,y_l93,trieur,ts"]
-        lignes += [",".join(str(c) for c in r) for r in rows]
+                "SELECT produit,id_item,x_l93,y_l93,trieur,ts,id_parcelle "
+                "FROM signalements").fetchall()
+        lignes = ["produit,id_item,x_l93,y_l93,trieur,ts,id_parcelle"]
+        lignes += [",".join("" if c is None else str(c) for c in r) for r in rows]
         return "\n".join(lignes) + "\n"
 
     def stats_trieur(self, trieur: str, seuil_pause_s: float = 60.0) -> dict:
@@ -283,13 +303,31 @@ class Votes:
         n'est pas une nouvelle passe."""
         with self.lock:
             row = self.conn.execute(
-                "SELECT rowid FROM votes WHERE produit=? AND mode=? AND id_item=? "
+                "SELECT rowid, reponse FROM votes WHERE produit=? AND mode=? AND id_item=? "
                 "AND trieur=? ORDER BY rowid DESC LIMIT 1",
                 (produit, mode, str(id_item), trieur)).fetchone()
             if row:
                 self.conn.execute("DELETE FROM votes WHERE rowid=?", (row[0],))
+                if row[1] != reponse:      # vrai changement d'avis → journalisé
+                    self.conn.execute(
+                        "INSERT INTO corrections VALUES (?,?,?,?,?,?,?)",
+                        (produit, mode, str(id_item), trieur, row[1], reponse,
+                         datetime.now(timezone.utc).isoformat()))
                 self.conn.commit()
         self.ajouter(produit, mode, id_item, reponse, trieur)
+
+    def corrections_max(self, produit: str, mode: str) -> dict[str, int]:
+        """Par item : le plus grand nombre de changements d'avis d'UN MÊME
+        trieur (nourrit le signal « instable » de la règle d'incertitude)."""
+        with self.lock:
+            rows = self.conn.execute(
+                "SELECT id_item, trieur, COUNT(*) FROM corrections "
+                "WHERE produit=? AND mode=? GROUP BY id_item, trieur",
+                (produit, mode)).fetchall()
+        d: dict[str, int] = {}
+        for i, _, n in rows:
+            d[i] = max(d.get(i, 0), n)
+        return d
 
 
 # --------------------------------------------------------------- logique pure
@@ -317,6 +355,49 @@ def existence_acquise(votes: list[str], positifs: tuple = ("oui",)) -> bool:
     un combo compte positif dès qu'un de ses composants l'est. Pure."""
     maj, _ = consensus(votes)
     return maj is not None and bool(set(maj.split("+")) & set(positifs))
+
+
+INCERTITUDE_ACCORD_MIN = 2 / 3    # en-deçà, des réponses incompatibles gèlent la zone
+INCERTITUDE_CHANGEMENTS_MAX = 2   # au-delà, l'hésitation d'un seul trieur gèle la zone
+
+
+def classer_incertitude(votes: list[str], corrections_max: int = 0) -> str | None:
+    """Règle des 3 signaux (décision JB 2026-08-06) : une zone part en
+    « incertitudes » — jamais vendue, à résoudre plus tard (multi-millésimes
+    ou terrain) — dès qu'UN signal se déclenche :
+      - « instable »       : un même trieur a changé d'avis plus de
+                             INCERTITUDE_CHANGEMENTS_MAX fois sur cette image
+                             (s'il hésite autant, l'image ne permet pas de
+                             trancher) ;
+      - « desaccord »      : votes à égalité, OU des réponses incompatibles
+                             coexistent avec un accord < INCERTITUDE_ACCORD_MIN ;
+      - « vote_incertain » : la majorité elle-même est incertain/indecis.
+    Doctrine commerciale : on ne vend que le quasi-100 % ; le reste est classé,
+    pas forcé. Retourne la raison, ou None si la zone reste vendable. Pure."""
+    if corrections_max > INCERTITUDE_CHANGEMENTS_MAX:
+        return "instable"
+    if not votes:
+        return None
+    maj, accord = consensus(votes)
+    if maj is None:
+        return "desaccord"
+    if maj in ("incertain", "indecis"):
+        return "vote_incertain"
+    if (len(votes) >= 2 and accord < INCERTITUDE_ACCORD_MIN
+            and any(not votes_compatibles(a, b) for a in votes for b in votes)):
+        return "desaccord"
+    return None
+
+
+def parcelle_au_point(parcelles, x: float, y: float) -> str | None:
+    """Id de la parcelle cadastrale (GeoDataFrame `parcelles`, colonnes id +
+    geometry, même CRS que x/y) contenant le point, ou None (hors parcelle,
+    ou parcelles non chargées)."""
+    if parcelles is None:
+        return None
+    from shapely.geometry import Point
+    hits = parcelles.sindex.query(Point(x, y), predicate="within")
+    return str(parcelles.iloc[hits[0]]["id"]) if len(hits) else None
 
 
 def choisir_moins_vu(ids: list[str], compte: Counter, rng: random.Random,
@@ -696,8 +777,70 @@ class Handler(BaseHTTPRequestHandler):
                        for t, s in stats.items()]
             tableau.sort(key=lambda x: -x["votes"])
             self._json(tableau[:10])
+        elif u.path == "/api/parcelle_clic":
+            # SITUER : « la piscine est ICI » (clic) → parcelle cadastrale du
+            # point → adresses candidates dont le point BAN tombe dans CETTE
+            # parcelle. Le numéro peut être affiché à un endroit bizarre du
+            # rectangle propriétaire, mais le polygone cadastral, lui, est bon :
+            # la vraie question est « la piscine est-elle dans la parcelle X ou Z ».
+            id_p = q.get("id_piscine", [""])[0]
+            item = d.item_adresse(id_p)
+            row = None if d.adressees is None else \
+                d.adressees[d.adressees["id_piscine"] == id_p]
+            if item is None or row is None or row.empty:
+                self._json({"erreur": "item inconnu"}, 400)
+                return
+            try:
+                fx = float(q.get("fx", [""])[0])
+                fy = float(q.get("fy", [""])[0])
+            except ValueError:
+                self._json({"erreur": "fx/fy invalides"}, 400)
+                return
+            if not (0 <= fx <= 1 and 0 <= fy <= 1):
+                self._json({"erreur": "fx/fy hors de l'image"}, 400)
+                return
+            pt = row.iloc[0].geometry.representative_point()
+            x = pt.x + (fx - 0.5) * v17.CROP_ORTHO_M
+            y = pt.y + (0.5 - fy) * v17.CROP_ORTHO_M
+            idp = parcelle_au_point(d.parcelles, x, y)
+            ks: list[int] = []
+            proche = None
+            if idp is not None:
+                pg = d.parcelles.loc[d.parcelles["id"].astype(str) == idp,
+                                     "geometry"].iloc[0]
+                dists: list[tuple[float, int]] = []
+                for k, a in enumerate(item["adresses"]):
+                    bpt = d.ban.loc[d.ban["id_ban"].astype(str) == str(a["id_ban"]),
+                                    "geometry"]
+                    if bpt.empty:
+                        continue
+                    if bpt.iloc[0].within(pg):
+                        ks.append(k)
+                    dists.append((round(bpt.iloc[0].distance(pg), 1), k))
+                # Aucun point BAN dans la parcelle (cas « nearest hors
+                # parcelle », fréquent dans la file SITUER) : on renseigne la
+                # candidate la plus proche du POLYGONE — un indice, pas un vote.
+                if not ks and dists:
+                    dmin, kmin = min(dists)
+                    proche = {"k": kmin, "dist_m": dmin}
+            self._json({"id_parcelle": idp, "ks": ks, "proche": proche})
         elif u.path == "/api/export/signalements.csv":
             self._csv(v.signalements_csv(), "signalements.csv")
+        elif u.path == "/api/export/incertitudes.csv":
+            # Toutes les zones gelées par la règle des 3 signaux, avec la raison
+            # et les votes bruts : la matière du « à résoudre plus tard »
+            # (multi-millésimes, terrain) — jamais vendue en l'état.
+            lignes = ["produit,mode,id_item,raison,n_votes,accord,changements_max,votes"]
+            for m in MODES:
+                corr = v.corrections_max(produit, m)
+                for i, vs in sorted(v.tout(produit, m).items()):
+                    raison = classer_incertitude(vs, corr.get(i, 0))
+                    if not raison:
+                        continue
+                    _, acc = consensus(vs)
+                    lignes.append(f"{produit},{m},{i},{raison},{len(vs)},{acc:.2f},"
+                                  f"{corr.get(i, 0)},{'|'.join(vs)}")
+            self._csv("\n".join(lignes) + "\n", f"incertitudes_{produit}.csv")
         elif u.path == "/api/tache":
             mode = q.get("mode", ["existence"])[0]
             if mode in ("fast", "slow"):
@@ -838,14 +981,23 @@ class Handler(BaseHTTPRequestHandler):
                 par_item.setdefault(i, []).append((tr, r))
             multi = len({tr for vs in par_item.values() for tr, _ in vs}) >= 3
             ds = ag.consensus_dawid_skene(par_item) if multi else {}
-            lignes = ["id_detection,decision,n_votes,accord,methode"]
+            corr = v.corrections_max(produit, "existence")
+            lignes = ["id_detection,decision,n_votes,accord,methode,statut,raison"]
             for i, vs in sorted(par_item.items()):
+                reps = [r for _, r in vs]
+                raison = classer_incertitude(reps, corr.get(i, 0))
                 if multi:
                     dec, confiance = ds[i]
-                    lignes.append(f"{i},{dec},{len(vs)},{confiance:.2f},dawid-skene")
+                    meth = "dawid-skene"
                 else:
-                    maj, acc = consensus([r for _, r in vs])
-                    lignes.append(f"{i},{maj or 'incertain'},{len(vs)},{acc:.2f},majorite")
+                    dec, confiance = consensus(reps)
+                    dec, meth = dec or "incertain", "majorite"
+                # Doctrine quasi-100 % : une incertitude ne sort JAMAIS en
+                # oui/non — même un vieux script aval ne peut pas la vendre.
+                if raison:
+                    dec = "incertain"
+                lignes.append(f"{i},{dec},{len(vs)},{confiance:.2f},{meth},"
+                              f"{'incertitude' if raison else 'vendable'},{raison or ''}")
             self._csv("\n".join(lignes) + "\n", f"existence_consensus_{produit}.csv")
         elif u.path == "/api/export/adresse.csv":
             if d.adressees is None:
@@ -853,12 +1005,17 @@ class Handler(BaseHTTPRequestHandler):
                 return
             assigne = dict(zip(d.adressees["id_piscine"],
                                d.adressees["id_ban"].astype(str)))
-            lignes = ["id_piscine,id_ban_choisi_humain,id_ban_assigne_auto,concordance,n_votes,accord"]
+            corr = v.corrections_max(produit, "adresse")
+            lignes = ["id_piscine,id_ban_choisi_humain,id_ban_assigne_auto,concordance,n_votes,accord,statut,raison"]
             for i, vs in sorted(v.tout(produit, "adresse").items()):
                 maj, acc = consensus(vs)
+                raison = classer_incertitude(vs, corr.get(i, 0))
+                if raison:
+                    maj = "indecis"       # jamais appliqué comme adresse vérifiée
                 auto = assigne.get(i, "")
                 conc = str(maj == auto).lower() if maj and auto and auto != "nan" else ""
-                lignes.append(f"{i},{maj or ''},{auto if auto != 'nan' else ''},{conc},{len(vs)},{acc:.2f}")
+                lignes.append(f"{i},{maj or ''},{auto if auto != 'nan' else ''},{conc},{len(vs)},{acc:.2f},"
+                              f"{'incertitude' if raison else 'vendable'},{raison or ''}")
             self._csv("\n".join(lignes) + "\n", "adresse_consensus.csv")
         else:
             self.send_error(404)
@@ -885,9 +1042,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             x = item["cx"] + (fx - 0.5) * item["cote_m"]
             y = item["cy"] + (0.5 - fy) * item["cote_m"]
+            idp = parcelle_au_point(d.parcelles, x, y)
             self.votes.signaler(corps["produit"], corps["id_item"], x, y,
-                                str(corps.get("trieur") or "anonyme"))
-            self._json({"ok": True, "x_l93": round(x, 2), "y_l93": round(y, 2)})
+                                str(corps.get("trieur") or "anonyme"), idp)
+            self._json({"ok": True, "x_l93": round(x, 2), "y_l93": round(y, 2),
+                        "id_parcelle": idp})
             return
         if chemin != "/api/reponse":
             self.send_error(404)
@@ -951,9 +1110,12 @@ class Handler(BaseHTTPRequestHandler):
             # du SQLite qui, lui, est écrit à CHAQUE vote).
             dossier = Path(self.produits[produit].cache_dir).parent / "exports"
             dossier.mkdir(parents=True, exist_ok=True)
+            corr = self.votes.corrections_max(produit, mode)
             lignes = ["id_item,decision,n_votes,accord"]
             for i, vv in sorted(self.votes.tout(produit, mode).items()):
                 m2, a2 = consensus(vv)
+                if classer_incertitude(vv, corr.get(i, 0)):
+                    m2 = "indecis"        # zone gelée : jamais dumpée en oui/non
                 lignes.append(f"{i},{m2 or 'indecis'},{len(vv)},{a2:.2f}")
             (dossier / f"{produit}_{mode}_consensus.csv").write_text(
                 "\n".join(lignes) + "\n", encoding="utf-8")
@@ -1103,6 +1265,7 @@ body.sans-aide.sans-hotbar #cadre img,body.sans-aide.sans-hotbar #cadre svg{widt
 #liste-adr .row:last-child{border-bottom:none}
 #liste-adr .row:hover{background:var(--raise)}
 #liste-adr .row.choisie{background:var(--acc-dim);color:var(--acc)}
+#liste-adr .row.cadastre{box-shadow:inset 3px 0 0 var(--acc)}
 .num{font-family:var(--mono);font-weight:bold;min-width:1.6em;color:var(--mut)}
 
 /* ---------- ruban de session ---------- */
@@ -1467,6 +1630,13 @@ function afficher(r){
     cadre.innerHTML = svgAdresse(ITEM) + badges;
     cadre.querySelectorAll(".pin").forEach(g =>
       g.addEventListener("click", () => repondre(ITEM.adresses[+g.dataset.k].id_ban)));
+    // Écouteur sur le SVG entier (pas seulement l'<image> : le contour de la
+    // piscine, rempli, capte les clics — et c'est justement LÀ qu'on clique).
+    const svgFond = cadre.querySelector("svg");
+    if (svgFond) svgFond.addEventListener("click", ev => {
+      if (ev.target.closest(".pin")) return;   // les pastilles votent, elles
+      clicPiscineCadastre(ev);
+    });
     document.getElementById("question").textContent = "À quelle maison appartient la zone rouge ?";
     document.getElementById("detail").textContent = `${PRODUIT} · ${ITEM.id_piscine}`;
     document.getElementById("droite").style.display = "";
@@ -1484,7 +1654,8 @@ function afficher(r){
     document.getElementById("nav-aide").style.display = "";
     document.getElementById("nav-aide").innerHTML =
       `rangée des chiffres <kbd>&</kbd><kbd>é</kbd><kbd>"</kbd>… = maison 1,2,3 · <kbd>A</kbd> aucune ·
-       <kbd>S</kbd> impossible · <kbd>V</kbd> loupe · <kbd>←</kbd>/<kbd>→</kbd> ou <kbd>E</kbd> naviguer · <kbd>ESPACE</kbd> passer`;
+       <kbd>S</kbd> impossible · <kbd>V</kbd> loupe · <kbd>←</kbd>/<kbd>→</kbd> ou <kbd>E</kbd> naviguer · <kbd>ESPACE</kbd> passer
+       <br>doute entre deux maisons ? <b>clique sur la piscine</b> : le cadastre dit dans quelle parcelle elle est`;
   }
   document.getElementById("badge-deja").style.display = MON_DERNIER ? "inline" : "none";
   // en bout d'historique (item neuf) : précharger le prochain pendant la réflexion
@@ -1630,8 +1801,50 @@ async function clicImage(ev){
     m.style.cssText = `position:absolute;left:${fx*100}%;top:${fy*100}%;width:14px;height:14px;
       margin:-7px;border:3px solid var(--acc);border-radius:50%;pointer-events:none`;
     document.getElementById("cadre").appendChild(m);
-    toast("piscine signalée · recoupée plus tard avec le cadastre");
+    toast(r.id_parcelle
+      ? `piscine signalée · parcelle cadastrale ${r.id_parcelle}`
+      : "piscine signalée · hors parcelle cadastrale connue");
   }
+}
+
+// SITUER : clic sur la piscine (le fond de l'image, pas une pastille) →
+// le serveur trouve la parcelle cadastrale du point et surligne les maisons
+// candidates dont l'adresse BAN tombe dans CETTE parcelle. Le farmer reste
+// juge : rien n'est voté à sa place.
+async function clicPiscineCadastre(ev){
+  if (REEL() !== "adresse" || !ITEM) return;
+  const svg = ev.currentTarget;
+  const rect = svg.getBoundingClientRect();
+  const fx = (ev.clientX - rect.left) / rect.width;
+  const fy = (ev.clientY - rect.top) / rect.height;
+  const r = await (await fetch(`/api/parcelle_clic?produit=${PRODUIT}` +
+    `&id_piscine=${encodeURIComponent(ITEM.id_piscine)}&fx=${fx}&fy=${fy}`)).json();
+  document.querySelectorAll("#cadre .pin .cad").forEach(c => c.remove());
+  document.querySelectorAll("#liste-adr .row.cadastre").forEach(x => x.classList.remove("cadastre"));
+  if (!r.id_parcelle){ toast("clic hors parcelle cadastrale connue"); return; }
+  if (!r.ks || !r.ks.length){
+    toast(r.proche
+      ? `parcelle ${r.id_parcelle} : aucune adresse candidate dedans · la plus proche du polygone : maison ${r.proche.k+1} (à ${r.proche.dist_m} m)`
+      : `parcelle ${r.id_parcelle} : aucune des adresses candidates n'est dedans`);
+    return;
+  }
+  const rows = document.querySelectorAll("#liste-adr .row");
+  r.ks.forEach(k => {
+    const g = document.querySelector(`#cadre .pin[data-k="${k}"]`);
+    if (g){
+      const c0 = g.querySelector("circle:last-of-type");
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("cx", c0.getAttribute("cx")); c.setAttribute("cy", c0.getAttribute("cy"));
+      c.setAttribute("r", 18); c.setAttribute("fill", "none");
+      c.setAttribute("stroke", "var(--acc)"); c.setAttribute("stroke-width", "3");
+      c.setAttribute("pointer-events", "none"); c.classList.add("cad");
+      g.appendChild(c);
+    }
+    if (rows[k]) rows[k].classList.add("cadastre");
+  });
+  toast(r.ks.length === 1
+    ? `cadastre : la piscine est dans la parcelle de la maison ${r.ks[0]+1} — à toi de confirmer`
+    : `cadastre : parcelle partagée par les maisons ${r.ks.map(k => k+1).join(", ")}`);
 }
 // Loupe V (panel farmers №7) : zoom 2,2× dont l'origine SUIT la souris —
 // on inspecte un doute sans jamais quitter le flux ni changer de mode.
@@ -1813,6 +2026,10 @@ def main() -> None:
     res = Ressources(cfg, ortho if ortho.exists() else None)
     produits = {}
     for nom, pcfg in PRODUITS.items():
+        if not pcfg.get("actif", True):
+            log.info("[%s] produit EN PAUSE (décision consignée dans PRODUITS) "
+                     "— file non servie.", nom)
+            continue
         if not (interim / pcfg["candidats"]).exists():
             log.warning("[%s] candidats absents (%s) — produit non chargé.",
                         nom, pcfg["candidats"])

@@ -8,7 +8,7 @@ Business : constituer et vendre à des professionnels locaux (pisciniers, instal
 
 | Toi, tu veux… | Tu cliques… |
 |---|---|
-| **Farmer** (piscines, terrasses — tri + adresses, tout est là) | double-clic sur **`🎮 FARMER — CLIQUE ICI.command`** à la racine (ou va direct sur http://localhost:8199 si le serveur tourne) |
+| **Farmer** (piscines — tri + adresses ; terrasses en pause, `16` §8) | double-clic sur **`🎮 FARMER — CLIQUE ICI.command`** à la racine (ou va direct sur http://localhost:8199 si le serveur tourne) |
 | Faire trier un ami sans rien installer | envoie-lui `handoff/tri_bouchemaine_49035.html` (double-clic chez lui) |
 | Savoir où en est le projet | [`docs/08-ROADMAP.md`](docs/08-ROADMAP.md), bloc « prochaine session » |
 

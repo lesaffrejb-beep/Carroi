@@ -56,13 +56,48 @@ pause forcée de 3 s + dump automatique du consensus dans `data/atelier/exports/
 
 ## Exports (compatibles chaîne existante)
 
-- `/api/export/existence.csv` → `id_detection,decision,n_votes,accord`
+- `/api/export/existence.csv` → `id_detection,decision,n_votes,accord,methode,statut,raison`
   (consommable par `16 --apply` après filtrage, et par `18_bilan_tri`).
-- `/api/export/adresse.csv` → contrat de `concordance.csv` + `n_votes,accord`
+- `/api/export/adresse.csv` → contrat de `concordance.csv` + `n_votes,accord,statut,raison`
   (consommable par `21_appliquer_concordance`).
+- `/api/export/incertitudes.csv` → toutes les zones gelées, avec raison,
+  changements d'avis max et votes bruts (le « à résoudre plus tard »).
 
 Règle de gestion : **une décision multi-votes ne redescend dans le pipeline que
 par ces exports consensus** — jamais en éditant les parquets à la main.
+
+## Incertitudes : la règle des 3 signaux (décision JB 2026-08-06, `16` §8)
+
+Doctrine commerciale : on ne vend que le quasi-100 % ; le reste est **classé**,
+pas forcé. `classer_incertitude(votes, corrections_max)` gèle une zone dès
+qu'UN signal se déclenche :
+
+1. **desaccord** — votes à égalité, OU des réponses incompatibles coexistent
+   avec un accord < 2/3 (`INCERTITUDE_ACCORD_MIN`) ;
+2. **instable** — un même trieur a changé d'avis plus de 2 fois sur la même
+   image (`INCERTITUDE_CHANGEMENTS_MAX` ; journal SQLite `corrections`,
+   alimenté quand la navigation arrière REMPLACE un vote par une réponse
+   différente) ;
+3. **vote_incertain** — la majorité elle-même est incertain/indecis.
+
+Effet dans TOUS les exports (y compris les dumps auto tous les 100 votes) :
+`decision` forcée à `incertain`/`indecis` — même un vieux script aval ne peut
+pas vendre une zone gelée. Les items contestés restent prioritaires dans la
+file (une passe de plus peut les trancher) ; ce qui résiste attend le
+multi-millésimes (tâche 23, roadmap) ou le terrain.
+
+## Clic-piscine ↔ cadastre (mode 🧭 SITUER, décision JB 2026-08-06)
+
+Le numéro BAN peut être affiché à un endroit bizarre du rectangle propriétaire,
+mais le polygone cadastral, lui, est bon : la vraie question est « la piscine
+est-elle dans la parcelle X ou Z », pas « où est la piscine dans le rectangle ».
+En SITUER, cliquer sur la **piscine elle-même** (le fond de l'image, pas une
+pastille) appelle `/api/parcelle_clic` : le serveur convertit le clic en
+Lambert-93, trouve la parcelle cadastrale du point (`parcelle_au_point`), et
+surligne (anneau lime + liseré dans la liste) les maisons candidates dont le
+point BAN tombe dans CETTE parcelle. Le farmer reste juge : rien n'est voté à
+sa place. Les signalements `F` (mode CLASSER) stockent aussi `id_parcelle` au
+moment du clic.
 
 ## Extension aux produits suivants
 

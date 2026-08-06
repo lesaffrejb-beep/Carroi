@@ -130,3 +130,70 @@ def test_combos_multi_classes():
     assert atelier.existence_acquise(["jardin+terrasse"], positifs=("terrasse", "jardin"))
     assert not atelier.existence_acquise(["non", "non"], positifs=("oui",))
     assert not atelier.existence_acquise([], positifs=("oui",))
+
+
+def test_classer_incertitude_regle_des_3_signaux():
+    ci = atelier.classer_incertitude
+    # vendable : unanime, ou majorité nette (accord ≥ 2/3)
+    assert ci(["oui", "oui", "oui"]) is None
+    assert ci(["oui", "oui", "non"]) is None            # 2/3 pile = vendable
+    assert ci([]) is None
+    # desaccord : égalité, ou incompatibles avec accord < 2/3
+    assert ci(["oui", "non"]) == "desaccord"
+    assert ci(["oui", "oui", "non", "non", "oui"]) == "desaccord"   # 3/5 < 2/3
+    # combos compatibles ≠ désaccord (partagent un composant)
+    assert ci(["jardin+oui", "oui", "oui"]) is None
+    # vote_incertain : la majorité elle-même est incertain/indecis
+    assert ci(["incertain", "incertain", "oui"]) == "vote_incertain"
+    assert ci(["indecis"]) == "vote_incertain"
+    # instable : > 2 changements d'avis d'un même trieur, quel que soit le vote
+    assert ci(["oui", "oui", "oui"], corrections_max=3) == "instable"
+    assert ci(["oui"], corrections_max=2) is None       # 2 changements = toléré
+
+
+def test_corrections_journalisees_et_max(tmp_path):
+    """remplacer_dernier avec une réponse DIFFÉRENTE journalise un changement
+    d'avis ; corrections_max donne le pire trieur par item (signal instable)."""
+    v = atelier.Votes(tmp_path / "v.sqlite")
+    v.ajouter("piscines", "existence", "p1", "oui", "JB")
+    v.remplacer_dernier("piscines", "existence", "p1", "non", "JB")   # 1
+    v.remplacer_dernier("piscines", "existence", "p1", "oui", "JB")   # 2
+    v.remplacer_dernier("piscines", "existence", "p1", "oui", "JB")   # même réponse : pas un changement
+    v.remplacer_dernier("piscines", "existence", "p1", "non", "JB")   # 3
+    v.ajouter("piscines", "existence", "p2", "oui", "Azan")
+    v.remplacer_dernier("piscines", "existence", "p2", "non", "Azan") # 1 seul
+    cmax = v.corrections_max("piscines", "existence")
+    assert cmax["p1"] == 3 and cmax["p2"] == 1
+    assert atelier.classer_incertitude(v.votes_item("piscines", "existence", "p1"),
+                                       cmax["p1"]) == "instable"
+    # le vote courant reste unique (pas de doublon malgré les corrections)
+    assert v.votes_item("piscines", "existence", "p1") == ["non"]
+
+
+def test_signalement_porte_la_parcelle(tmp_path):
+    v = atelier.Votes(tmp_path / "v.sqlite")
+    v.signaler("piscines", "p1", 427421.5, 6707886.1, "JB", id_parcelle="49035000AB0001")
+    v.signaler("piscines", "p2", 1.0, 2.0, "JB")            # hors parcelle → vide
+    csv = v.signalements_csv()
+    assert "id_parcelle" in csv.splitlines()[0]
+    assert "49035000AB0001" in csv
+
+
+def test_parcelle_au_point():
+    import geopandas as gpd
+    from shapely.geometry import box
+    parcelles = gpd.GeoDataFrame(
+        {"id": ["A", "B"]},
+        geometry=[box(0, 0, 10, 10), box(10, 0, 20, 10)], crs="EPSG:2154")
+    assert atelier.parcelle_au_point(parcelles, 5, 5) == "A"
+    assert atelier.parcelle_au_point(parcelles, 15, 5) == "B"
+    assert atelier.parcelle_au_point(parcelles, 50, 50) is None
+    assert atelier.parcelle_au_point(None, 5, 5) is None
+
+
+def test_terrasses_en_pause():
+    """Décision JB 2026-08-06 : hard focus piscines. La file terrasses n'est
+    plus servie, mais le vocabulaire multi-classes reste intact."""
+    assert atelier.PRODUITS["terrasses"].get("actif", True) is False
+    assert atelier.PRODUITS["piscines"].get("actif", True) is True
+    assert {v[0] for v in atelier.VOCAB_FAST} >= {"piscine", "terrasse", "jardin"}

@@ -33,7 +33,12 @@
   - Format interne : **JP2 (JPEG2000, profil E080)**, dalles 1 km (5000×5000 px), nommées `ORTHO_{IRC|RVB}_0M20_JP2_E080_L93_XXXX_YYYY.jp2` (coin Sud-Ouest, km Lambert-93 ; 49 ≈ X 350-470, Y 6650-6770, ~8 000-8 500 dalles).
   - **Bandes IRC : 1 = proche IR, 2 = rouge, 3 = vert** — à confronter aux hypothèses de `detection.py` dès B1.
   - Extraction d'une commune sans tout décompresser : `7z x archive.7z.001 -ir!*XXXX_YYYY.jp2 -o…` (liste de dalles = intersection commune × tableau d'assemblage WFS).
-  - Millésime 49 : **probablement 2025** (remplace 2022 ; publication charnière 2025/2026 — NON confirmé par la vérif web du 2026-07-11, B1 tranche et consigne). Prochain survol : **été 2028** (publication fin 2028/2029).
+  - Millésime 49 : **2025 CONFIRMÉ** (vérifié au catalogue geopf le 2026-08-06 :
+    `BDORTHO_2-0_RVB-0M20_JP2-E080_LAMB93_D049_2025-01-01`, 8 parties ≤ 4 Go ; IRC 2025
+    aussi publié). Millésimes RVB 0M20 disponibles : 2013, 2016, 2020, 2022, 2025.
+    Copies locales NOIR : `maps-bdortho/D049_2022/` (dalles), `D049_2025/` et
+    `D049_2020/` (archives 7z, téléchargées 2026-08-06). Prochain survol : **été 2028**
+    (publication fin 2028/2029).
   - **Opportunité** : si 2025 confirmé, le diff **2022→2025** (`millesimes.py`) rend le segment « nouvelles piscines » disponible dès le lancement (archives 2022 : BD ORTHO historique / opendatarchives).
 - L'IRC sert à éliminer les faux positifs végétation (une piscine n'a aucune signature végétale) et les bâches vertes.
 

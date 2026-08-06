@@ -215,3 +215,45 @@ tâche 12 de `08`, post-D0. Effet mesuré : rappel 54,9 % → 76,6 % potentiel.
 
 Repris dans `08-ROADMAP.md` (file d'attente) : export XLSX dans 40 ; archive datée dans
 30 ; script backup 90 ; colonne corroboration (après deepsearch ③). Chacune cadrée là-bas.
+
+## 8. Décisions JB du 2026-08-06 — focus, incertitudes, multi-millésimes
+
+1. **⏸ Terrasses EN PAUSE.** Hard focus **piscines + « à quelle adresse est la
+   piscine »**. Concrètement : la file terrasses n'est plus servie par l'Atelier
+   (`PRODUITS["terrasses"]["actif"] = False`), les tâches terrasses de la roadmap
+   passent en pause. Le vocabulaire multi-classes de ⚡ CLASSER (piscine/terrasse/
+   jardin) reste intact : le dataset du futur modèle continue de s'enrichir
+   gratuitement, on ne perd rien. Le détecteur 25 et le LiDAR restent en l'état.
+2. **Doctrine « quasi-100 % »** (retour collègue JB) : on ne vend QUE les piscines
+   quasi certaines. Les autres ne sont ni vendues ni forcées : elles partent dans
+   une classe **incertitudes**, assumée — « des fois on ne peut pas savoir sans
+   aller sur place ». Cohérent avec le garde-fou n°7 (pas de sur-promesse) : le
+   taux de précision annoncé se mesure sur le vendable uniquement.
+3. **Règle des 3 signaux** (classement automatique en incertitude, implémentée
+   dans `atelier.py::classer_incertitude`) — une zone est gelée dès qu'UN signal
+   se déclenche :
+   - **desaccord** : votes à égalité, OU des réponses incompatibles coexistent
+     avec un accord < 2/3 ;
+   - **instable** : un même trieur a changé d'avis **plus de 2 fois** sur la même
+     image (journal `corrections` en SQLite, alimenté par la navigation arrière) ;
+   - **vote_incertain** : la majorité elle-même est « impossible à dire ».
+   Effets : `decision` forcée à `incertain`/`indecis` dans TOUS les exports (même
+   un vieux script aval ne peut pas les vendre), colonnes `statut,raison` ajoutées,
+   export dédié `/api/export/incertitudes.csv`. Les incertitudes restent
+   prioritaires dans la file (une passe de plus peut les trancher) ; celles qui
+   résistent attendent le multi-millésimes ou le terrain.
+4. **Superposition multi-millésimes** (idée relayée par JB, « superposer 10
+   images ») : croiser la même zone sur PLUSIEURS années d'orthophotos
+   (2016/2020/2022/2025) + CoSIA par millésime. Une piscine vue sur ≥ 2 millésimes
+   est quasi certaine sans terrain ; vue sur 2025 seulement = « nouvelle piscine »
+   (segment vendable à part, cf. `02` §BD ORTHO) ; incertitude 2022 résolue par
+   les autres années. C'est LE résolveur d'incertitudes du point 2. Tâche [OPUS]
+   cadrée dans `08`. Millésimes locaux : SSD NOIR (`maps-bdortho/D049_{2020,2022,2025}`).
+5. **Clic-piscine ↔ cadastre** (mode 🧭 SITUER) : le farmer peut cliquer sur la
+   piscine elle-même ; le serveur trouve la **parcelle cadastrale** du point et
+   surligne les adresses candidates dont le point BAN tombe dans cette parcelle.
+   Principe : le numéro BAN peut être affiché à un endroit bizarre du rectangle
+   propriétaire, mais le polygone cadastral, lui, est bon — la vraie question est
+   « la piscine est-elle dans la parcelle X ou Z », pas « où est la piscine dans
+   le rectangle ». Le farmer reste juge : rien n'est voté à sa place. Les
+   signalements F portent aussi désormais `id_parcelle`.
