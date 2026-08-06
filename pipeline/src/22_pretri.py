@@ -249,6 +249,12 @@ def main() -> None:
     ap.add_argument("--produit", default="piscines")
     ap.add_argument("--candidats", help="apply : parquet de candidats à scorer ; "
                                         "train : défaut Bouchemaine")
+    ap.add_argument("--labels", help="train : CSV id_detection,label (0/1) au lieu "
+                                     "du consensus Atelier — sert à entraîner sur "
+                                     "des candidats re-générés (ex. CoSIA) dont les "
+                                     "ids ne portent pas encore de votes")
+    ap.add_argument("--vignettes-dir", help="dossier des vignettes PNG (défaut : "
+                                            "data/interim/tri/vignettes)")
     args = ap.parse_args()
 
     cfg = load_config()
@@ -256,8 +262,9 @@ def main() -> None:
     interim = Path(cfg["paths"]["interim"])
     out_dir = interim / "pretri"
     out_dir.mkdir(parents=True, exist_ok=True)
-    vignettes = {"piscines": interim / "tri" / "vignettes",
-                 "terrasses": interim / "tri_terrasses" / "vignettes"}[args.produit]
+    vignettes = (Path(args.vignettes_dir) if args.vignettes_dir else
+                 {"piscines": interim / "tri" / "vignettes",
+                  "terrasses": interim / "tri_terrasses" / "vignettes"}[args.produit])
     defaut = {"piscines": interim / "piscines_candidates_49_49035.parquet",
               "terrasses": interim / "terrasses_a_farmer_49_49035.parquet"}[args.produit]
     import joblib
@@ -265,7 +272,13 @@ def main() -> None:
     if args.action == "train":
         cand = gpd.read_parquet(Path(args.candidats) if args.candidats else defaut)
         X = table_features(cand, vignettes)
-        y = labels_consensus(interim.parent / "atelier" / "atelier.sqlite", args.produit)
+        if args.labels:
+            lab = pd.read_csv(args.labels, dtype={"id_detection": str})
+            y = lab.set_index("id_detection")["label"].astype(int)
+            log.info("Labels fournis (%s) : %d exemples (%d positifs).",
+                     args.labels, len(y), int(y.sum()))
+        else:
+            y = labels_consensus(interim.parent / "atelier" / "atelier.sqlite", args.produit)
         X = X[X["id_detection"].isin(y.index)].reset_index(drop=True)
         yy = y.loc[X["id_detection"]].to_numpy()
         cols = [c for c in X.columns if c not in ("id_detection", "dalle")]

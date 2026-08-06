@@ -87,7 +87,11 @@ PRODUITS = {
         # on canonise À L'ÉCRITURE, sinon le consensus se scinde en deux
         # classes positives et les items-or (semés en « oui ») ne matchent plus.
         "canonique": {"piscine": "oui"},
-        "candidats": "piscines_candidates_49_49035.parquet",
+        # Salve ALM (décision JB 2026-08-06) : candidats CoSIA des 28 communes
+        # d'Angers Loire Métropole (Bouchemaine exclue : 977/977 déjà tranchés
+        # sur les candidats v1, votes conservés en base). Vignettes partagées
+        # dans tri/vignettes (ids uniques dept-wide).
+        "candidats": "piscines_candidates_49_alm.parquet",
         "vignettes": "tri/vignettes",
         "vignette_m": 60,
         "adressees": "piscines_adressees_49.parquet",
@@ -452,7 +456,16 @@ class Donnees:
 
         cand = gpd.read_parquet(interim / pcfg["candidats"])
         self.candidats = cand.assign(id_detection=cand["id_detection"].astype(str))
-        log.info("[%s] %d candidats (existence).", nom, len(self.candidats))
+        # Si le pré-tri (22 apply) a posé son verdict, seuls les `farm` entrent
+        # dans la file : auto_non/auto_oui court-circuitent l'humain. Sans la
+        # colonne (salve sans pré-tri), tout est farmable.
+        if "pretri_verdict" in self.candidats.columns:
+            self.farmables = set(self.candidats.loc[
+                self.candidats["pretri_verdict"] == "farm", "id_detection"])
+        else:
+            self.farmables = set(self.candidats["id_detection"])
+        log.info("[%s] %d candidats (existence), %d farmables.",
+                 nom, len(self.candidats), len(self.farmables))
 
         self.adressees = None
         if pcfg["adressees"]:
@@ -484,6 +497,7 @@ class Donnees:
                 "png": f"/api/vignette/{self.nom}/{id_detection}.png",
                 "surface": float(r["surface_m2"]),
                 "score": float(r["score_detection"]),
+                "commune": str(r["commune"]) if "commune" in r else None,
                 "cx": round(float(pt.x), 2), "cy": round(float(pt.y), 2),
                 "cote_m": self.meta.get("vignette_m", 60)}
 
@@ -876,7 +890,7 @@ class Handler(BaseHTTPRequestHandler):
                     if reel == "existence":
                         dispo = dp.ids_disponibles()
                         ids = [i for i in dp.candidats["id_detection"]
-                               if i in dispo and i != sauf]
+                               if i in dispo and i != sauf and i in dp.farmables]
                     else:
                         ids = [i for i in ids_adresse_debloques(
                                    dp, v.tout(nom, "existence"))
@@ -926,7 +940,8 @@ class Handler(BaseHTTPRequestHandler):
                         self._json({"item": item, "deja_vu": 0, "mon_dernier": None})
                         return
                 dispo = d.ids_disponibles()
-                ids = [i for i in d.candidats["id_detection"] if i in dispo and i != sauf]
+                ids = [i for i in d.candidats["id_detection"]
+                       if i in dispo and i != sauf and i in d.farmables]
                 tout = v.tout(produit, "existence")
                 contestes = {i for i, vs in tout.items() if consensus(vs)[0] is None and vs}
                 id_item = choisir_moins_vu(ids, v.compte_par_item(produit, "existence"),
@@ -1351,7 +1366,7 @@ body.sans-aide.sans-hotbar #cadre img,body.sans-aide.sans-hotbar #cadre svg{widt
 
 <header>
  <div id="hud">
-  <div id="marque">L'ATELIER<small>Bouchemaine · 49</small></div>
+  <div id="marque">L'ATELIER<small>Angers Loire Métropole · 49</small></div>
   <div id="niveaux">
    <button class="niveau actif" id="ong-fast" onclick="changerMode('fast')">⚡ CLASSER <span class="sous">clavier</span></button>
    <button class="niveau" id="ong-slow" onclick="changerMode('slow')">🧭 SITUER <span class="sous" id="verrou-adresse">souris</span></button>
@@ -1372,7 +1387,7 @@ body.sans-aide.sans-hotbar #cadre img,body.sans-aide.sans-hotbar #cadre svg{widt
    <div class="chip" style="display:none">rythme<b id="rythme">—</b></div>
   </div>
   <span id="save" title="Chaque réponse est écrite en base à l'instant du clic. Le CSV n'est qu'une copie de consultation.">✓ sauvegarde auto<br>
-   <a href="#" onclick="location.href='/api/export/'+REEL()+'.csv?produit='+PRODUIT;return false">télécharger le CSV</a></span>
+   <a id="lien-export" href="#" onclick="location.href='/api/export/'+REEL()+'.csv?produit='+PRODUIT;return false">télécharger le CSV</a></span>
  </div>
  <div id="rail">
   <div id="jauge"></div><div id="rail-ticks"></div>
@@ -1480,6 +1495,14 @@ function definirTrieur(n){ n=(n||"").trim(); if(!n) return; TRIEUR=n;
 if (!TRIEUR && !JETON){
   document.getElementById("modal-trieur").style.display="flex";
   chargerFarmers();
+}
+// Invités (jeton) : pas de lien d'export — la base est l'ACTIF, elle reste
+// chez JB ; le lien affiché chez un invité échouait de toute façon et semait
+// le doute sur la sauvegarde (retour Azan 2026-08-06). La sauvegarde réelle
+// est en base à chaque clic, côté serveur.
+if (JETON){
+  const le = document.getElementById("lien-export");
+  if (le) le.parentElement.innerHTML = "✓ sauvegarde auto<br>sur le serveur de JB";
 }
 // Farmers déjà connus (JB, Azan…) : un bouton chacun — cliquer = choisir.
 async function chargerFarmers(){
@@ -1647,7 +1670,7 @@ function afficher(r){
     modeSignal = false; cadre.style.cursor = "";
     document.getElementById("question").textContent = "Que voyez-vous dans la zone rouge ?";
     document.getElementById("detail").textContent =
-      `${PRODUIT} · ${ITEM.surface.toFixed(0)} m² · score ${ITEM.score.toFixed(2)} · ${ITEM.id}`;
+      `${PRODUIT}${ITEM.commune ? " · " + ITEM.commune : ""} · ${ITEM.surface.toFixed(0)} m² · score ${ITEM.score.toFixed(2)} · ${ITEM.id}`;
     liste.style.display = "none"; liste.innerHTML = "";
     document.getElementById("droite").style.display = "none";
     document.getElementById("nav-aide").style.display = "";
@@ -1820,7 +1843,9 @@ function armerSignal(){
   if (REEL() !== "existence") return;
   modeSignal = !modeSignal;
   document.getElementById("cadre").style.cursor = modeSignal ? "crosshair" : "";
-  toast(modeSignal ? "clique sur la piscine que tu vois (F pour annuler)" : "signalement annulé");
+  toast(modeSignal
+    ? "clique sur la piscine que tu vois hors zone rouge (F pour annuler) — l'image ne changera pas, tu voteras ensuite"
+    : "signalement annulé", 3500);
 }
 async function clicImage(ev){
   if (!modeSignal || REEL() !== "existence" || !ITEM) return;
@@ -1838,9 +1863,13 @@ async function clicImage(ev){
     m.style.cssText = `position:absolute;left:${fx*100}%;top:${fy*100}%;width:14px;height:14px;
       margin:-7px;border:3px solid var(--acc);border-radius:50%;pointer-events:none`;
     document.getElementById("cadre").appendChild(m);
-    toast(r.id_parcelle
-      ? `piscine signalée · parcelle cadastrale ${r.id_parcelle}`
-      : "piscine signalée · hors parcelle cadastrale connue");
+    // Retour Azan 2026-08-06 : après un signalement il attendait l'image
+    // suivante et votait « impossible à dire » pour avancer — faux votes.
+    // Le signalement est un BONUS, il faut ENCORE répondre pour la zone rouge :
+    // on le dit explicitement, longtemps, à chaque fois.
+    toast("✓ piscine signalée" +
+      (r.id_parcelle ? ` (parcelle ${r.id_parcelle})` : "") +
+      " — maintenant réponds pour la ZONE ROUGE : D si rien dedans", 4500);
   }
 }
 
@@ -1891,10 +1920,10 @@ document.getElementById("cadre").addEventListener("mousemove", ev => {
   el.style.setProperty("--oy", ((ev.clientY - rc.top) / rc.height * 100) + "%");
 });
 
-function toast(txt){
+function toast(txt, duree){
   const t = document.getElementById("toast");
   t.textContent = txt; t.classList.add("on");
-  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 1700);
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), duree || 1700);
 }
 
 function dessinerHisto(){

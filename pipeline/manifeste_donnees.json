@@ -1,5 +1,5 @@
 {
-  "genere_le": "2026-07-16T19:26:27+00:00",
+  "genere_le": "2026-08-06T21:55:48+00:00",
   "machine": "MacBookPro",
   "note": "Référence partagée des données data/interim/. NE PAS éditer à la main. Régénérer avec : python pipeline/src/verifier_donnees.py --generer, committer, et consigner le changement de millésime dans docs/08.",
   "fichiers": {
@@ -43,10 +43,155 @@
       "taille_octets": 39140,
       "nb_lignes": 87
     },
+    "piscines_candidates_49_49007.parquet": {
+      "sha256": "e554ef5092f85bf8991452a1a090a3c5b201272d21c378efbcc5af593920b66f",
+      "taille_octets": 486132,
+      "nb_lignes": 1222
+    },
+    "piscines_candidates_49_49015.parquet": {
+      "sha256": "888a664ff449f86ecf5cb5452fbfb38ec701424a072b9d634568652023bb0637",
+      "taille_octets": 206111,
+      "nb_lignes": 494
+    },
+    "piscines_candidates_49_49020.parquet": {
+      "sha256": "47d0b536e459d623425891e7367ad76aa56040d525a9558e3c6ab6e1d8c21acc",
+      "taille_octets": 96863,
+      "nb_lignes": 214
+    },
+    "piscines_candidates_49_49028.parquet": {
+      "sha256": "e31aa4d44fad3451872ed6eedca6d17569aa2e124bd3fb70f3e5d0eb51becbbd",
+      "taille_octets": 15943,
+      "nb_lignes": 1
+    },
     "piscines_candidates_49_49035.parquet": {
       "sha256": "2d460d3dc74e4ee394732b54a5434ca468a99bfdac04a38b919e70dd2adab69f",
       "taille_octets": 628092,
       "nb_lignes": 977
+    },
+    "piscines_candidates_49_49048.parquet": {
+      "sha256": "68c4811e4eeff6fc00e6607e3c95ff7b1dc846ca5428c1ec174f1eab8d7a6b46",
+      "taille_octets": 150974,
+      "nb_lignes": 341
+    },
+    "piscines_candidates_49_49055.parquet": {
+      "sha256": "419ffe5968cdc11ada3106a63c94763f531e520b043861931f8cccfa87e15752",
+      "taille_octets": 92639,
+      "nb_lignes": 189
+    },
+    "piscines_candidates_49_49129.parquet": {
+      "sha256": "b2dbfbddc5b71b84a9baf976866359446526364bea8be8b3a9acebb311db76d3",
+      "taille_octets": 133223,
+      "nb_lignes": 293
+    },
+    "piscines_candidates_49_49130.parquet": {
+      "sha256": "08e2379d7381b9e47b37be1c502e4638d41d4d0e7113434f3ebceed2760bf532",
+      "taille_octets": 49918,
+      "nb_lignes": 84
+    },
+    "piscines_candidates_49_49135.parquet": {
+      "sha256": "dbc7f986c0f514a08b5d003a93a79f7786f01d5798e9be44a3354a7363d5465b",
+      "taille_octets": 88839,
+      "nb_lignes": 182
+    },
+    "piscines_candidates_49_49200.parquet": {
+      "sha256": "4fd451fbdbe773ba5a9be669079bb511cdd7b9a7da3e41b619a1a153519278ff",
+      "taille_octets": 204572,
+      "nb_lignes": 496
+    },
+    "piscines_candidates_49_49214.parquet": {
+      "sha256": "dccd9be807a71f0368c3146a58fa50ebb6213a9cc3058f67a8217add4061a5a3",
+      "taille_octets": 173658,
+      "nb_lignes": 410
+    },
+    "piscines_candidates_49_49223.parquet": {
+      "sha256": "e1b9d20cb20735a23d72519ac0d39b797b2c78dba16b9f00a0c456aa4c43a76f",
+      "taille_octets": 137798,
+      "nb_lignes": 321
+    },
+    "piscines_candidates_49_49241.parquet": {
+      "sha256": "b4680c4ef135256216fc2b0e4757a4b51a724782b416d0801889bfc83a68b4e1",
+      "taille_octets": 94381,
+      "nb_lignes": 198
+    },
+    "piscines_candidates_49_49246.parquet": {
+      "sha256": "4fd03d744c001f96e3bfe44d47bcdbb92fe93129d670a889a22d37f7d69bc7b6",
+      "taille_octets": 193064,
+      "nb_lignes": 442
+    },
+    "piscines_candidates_49_49267.parquet": {
+      "sha256": "810e2c80c41316c046dbf59819424bde27269ddc62c8f52269f633af97568db1",
+      "taille_octets": 137623,
+      "nb_lignes": 311
+    },
+    "piscines_candidates_49_49271.parquet": {
+      "sha256": "982213a2f8523ecd9585455eb9925b4beb450ee98c85cb683a9a443a64db60ee",
+      "taille_octets": 85429,
+      "nb_lignes": 186
+    },
+    "piscines_candidates_49_49278.parquet": {
+      "sha256": "bffcd2608982766f7100a41258908a4ee07cefc142b46888da208f2229045a1a",
+      "taille_octets": 102776,
+      "nb_lignes": 210
+    },
+    "piscines_candidates_49_49294.parquet": {
+      "sha256": "9cce49afb4d99c86ea8a064b0bb2e896584ab3b408602bd1ff38c30bbf8b423d",
+      "taille_octets": 105223,
+      "nb_lignes": 218
+    },
+    "piscines_candidates_49_49298.parquet": {
+      "sha256": "a9761194f756b15cf17fa76a7138177c04c5adce48a5b6f0fe7f1b3953a6a376",
+      "taille_octets": 136953,
+      "nb_lignes": 308
+    },
+    "piscines_candidates_49_49306.parquet": {
+      "sha256": "49aeafebe3e5ee9e95373e3d68e01a9086a58fd53d71cb52ce245c84813f701c",
+      "taille_octets": 73865,
+      "nb_lignes": 150
+    },
+    "piscines_candidates_49_49307.parquet": {
+      "sha256": "4bb8ca9f8fcdeccf80e6dd89452ff7b03854230e437a273416903e1d68a65f97",
+      "taille_octets": 561681,
+      "nb_lignes": 1456
+    },
+    "piscines_candidates_49_49323.parquet": {
+      "sha256": "0b650b66df4a98dbcb039cdabfe7597808b4aa4e7f6fe808df7b84d280b3aac8",
+      "taille_octets": 176377,
+      "nb_lignes": 433
+    },
+    "piscines_candidates_49_49326.parquet": {
+      "sha256": "7a995bc4420cc915a25c7463e956209415f76fa8b73db6fc65795322fa8f73fa",
+      "taille_octets": 48942,
+      "nb_lignes": 84
+    },
+    "piscines_candidates_49_49329.parquet": {
+      "sha256": "e3de64fac7fb46b69e6a0d266ee0fafe6bce4ec6c9e132dda731b06623e11a93",
+      "taille_octets": 52242,
+      "nb_lignes": 89
+    },
+    "piscines_candidates_49_49338.parquet": {
+      "sha256": "bb0c76325d830428e74caa390c76ba28337c1f96523a3af293dc993fd104412e",
+      "taille_octets": 68440,
+      "nb_lignes": 136
+    },
+    "piscines_candidates_49_49339.parquet": {
+      "sha256": "af42d511859fba3f6c1538c14c6e66d0d3feed7f8dcd154fcfbb35321ae0a6a9",
+      "taille_octets": 80708,
+      "nb_lignes": 167
+    },
+    "piscines_candidates_49_49353.parquet": {
+      "sha256": "5e178937b420a3337949148e9d0728637e53735a8381e37b0af229690a729abd",
+      "taille_octets": 180219,
+      "nb_lignes": 479
+    },
+    "piscines_candidates_49_49377.parquet": {
+      "sha256": "03fdd0c842e54aff94cd7432be89367250cb43691ac3152bc95bfd3a36399d95",
+      "taille_octets": 225668,
+      "nb_lignes": 537
+    },
+    "piscines_candidates_49_alm.parquet": {
+      "sha256": "a8fdcabb04f426417e0c280371261ccb49b7731979193557b492ac298a141bd5",
+      "taille_octets": 3698056,
+      "nb_lignes": 9647
     },
     "piscines_detectees_49.parquet": {
       "sha256": "ea634ee709399ed08defa7a5b97983834355f47f3ecf90bba0f8ab7e61b5f8b7",
@@ -72,6 +217,21 @@
       "sha256": "0a441014aaf208ded1810c44dea77320bc285680fb18e8920b2ddd5b9a735eb9",
       "taille_octets": 41267,
       "nb_lignes": 85
+    },
+    "terrasses_a_farmer_49_49035.parquet": {
+      "sha256": "3b535469966e3959b07cb5a8a92998080345dbd935d66356a7c6b132ff8c6415",
+      "taille_octets": 4844638,
+      "nb_lignes": 2700
+    },
+    "terrasses_adressees_49.parquet": {
+      "sha256": "3664334dd84d271a1118bbc6faee843aa07250f11344657ceb07d9ed99be11fd",
+      "taille_octets": 4956426,
+      "nb_lignes": 2700
+    },
+    "terrasses_candidates_49_49035.parquet": {
+      "sha256": "ccfecd308f023d3b9a093a6560ef88a280e5a481ce4e2f8c5c6444fbd0f9f2a2",
+      "taille_octets": 5247903,
+      "nb_lignes": 3159
     },
     "tri_labels_49_49035_2d460d3dc74e.parquet": {
       "sha256": "6761cb29c9b7d81dcc647c3dcebe8cdb245dc58862aea46cb64748df61741b95",

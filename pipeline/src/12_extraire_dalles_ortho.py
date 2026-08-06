@@ -79,7 +79,9 @@ def aoi_depuis_commune(parcelles: gpd.GeoDataFrame, commune: str):
     sel = parcelles[parcelles["commune"] == commune]
     if sel.empty:
         raise ValueError(f"Commune {commune} introuvable dans les parcelles fournies.")
-    return sel.geometry.union_all()
+    # make_valid : certaines communes (49267, 49307…) ont des parcelles
+    # invalides qui font planter l'union (TopologyException, vu 2026-08-06).
+    return sel.geometry.make_valid().union_all()
 
 
 def selectionner_dalles(index: gpd.GeoDataFrame, aoi) -> list[str]:

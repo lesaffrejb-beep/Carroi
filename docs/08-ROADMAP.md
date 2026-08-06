@@ -235,6 +235,41 @@ pack farm local — liste exacte des fichiers gitignorés à demander à JB, exp
 terminé). ⚠ À trancher par JB : le pseudo « aze » en base est-il Azan ? Si oui,
 le renommer en « Azan » (UPDATE votes/corrections) pour unifier son historique.
 
+**Nouveau (2026-08-06 soir — SALVE ALM LANCÉE, session Fable)** : l'Atelier sert
+désormais **9 647 candidats CoSIA sur les 28 communes d'Angers Loire Métropole**
+(Bouchemaine exclue : déjà tranchée). Chaîne construite ce soir : nouveau
+**`24_candidats_cosia.py`** (candidats depuis les GPKG CoSIA locaux ∪ PCI SYM=65
+quand présent, contrat couche 1, colonne `commune`, garde anti-écrasement des
+parquets portant des votes) → dalles 2022 des 28 communes extraites sur NOIR
+(`dalles_alm/`, ~12 Go) → 10 624 vignettes dans `tri/vignettes`. **Mesures pilote
+Bouchemaine (vs vérité humaine 246)** : ⚠ le Y des noms de blocs CoSIA est le
+coin NORD (l'hypothèse SO coûtait 58 pts de rappel en silence) ; soudure
+dilate-érode 1,5 m + **surface_min CoSIA = 3 m²** (clé config `cosia.*`) →
+**rappel 98,4 %** (242/246), 498 candidats, précision brute 49 % ; les 4 manquées
+sont invisibles pour CoSIA. **Décision : salve SANS pré-tri** — le modèle actuel
+est inentraînable sur candidats CoSIA (10 négatifs connus seulement : 247 zones
+CoSIA jamais montrées aux humains par le v1) ; le pré-tri v2 s'entraînera sur les
+votes ALM natifs (tâche [OPUS] ci-dessous). L'Atelier filtre `pretri_verdict=farm`
+si la colonne existe (prêt pour v2). `22_pretri` gagne `--labels` et
+`--vignettes-dir`. `12`/`24` réparent les parcelles invalides (`make_valid`,
+TopologyException sur 49267/49307). 4 doublons frontaliers dédoublonnés par id
+positionnel dans l'union `piscines_candidates_49_alm.parquet`.
+
+**Débrief passe Azan du 2026-08-06 (1 063 votes, 10:06→11:23, ~830 votes/h)** :
+accord avec JB **88,3 %** (857/971 items communs), 24 désaccords francs oui/non
+(gelés par la règle des 3 signaux). **Bug UX confirmé par les données** : sur 60
+items où il a signalé (F), il a voté « incertain » 49 fois — il croyait que F
+faisait avancer et votait « jsp » pour passer (~49 votes pollués, neutralisés par
+la majorité JB×2 sur Bouchemaine). **Corrigé** : toasts explicites après F
+(« l'image ne changera pas, réponds pour la ZONE ROUGE »), durée 4,5 s. Ses
+**60 signalements uniques sur 54 parcelles** = rappel potentiel à consommer
+(tâche [FABLE] existante). Export CSV **masqué pour les invités** (le lien
+échouait chez Azan et semait le doute ; la base est l'actif, elle reste chez JB —
+remplacé par « sauvegarde auto sur le serveur de JB »). Renommages définitifs :
+`aze` (azemiro) = **JB** → fusionné (JB 2 237 votes), travail du jour = **Azan**
+(1 063). La prochaine passe d'Azan = ALM, même lien tunnel (Mac maintenu éveillé
+par caffeinate).
+
 ## Arbre des tâches (mis à jour 2026-08-06)
 
 - **[HUMAIN] D0 — pré-vente** : inchangé, priorité n°1, rien ne le remplace.
@@ -270,6 +305,18 @@ le renommer en « Azan » (UPDATE votes/corrections) pour unifier son historique
 - **[OPUS] Adapter l'Atelier au pré-tri** : la file existence saute les
   `auto_non`/`auto_oui` (colonnes déjà écrites par `22 apply`) ; les auto-oui
   passent directement au niveau adresse.
+- **[OPUS] Pré-tri v2 sur votes ALM** : dès ~1 000-1 500 votes existence ALM,
+  `22_pretri train --candidats data/interim/piscines_candidates_49_alm.parquet`
+  (labels natifs consensus Atelier sur candidats CoSIA), puis `apply` sur le même
+  parquet → la file ne sert plus que `farm` (déjà branché dans l'Atelier).
+- **[OPUS] PCI SYM=65 pour les 28 communes ALM** : industrialiser l'extraction
+  ad hoc A3bis (cadastre.data.gouv.fr edigeo/feuilles/49/{INSEE}, couche
+  `TSURF_id`, SYM=65 → `piscines_pci_sym65_{INSEE}.parquet`) puis régénérer les
+  candidats (`24 --force`) : corroboration (98 % oui) + rattrapage des couvertes.
+- **[OPUS] SITUER ALM** : après les premiers consensus existence ALM, dérouler
+  20_join sur les « oui » ALM (BAN + parcelles déjà départementales) pour ouvrir
+  le niveau adresse aux 28 communes — aujourd'hui SITUER ne sert que le reliquat
+  Bouchemaine (10 items).
 - **[OPUS] Multi-millésimes — résolveur d'incertitudes (décision JB 2026-08-06,
   `16` §8.4)** : nouveau `23_multimillesime.py` — pour chaque candidat, crops
   2020/2022/2025 depuis les archives NOIR (réutiliser `12_extraire_dalles` +
