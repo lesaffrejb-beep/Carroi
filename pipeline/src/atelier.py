@@ -1051,8 +1051,19 @@ class Handler(BaseHTTPRequestHandler):
             x = item["cx"] + (fx - 0.5) * item["cote_m"]
             y = item["cy"] + (0.5 - fy) * item["cote_m"]
             idp = parcelle_au_point(d.parcelles, x, y)
-            self.votes.signaler(corps["produit"], corps["id_item"], x, y,
-                                str(corps.get("trieur") or "anonyme"), idp)
+            trieur = str(corps.get("trieur") or "anonyme")
+            invite = self._invite(corps.get("jeton"))
+            if invite:
+                # Même résolution que /api/reponse : l'identité vient du
+                # serveur, jamais du placeholder "(invité)" envoyé par le
+                # front — sinon les signalements F d'un invité perdent leur
+                # provenance (bug trouvé 2026-08-06 : signalements d'Azan
+                # tous attribués à "(invité)" au lieu de "Azan").
+                if invite["gele"]:
+                    self._json({"gele": True}, 403)
+                    return
+                trieur = invite["nom"]
+            self.votes.signaler(corps["produit"], corps["id_item"], x, y, trieur, idp)
             self._json({"ok": True, "x_l93": round(x, 2), "y_l93": round(y, 2),
                         "id_parcelle": idp})
             return
@@ -1819,7 +1830,7 @@ async function clicImage(ev){
   const fy = (ev.clientY - rect.top) / rect.height;
   const r = await (await fetch("/api/signalement", {method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({produit: PRODUIT, id_item: ITEM.id, fx, fy, trieur: TRIEUR})})).json();
+    body: JSON.stringify({produit: PRODUIT, id_item: ITEM.id, fx, fy, trieur: TRIEUR, jeton: JETON})})).json();
   modeSignal = false;
   document.getElementById("cadre").style.cursor = "";
   if (r.ok){

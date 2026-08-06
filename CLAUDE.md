@@ -5,6 +5,7 @@ Ce repo est le socle d'un business de **vente de bases de données d'adresses qu
 ## Routage express (lis ça en premier)
 
 - **« Je veux juste aider à trier/farmer les piscines » / « comment j'aide ? »** (ami, bénévole, non-technique — ex. Azan) → envoie-le au **parcours A-bis de `ONBOARDING.md`** (l'Atelier, le farm ACTUEL) : lien invité fourni par JB, ou pack farm de JB + `atelier.py` en local. Le tri statique de Bouchemaine (parcours A) est TERMINÉ. Rien à télécharger sur internet pour farmer ; la donnée vient de JB. **NE PAS** dérouler la roadmap ni installer le pipeline pour ça. Terrasses en pause (`16` §8).
+- **Un simple message de présentation d'un non-contributeur connu** (ex. « salut je suis Azan », sans autre précision) → NE PAS attendre une phrase-clé exacte : demande directement s'il vient pour farmer (parcours A-bis) et propose-le proactivement — c'est de loin le cas le plus probable pour quelqu'un qui se présente ainsi sans contexte de code.
 - **« Je veux contribuer au code »** → `./bootstrap.sh` puis **parcours B de `ONBOARDING.md`**, puis l'ordre de lecture ci-dessous.
 - **Session d'orchestration/exécution normale** → poursuis avec l'ordre de lecture obligatoire.
 
