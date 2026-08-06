@@ -298,7 +298,7 @@ reste LE risque n°1 : la priorité absolue n'est toujours pas le code, c'est D0
 
 **⚠ Incident du 2026-07-11 (17h30-17h45)** : la quasi-totalité de l'arbre de travail a été
 supprimée pendant une session (cause exacte inconnue — concomitant avec le `git init` +
-fetch du dépôt `github.com/lesaffrejb-beep/maps`, probablement une étape de re-clonage
+fetch du dépôt `github.com/lesaffrejb-beep/Carroi` (alors nommé `maps`), probablement une étape de re-clonage
 restée inachevée). Restauré depuis `origin/main` (eafbbcf, PR #11) + fichiers survivants
 (D1, 90_backup, deepsearchs). Perdu et NON récupérable : les 3 correctifs d'audit
 garde-fous + 6 tests (jamais poussés — refaire, tâche 5bis) et la variante locale des
@@ -519,7 +519,7 @@ Les arbitrages, en bref — **AUCUN pivot, 4 ajustements** :
 
 **Incident de perte de données** (17h30-17h45) : arbre de travail quasi intégralement
 supprimé pendant la session (concomitant du `git init` + fetch de
-`github.com/lesaffrejb-beep/maps` — vraisemblablement un re-clonage 🧑 inachevé ; cause
+`github.com/lesaffrejb-beep/Carroi` (alors nommé `maps`) — vraisemblablement un re-clonage 🧑 inachevé ; cause
 exacte non établie). Restauration : `git reset --hard origin/main` (eafbbcf) + survivants
 non commités (prospects.py, 50_prospects_sirene.py, 90_backup.py, test_prospects.py,
 sales/prospects_49.csv, docs/deepsearch/). Perdu définitivement : les 3 correctifs d'audit
