@@ -223,6 +223,13 @@ comme résolveur d'incertitudes (« superposer 10 images ») — tâche [OPUS] c
 téléchargée sur NOIR (`maps-bdortho/D049_2025/`) avec la **2020**
 (`D049_2020/`) et **CoSIA 2020** (`COSIA_D049/COSIA_D049_2020.7z`) : B1 est
 tranché, le diff 2022→2025 (« nouvelles piscines ») devient possible.
+**Suite (même session, retours JB)** : modale « Qui farme ? » avec boutons des
+farmers connus (`/api/farmers` : aze 1191 / JB 1046 — un clic, pas de doublon de
+pseudo) ; **ONBOARDING parcours A-bis** (Azan : farm via lien invité de JB, ou
+pack farm local — liste exacte des fichiers gitignorés à demander à JB, exports
+à renvoyer) + routage CLAUDE.md mis à jour (le tri statique parcours A est
+terminé). ⚠ À trancher par JB : le pseudo « aze » en base est-il Azan ? Si oui,
+le renommer en « Azan » (UPDATE votes/corrections) pour unifier son historique.
 
 ## Arbre des tâches (mis à jour 2026-08-06)
 

@@ -51,6 +51,42 @@ piscine ou non. C'est tout. Pas de Python, pas d'install.
 
 ---
 
+## Parcours A-bis — farmer l'Atelier (le farm ACTUEL — Azan, c'est ici)
+
+Le tri de Bouchemaine (parcours A) est terminé. Le farm en cours passe par
+**l'Atelier** : une page de jeu locale (http://localhost:8199) avec deux flux —
+**⚡ CLASSER** (clavier : y a-t-il une piscine dans la zone rouge ?) et
+**🧭 SITUER** (souris : à quelle maison appartient la piscine ? avec
+**clic sur la piscine = croisement cadastre**). Les terrasses sont **en pause**
+(décision JB 2026-08-06) : hard focus piscines + adresse. À l'ouverture, la
+fenêtre « Qui farme ? » propose les farmers connus (**JB**, **Azan**…) — clique
+ton nom, ne crée pas un deuxième pseudo.
+
+Deux façons de farmer, dans l'ordre de préférence :
+
+1. **Lien invité (recommandé, rien à installer)** : demande à JB un lien
+   `http://…/?jeton=…` (le serveur tourne chez lui, tes votes tombent
+   directement dans la base commune, ton compteur de gains est suivi).
+2. **En local (si JB ne peut pas héberger)** : clone le repo, lance
+   `./bootstrap.sh`, puis demande à JB le **pack farm** (ces chemins, gitignorés
+   car la donnée est l'actif) à déposer tels quels dans le repo :
+   - `data/interim/piscines_candidates_49_49035.parquet`
+   - `data/interim/tri/vignettes/` (les vignettes PNG)
+   - `data/interim/ban_49.parquet` + `data/interim/parcelles_49.parquet`
+   - `data/interim/piscines_adressees_49.parquet`
+   - `data/atelier/cache_ortho/` (les fonds du mode SITUER — sans ça, SITUER
+     n'affiche pas d'image ; les dalles BD ORTHO brutes ne sont PAS nécessaires)
+   Puis `.venv/bin/python pipeline/src/atelier.py` → http://localhost:8199.
+   En fin de session, renvoie à JB les exports :
+   `/api/export/existence.csv?produit=piscines`, `/api/export/adresse.csv?produit=piscines`
+   et `/api/export/incertitudes.csv?produit=piscines` (téléchargeables depuis le
+   navigateur) — ils se fusionnent côté JB par le flux `handoff/` existant.
+
+Si tu es un Claude qui lit ça pour guider Azan : ne fais **ni** dérouler la
+roadmap, **ni** installer le pipeline complet pour farmer — le parcours A-bis
+suffit. Il n'y a **rien à télécharger sur internet** pour farmer : la donnée
+vient de JB (pack farm) ou du lien invité.
+
 ## Parcours B — contribuer au code du pipeline
 
 1. **Clone** le dépôt.

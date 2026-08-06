@@ -824,6 +824,14 @@ class Handler(BaseHTTPRequestHandler):
                     dmin, kmin = min(dists)
                     proche = {"k": kmin, "dist_m": dmin}
             self._json({"id_parcelle": idp, "ks": ks, "proche": proche})
+        elif u.path == "/api/farmers":
+            # Identités déjà connues, pour la modale « Qui farme ? » : un clic
+            # (JB / Azan / …) au lieu d'une saisie — évite les doublons de pseudo
+            # qui scinderaient l'historique d'un même farmer.
+            compte: Counter = Counter()
+            for _, _, _, _, trieur in v.lignes():
+                compte[trieur] += 1
+            self._json([{"nom": n, "votes": c} for n, c in compte.most_common(6)])
         elif u.path == "/api/export/signalements.csv":
             self._csv(v.signalements_csv(), "signalements.csv")
         elif u.path == "/api/export/incertitudes.csv":
@@ -1316,11 +1324,17 @@ body.sans-aide.sans-hotbar #cadre img,body.sans-aide.sans-hotbar #cadre svg{widt
               background:var(--bg);color:var(--ink);font:inherit}
 #modal-trieur .go{width:100%;margin-top:10px;background:var(--acc);color:var(--acc-ink);
                   border:none;border-radius:8px;padding:11px;font-weight:700}
+#choix-farmers{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+#choix-farmers button{flex:1;min-width:90px;padding:10px;border-radius:8px;cursor:pointer;
+                      border:1px solid var(--line);background:var(--raise);color:var(--ink);
+                      font:inherit;font-weight:700}
+#choix-farmers button:hover{border-color:var(--acc);color:var(--acc)}
 </style></head><body>
 <div id="modal-trieur"><div class="boite">
  <h2>Qui farme ?</h2>
  <p>Chaque réponse est signée : c'est ce qui permet de croiser les passes et de corriger ses propres votes.</p>
- <input id="champ-trieur" placeholder="prénom / pseudo" onkeydown="if(event.key==='Enter')definirTrieur(this.value)">
+ <div id="choix-farmers"></div>
+ <input id="champ-trieur" placeholder="ou un nouveau prénom / pseudo" onkeydown="if(event.key==='Enter')definirTrieur(this.value)">
  <button class="go" onclick="definirTrieur(document.getElementById('champ-trieur').value)">Farmer</button>
 </div></div>
 
@@ -1452,7 +1466,19 @@ if (JETON) TRIEUR = "(invité)";   // l'identité réelle est résolue par le se
 function definirTrieur(n){ n=(n||"").trim(); if(!n) return; TRIEUR=n;
   localStorage.setItem("atelier_trieur", n);
   document.getElementById("modal-trieur").style.display="none"; }
-if (!TRIEUR && !JETON) document.getElementById("modal-trieur").style.display="flex";
+if (!TRIEUR && !JETON){
+  document.getElementById("modal-trieur").style.display="flex";
+  chargerFarmers();
+}
+// Farmers déjà connus (JB, Azan…) : un bouton chacun — cliquer = choisir.
+async function chargerFarmers(){
+  try{
+    const fs = await (await fetch("/api/farmers")).json();
+    document.getElementById("choix-farmers").innerHTML = fs.map(f =>
+      `<button onclick="definirTrieur('${f.nom.replace(/'/g, "\\'")}')">${f.nom}<br>` +
+      `<span style="color:var(--mut);font-weight:400;font-size:.8rem">${f.votes} votes</span></button>`).join("");
+  }catch(e){}
+}
 
 async function majGains(){
   if (!JETON) return;
