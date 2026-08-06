@@ -113,6 +113,42 @@ passer ses soirées** : chaque offre doit se formuler contre CE pain.
 Le routeur postal (clé en main) se facture au client, jamais sur ton budget. RC pro
 (~200-300 €/an, 🧑 recommandée avant la première livraison) à ajouter au lancement.
 
+## 4 bis. Coût de production d'une base & marge — arbitrage IA payante (2026-08-05)
+
+**✅ Décision : le coût de production d'un département est un coût de TEMPS HUMAIN,
+pas un coût d'API. On optimise le temps de JB, jamais la facture de tokens.**
+
+Chiffrage à l'échelle du 49 (~30-40 k candidats, extrapolé des 977 de Bouchemaine ;
+vitesse de tri mesurée sur la planche : ~600-700 vignettes/h ; prix API du 2026-08-05,
+détail et sources `15` §5). Temps valorisé à 50 €/h pour comparer, pas pour facturer :
+
+| Scénario | Coût API | Temps JB | Coût « temps » | Précision visée |
+|---|---|---|---|---|
+| Humain seul (tout trier) | 0 € | ~50 h | ~2 500 € | ~99 % |
+| **Pré-tri maison seul** (`22_pretri`, AUC 0,997, farm ÷~50) | 0 € | ~3-5 h | ~200 € | 95-97 % |
+| VLM payant seul sur tout le stock | 140-700 € | ~1 h (QA) | ~50 € | non garanti, non mesuré |
+| **✅ MIX RETENU** : CoSIA ∪ SYM=65 → pré-tri → VLM sur la bande incertaine (~5 k) → humain sur désaccords + échantillon | **20-55 €** | **~4-6 h** | ~250 € | **97-98 %, mesurée** |
+
+Face à la grille §4 (extrait 690-990 €, département 2 490 €, revendable en non-exclusif
+autant de fois qu'il y a d'acheteurs), **la marge cash est > 95 % dans tous les
+scénarios** : le choix ne se fait donc PAS sur le coût, il se fait sur (a) le temps de
+JB et (b) la précision *prouvable*. D'où le mix retenu, et d'où le rappel : la dépense
+qui a le meilleur retour n'est pas un modèle, c'est le D0 (`11`) — aucune base, si
+parfaite soit-elle, ne vaut un premier acheteur identifié.
+
+**Ce que ça implique concrètement :**
+- Le budget IA de production reste **dans le plafond 130 €/mois du §4** (poste « API
+  vision » : ≤ 30 €/mois, et 0 € tant que la tâche 13 CoSIA n'a pas tourné). Une base
+  départementale se produit une fois ; ce n'est pas une charge récurrente.
+- **On n'achète pas de l'exhaustivité, on achète de la certitude.** Doctrine `00`
+  inchangée et ici renforcée : rater des piscines coûte peu (on ne vend pas
+  « exhaustif », règle 7 de `CLAUDE.md`), vendre un faux positif coûte la crédibilité
+  en RDV. Tout arbitrage se tranche donc du côté de la précision, jamais du rappel.
+- **Minimisation à l'envoi** : une vignette envoyée à une API tierce ne contient que de
+  l'imagerie publique (BD ORTHO, Licence Ouverte) + un identifiant interne. **Jamais
+  l'adresse, jamais la jointure** — l'actif, c'est le lien piscine↔adresse, il ne sort
+  pas de la machine. Voir risque R11 de `17`.
+
 ## 5. Recoupement d'informations — décision de doctrine
 
 **✅ Décision : le recoupement AUGMENTE la confiance, jamais il ne crée une ligne.**
@@ -126,6 +162,7 @@ La détection ortho reste LA source de vérité (vérifiable en RDV). Les recoup
 | **OSM** | UNIQUEMENT mesure de rappel interne (jamais publié) | tout attribut livré influencé par OSM — l'ODbL contaminerait le produit ; on tranche : même pas pour le score de confiance |
 | Réclamations clients | étiquettes négatives (`data/validation/`) → recalibration | ignorer une réclamation |
 | **CoSIA (IGN, classe Piscine)** *(ajout 2026-07-12)* | **source de candidats** (`origine='cosia'`, même tri humain + verrou parcellaire que le reste) + corroboration au score | vendre une ligne CoSIA non validée par un humain sur photo ; diff inter-millésimes CoSIA sans validation visuelle (le modèle change entre millésimes, cf. `02`) |
+| **VLM propriétaire payant** (Qwen3.8-Max, Gemini 3 Flash…) *(ajout 2026-08-05)* | **deuxième avis** sur la seule bande incertaine du pré-tri : son verdict ↑/↓ la confiance et **oriente la file de tri humain** (désaccords en tête) | **source de candidats** (rang 1 réservé à CoSIA ∪ SYM=65, `15` §5) ; **auto-validation** d'une ligne vendue sans œil humain ; envoi d'adresses ou de la jointure à l'API (imagerie + id interne uniquement, R11 de `17`) |
 
 🔧 tâche [OPUS] (après deepsearch ③) : colonne `corroboration` (sitadel/millesime/aucune)
 dans 30_score, bonus de confiance si corroboré. Spec ci-dessus, ne pas improviser au-delà.

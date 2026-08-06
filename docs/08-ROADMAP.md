@@ -181,9 +181,39 @@ pixelated autorisé) ; **Z = mode zen** (tout plier). Préférences persistées.
 Vérifié navigateur (accord Q+X → « jardin+piscine », POST canonisé
 « jardin+oui », rejet « non+piscine », zen sans débord), 267 tests verts.
 
-## Arbre des tâches (mis à jour 2026-07-17)
+**Nouveau (2026-08-05, session Fable — arbitrage « faut-il PAYER un modèle de
+détection ? », question JB sur la vague X Qwen3.8-Max / démo Tilebox Brandebourg)** :
+**NON pour détecter, OUI marginalement pour arbitrer.** Doctrine écrite dans `15` §5
+(arbitrage + prix + sources), `16` §4 bis (coût de production & marge) et `16` §5
+(ligne « VLM propriétaire payant » : deuxième avis autorisé, source de candidats
+interdite). Motifs, dans l'ordre : (1) CoSIA fait déjà gratuitement, en spécialiste et
+sur nos dalles, ce que le VLM généraliste ferait payant (rappel mesuré 88,1 %,
+∪ SYM=65 = 89,5 %) ; (2) les mAP publics (60/80 %) ne mesurent pas notre tâche ni
+notre mode d'échec (bâches, ardoises) — notre pré-tri est à AUC 0,997 mesuré sur NOS
+labels ; (3) le coût dominant n'est pas l'API mais le temps humain. **Chiffrage 49
+(~30-40 k candidats, ~600-700 vignettes/h mesurées)** : humain seul ~50 h / 0 € · mix
+retenu (CoSIA ∪ SYM=65 → pré-tri → VLM sur bande incertaine ~5 k → humain sur
+désaccords + échantillon) **20-55 € d'API et ~4-6 h**, précision visée 97-98 % ·
+VLM sur tout le stock 140-700 € sans garantie. Marge cash > 95 % dans TOUS les cas
+face à la grille (extrait 690-990 €, dept 2 490 €) → **le choix ne se fait pas sur le
+coût mais sur le temps de JB et la précision prouvable**. Deux risques ajoutés à `17` :
+**R11** (fuite de l'actif par l'API : n'envoyer que l'imagerie publique + un id opaque,
+jamais l'adresse ni la jointure ; retirer l'étage VLM doit laisser le pipeline vendable)
+et **R12** (ne jamais décider d'un achat d'outil sur une annonce de modèle : vérifier
+d'abord la couche publique, puis confronter aux 977 labels Bouchemaine). ⚠ Rappel
+stratégique consigné : CoSIA étant public, **notre avance n'est PAS la détection** mais
+la vérification humaine, le verrou parcellaire adresse et la fraîcheur — raison de plus
+pour ne pas dépenser en détection. **Priorité inchangée : D0.**
+
+## Arbre des tâches (mis à jour 2026-08-05)
 
 - **[HUMAIN] D0 — pré-vente** : inchangé, priorité n°1, rien ne le remplace.
+- **[OPUS] Test VLM contre nos labels (facultatif, ~10 €, APRÈS la tâche 13)** :
+  rejouer Gemini 3 Flash et Qwen3.8-Max sur les 977 vignettes Bouchemaine déjà
+  labellisées (vérité terrain gratuite) et comparer précision/rappel au pré-tri
+  `22` sur la MÊME bande incertaine. Ne coder l'étage VLM que si le test le place
+  au-dessus du pré-tri ; sinon consigner le résultat ici et refermer le dossier.
+  Contrainte R11 : charge utile = imagerie + id interne, jamais d'adresse.
 - **[OPUS] 13 — CoSIA via WMS : PRÊT À LANCER (module écrit, non exécuté —
   décision JB 2026-07-17 : attendre plus de farm pour une vérité plus épaisse)**.
   Module `14_cosia.py` : couche `IGNF_COSIA_2021-2023` (millésime = notre BD
