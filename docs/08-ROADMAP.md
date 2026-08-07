@@ -338,6 +338,14 @@ tunnel rétabli, même URL.
 - **[OPUS] Adapter l'Atelier au pré-tri** : la file existence saute les
   `auto_non`/`auto_oui` (colonnes déjà écrites par `22 apply`) ; les auto-oui
   passent directement au niveau adresse.
+- **[FABLE] Refonte visuelle Atelier avec les designer-skills (idée JB
+  2026-08-07, reportée)** : JB a partagé le plugin `Owl-Listener/designer-skills`
+  (palette/typo/tokens, `/plugin marketplace add Owl-Listener/designer-skills`)
+  + `impeccable.style` comme référence. La refonte layout du 2026-08-07 (image
+  centrée, hotbar à droite, responsive) a été faite à la main, sans ces skills
+  — proportionné pour une retouche ciblée sur un seul fichier. Une VRAIE passe
+  visuelle (palette, typo, motion, cohérence système) plus tard pourrait les
+  mobiliser vraiment — pas avant que le farm ALM tourne bien.
 - **[OPUS] Pré-tri v2 sur votes ALM** : dès ~1 000-1 500 votes existence ALM,
   `22_pretri train --candidats data/interim/piscines_candidates_49_alm.parquet`
   (labels natifs consensus Atelier sur candidats CoSIA), puis `apply` sur le même
