@@ -20,7 +20,7 @@ demarrer_serveur() {
   echo "$(date '+%H:%M:%S') serveur absent → démarrage"
   .venv/bin/python pipeline/src/atelier.py > /tmp/atelier.log 2>&1 &
   for _ in $(seq 1 60); do
-    curl -s -o /dev/null "http://localhost:$PORT/" && return 0
+    curl -sf -o /dev/null "http://localhost:$PORT/" && return 0
     sleep 1
   done
   echo "$(date '+%H:%M:%S') ÉCHEC : le serveur ne répond pas (voir /tmp/atelier.log)"
@@ -53,9 +53,13 @@ caffeinate -dimsu -w $$ &
 
 echo "Gardien démarré (Ctrl-C pour arrêter). Lien courant : $LIEN_F"
 while true; do
-  curl -s -o /dev/null --max-time 10 "http://localhost:$PORT/" || demarrer_serveur
+  # --fail : un code HTTP d'erreur (530 = tunnel mort côté Cloudflare, 502…)
+  # doit compter comme un échec de curl, sinon le gardien croit le tunnel
+  # vivant alors qu'il ne répond qu'une page d'erreur (bug vécu 2026-08-07 :
+  # 33 min sans relance, lien mort donné à un farmer).
+  curl -sf -o /dev/null --max-time 10 "http://localhost:$PORT/" || demarrer_serveur
   URL=$(cat "$LIEN_F" 2>/dev/null || true)
-  if [ -z "${URL:-}" ] || ! curl -s -o /dev/null --max-time 20 "$URL/"; then
+  if [ -z "${URL:-}" ] || ! curl -sf -o /dev/null --max-time 20 "$URL/"; then
     demarrer_tunnel
   fi
   sleep 60
