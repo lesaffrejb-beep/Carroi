@@ -780,16 +780,26 @@ class Handler(BaseHTTPRequestHandler):
                             cons[(nom, mode, i)] = maj
             stats: dict[str, dict] = {}
             for prod, mode, i, rep, trieur in self.votes.lignes():
-                s = stats.setdefault(trieur, {"votes": 0, "vus": 0, "ok": 0})
+                s = stats.setdefault(trieur, {"votes": 0, "vus": 0, "ok": 0,
+                                              "oui_items": set()})
                 s["votes"] += 1
                 maj = cons.get((prod, mode, i))
                 if maj is not None:
                     s["vus"] += 1
                     s["ok"] += int(votes_compatibles(rep, maj))
+                    # Piscines TROUVÉES par ce trieur : il a dit oui, le
+                    # consensus dit oui — c'est le chiffre qui motive
+                    # (retour JB 2026-08-07 : « le nombre de oui que chacun
+                    # a trouvés », pas le volume brut). Par ITEM distinct :
+                    # deux passes sur la même piscine = une seule trouvaille.
+                    if (mode == "existence" and "oui" in rep.split("+")
+                            and "oui" in maj.split("+")):
+                        s["oui_items"].add((prod, i))
             tableau = [{"trieur": t, "votes": s["votes"],
+                        "oui": len(s["oui_items"]),
                         "accord": round(s["ok"] / s["vus"], 3) if s["vus"] else None}
                        for t, s in stats.items()]
-            tableau.sort(key=lambda x: -x["votes"])
+            tableau.sort(key=lambda x: (-x["oui"], -x["votes"]))
             self._json(tableau[:10])
         elif u.path == "/api/parcelle_clic":
             # SITUER : « la piscine est ICI » (clic) → parcelle cadastrale du
@@ -1162,6 +1172,7 @@ class Handler(BaseHTTPRequestHandler):
 
 PAGE_HTML = """<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><title>L'Atelier — farm d'annotation</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 /* COCKPIT DE FARM — design issu d'un panel simulé de 10 farmers gamers
    (2026-07-17) : vitesse VISIBLE (votes/min live + record perso), progression
@@ -1217,11 +1228,19 @@ header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1p
 #rail-info b{color:var(--ink)}
 #obj{color:var(--acc)}
 
-/* ---------- plateau : stats | scène | adresses ---------- */
-#zone{display:grid;grid-template-columns:288px minmax(0,1fr) auto;gap:18px;
-      padding:16px;align-items:start;max-width:1560px;margin:0 auto}
-@media (max-width:1080px){#zone{grid-template-columns:1fr}#gauche{order:2}}
-#gauche{display:flex;flex-direction:column;gap:14px;position:sticky;top:88px}
+/* ---------- plateau : stats | scène | actions ----------
+   L'image règne au CENTRE, à la taille max que l'écran permet, JAMAIS de
+   scroll de page sur desktop (retour JB 2026-08-07). Les actions vivent à
+   DROITE en colonne ; chaque panneau plié rend ses pixels à l'image. */
+#zone{display:grid;grid-template-columns:272px minmax(0,1fr) 308px;gap:16px;
+      padding:14px 16px;align-items:start;max-width:1720px;margin:0 auto}
+@media (min-width:901px){
+  body{overflow:hidden}
+  #gauche,#colonne-droite{max-height:calc(100dvh - 132px);overflow:auto;
+                          scrollbar-width:thin}
+}
+#gauche{display:flex;flex-direction:column;gap:14px;position:sticky;top:0}
+#colonne-droite{display:flex;flex-direction:column;gap:12px;position:sticky;top:0}
 .carte{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
        padding:12px 14px}
 .etape{display:flex;align-items:baseline;gap:8px;padding:6px 0}
@@ -1240,25 +1259,44 @@ header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1p
 .rang.moi{color:var(--acc)}
 .rang.moi .nom::after{content:" ← toi";font-size:.7rem}
 
-/* ---------- scène : question, image, hotbar ---------- */
-#scene{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0}
-#question{font-size:1.24rem;font-weight:750;line-height:1.3;text-wrap:balance;text-align:center}
-#detail{color:var(--mut);font-size:.76rem;font-family:var(--mono);text-align:center}
+/* ---------- scène : question + image, rien d'autre ---------- */
+#scene{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0}
+#question{font-size:1.22rem;font-weight:750;line-height:1.3;text-wrap:balance;text-align:center}
+#detail{color:var(--mut);font-size:.74rem;font-family:var(--mono);text-align:center}
 #cadre{position:relative;background:#000;border:1px solid var(--line);border-radius:var(--r);
        overflow:hidden;box-shadow:0 14px 44px #0009;max-width:100%}
-/* l'image ne doit JAMAIS pousser la hotbar sous le pli : hauteur bornée par
-   la place restante — et chaque panneau PLIÉ lui rend ses pixels */
-/* vignettes et fonds sont CARRÉS : on pilote par la largeur = hauteur dispo,
-   upscale autorisé (rendu pixelated, net) — l'image prend TOUTE la place */
+/* vignettes et fonds sont CARRÉS : côté = le min entre la hauteur libre
+   (100dvh − header ~132px − question ~64px) et la largeur libre entre les
+   deux colonnes. Upscale pixelated assumé : l'image prend TOUTE la place. */
 #cadre img,#cadre svg{display:block;height:auto;min-width:300px;
-       width:min(calc(100vh - 350px), 86vw);transition:transform .12s ease-out}
+       width:min(calc(100dvh - 200px), calc(100vw - 672px));
+       transition:transform .12s ease-out}
 body.sans-hotbar #boutons{display:none}
 body.sans-aide #nav-aide{display:none!important}
 body.sans-stats #gauche{display:none}
-body.sans-stats #zone{grid-template-columns:minmax(0,1fr) auto}
-body.sans-hotbar #cadre img,body.sans-hotbar #cadre svg{width:min(calc(100vh - 248px), 86vw)}
-body.sans-aide #cadre img,body.sans-aide #cadre svg{width:min(calc(100vh - 300px), 86vw)}
-body.sans-aide.sans-hotbar #cadre img,body.sans-aide.sans-hotbar #cadre svg{width:min(calc(100vh - 200px), 86vw)}
+body.sans-stats #zone{grid-template-columns:minmax(0,1fr) 308px}
+body.sans-stats #cadre img,body.sans-stats #cadre svg{
+       width:min(calc(100dvh - 200px), calc(100vw - 384px))}
+body.sans-stats.sans-hotbar.sans-aide #zone{grid-template-columns:minmax(0,1fr) 0px}
+body.sans-stats.sans-hotbar.sans-aide #cadre img,
+body.sans-stats.sans-hotbar.sans-aide #cadre svg{
+       width:min(calc(100dvh - 200px), calc(100vw - 64px))}
+
+/* ---------- ≤ 900px : téléphone / petite fenêtre ----------
+   Une seule colonne : question → image pleine largeur → actions (grille de
+   pouces) → stats en dernier. Le scroll de page redevient permis (impossible
+   de tout tenir sinon), la barre de session reste accessible en bas. */
+@media (max-width:900px){
+  #zone{display:flex;flex-direction:column;gap:12px;padding:10px}
+  #gauche{order:3;position:static;max-height:none}
+  #scene{order:1}
+  #colonne-droite{order:2;position:static;max-height:none}
+  #cadre img,#cadre svg{width:min(94vw, calc(100dvh - 330px));min-width:0}
+  #boutons{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .keycap{padding:10px 10px;font-size:.76rem}
+  #question{font-size:1.05rem}
+  body{padding-bottom:52px}
+}
 #plis{display:flex;gap:4px}
 .pli{background:none;border:1px solid var(--line);border-radius:7px;padding:4px 9px;
      font-size:.72rem;color:var(--mut);font-family:var(--mono)}
@@ -1274,27 +1312,28 @@ body.sans-aide.sans-hotbar #cadre img,body.sans-aide.sans-hotbar #cadre svg{widt
 #badge-deja{position:absolute;top:10px;left:10px;background:#0a0b0ecc;border:1px solid var(--unsure);
             border-radius:999px;padding:3px 10px;font-size:.75rem;color:var(--unsure);display:none}
 
-/* hotbar : la barre d'action, sous l'image, une touche = un geste */
-#boutons{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
-.keycap{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:106px;max-width:150px;
+/* hotbar : la colonne d'action, à DROITE de l'image, une touche = un geste */
+#boutons{display:flex;flex-direction:column;gap:8px}
+.keycap{display:flex;flex-direction:row;align-items:center;gap:12px;width:100%;
         background:var(--raise);border:1px solid var(--line);border-bottom-width:3px;
-        border-radius:var(--r);padding:10px 10px;color:var(--ink);font-weight:600;
-        font-size:.78rem;line-height:1.25;text-align:center;
+        border-radius:var(--r);padding:9px 12px;color:var(--ink);font-weight:600;
+        font-size:.8rem;line-height:1.25;text-align:left;
         transition:transform .05s,border-color .12s}
 .keycap:hover{border-color:var(--line2);background:#26282d}
 .keycap:active{transform:translateY(2px);border-bottom-width:1px}
-.keycap .k{font-family:var(--mono);font-weight:700;font-size:1.05rem;width:2.2em;
-           padding:3px 0;border-radius:7px;color:#0b0c10}
+.keycap .k{font-family:var(--mono);font-weight:700;font-size:1.02rem;flex:0 0 2.2em;
+           padding:4px 0;border-radius:7px;color:#0b0c10;text-align:center}
 .keycap.oui .k{background:var(--oui)}.keycap.non .k{background:var(--non)}
 .keycap.unsure .k{background:var(--unsure)}.keycap.aucune .k{background:var(--aucune)}
 .keycap.neutre .k{background:var(--mut)}
 .keycap.sel{border-color:var(--acc);background:#1d2b31;box-shadow:0 0 0 1px var(--acc)}
-#nav-aide{color:var(--mut);font-size:.78rem;line-height:2;text-align:center;max-width:60ch}
+#nav-aide{color:var(--mut);font-size:.72rem;line-height:1.9;text-align:left;
+          border-top:1px dashed #2e303788;padding-top:10px}
 
-/* ---------- adresses (mode SITUER) ---------- */
-#droite{width:330px;max-width:100%;position:sticky;top:88px}
-#liste-adr{max-height:72vh;overflow:auto;border:1px solid var(--line);border-radius:var(--r);
-           font-size:.86rem;background:var(--panel)}
+/* ---------- adresses (mode SITUER, même colonne droite) ---------- */
+#droite{width:100%}
+#liste-adr{max-height:calc(100dvh - 320px);overflow:auto;border:1px solid var(--line);
+           border-radius:var(--r);font-size:.86rem;background:var(--panel)}
 #liste-adr .row{padding:7px 10px;cursor:pointer;display:flex;gap:10px;border-bottom:1px solid #2e303788}
 #liste-adr .row:last-child{border-bottom:none}
 #liste-adr .row:hover{background:var(--raise)}
@@ -1343,7 +1382,7 @@ body.sans-aide.sans-hotbar #cadre img,body.sans-aide.sans-hotbar #cadre svg{widt
 #modal-trieur{display:none;position:fixed;inset:0;z-index:50;background:#000b;
               align-items:center;justify-content:center}
 #modal-trieur .boite{background:var(--panel);border:1px solid var(--line);border-radius:14px;
-                     padding:26px;max-width:400px;width:90%}
+                     padding:26px;max-width:400px;width:90%;box-sizing:border-box}
 #modal-trieur h2{margin:0 0 4px}
 #modal-trieur p{color:var(--mut);margin:0 0 14px;font-size:.9rem}
 #champ-trieur{width:100%;padding:11px;border-radius:8px;border:1px solid var(--line);
@@ -1420,12 +1459,14 @@ body.sans-aide.sans-hotbar #cadre img,body.sans-aide.sans-hotbar #cadre svg{widt
   <div id="question">…</div>
   <div id="detail"></div>
   <div id="cadre"><span id="badge-deja">déjà répondu — recliquer corrige</span><span id="badge-vu"></span></div>
-  <div id="boutons"></div>
-  <div id="nav-aide" style="display:none"></div>
  </div>
 
- <aside id="droite" style="display:none">
-  <div id="liste-adr" style="display:none"></div>
+ <aside id="colonne-droite">
+  <div id="boutons"></div>
+  <div id="nav-aide" style="display:none"></div>
+  <aside id="droite" style="display:none">
+   <div id="liste-adr" style="display:none"></div>
+  </aside>
  </aside>
 </div>
 
@@ -1579,8 +1620,8 @@ async function majClassement(){
   document.getElementById("classement-corps").innerHTML = t.slice(0, 5).map((r, i) =>
     `<div class="rang${r.trieur === TRIEUR ? " moi" : ""}"><span class="pos">${i + 1}</span>` +
     `<span class="nom">${esc(r.trieur)}</span>` +
-    `<span class="acc2">${r.accord === null ? "—" : Math.round(r.accord * 100) + "%"}</span>` +
-    `<b>${r.votes}</b></div>`).join("") || "<span style='color:var(--mut)'>—</span>";
+    `<span class="acc2" title="accord au consensus · ${r.votes} votes">${r.accord === null ? "—" : Math.round(r.accord * 100) + "%"}</span>` +
+    `<b title="piscines trouvées (oui confirmés par le consensus)">🏊 ${r.oui}</b></div>`).join("") || "<span style='color:var(--mut)'>—</span>";
 }
 setInterval(majClassement, 60000); majClassement();
 
