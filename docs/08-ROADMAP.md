@@ -286,6 +286,23 @@ signalements → aval), avec les ordres de grandeur mesurés (~340 candidats /
 Tests : `test_candidats_cosia.py` (8 tests, dont la RÉGRESSION du coin NORD des
 blocs CoSIA).
 
+**Nouveau (2026-08-07 matin — PCI ALM + refonte front, session Fable)** :
+(1) **`11_pci_piscines.py`** (écrit et validé par agent : 165/165 à Bouchemaine,
+73/73 à St-Melaine, 16 tests) exécuté sur les 29 communes ALM → **2 540 piscines
+cadastrées** (1 seule commune à 0 : Béhuard, l'île). Candidats des 28 communes
+régénérés avec corroboration : file ALM = **9 845 candidats** (7 560 cosia,
+**2 087 cosia+pci** — badge cadastré, 98 % de oui mesurés, **179 pci_sym65
+purs** — rattrapage des couvertes que CoSIA ne voit pas, 19 signalés Azan).
+10 822 vignettes (`--reutiliser-vignettes` : seuls les manquants re-rendus).
+(2) **Refonte layout Atelier (retours JB)** : image plein CENTRE à la taille max
+de l'écran, zéro scroll desktop, hotbar verticale à DROITE, aide dessous,
+responsive complet (meta viewport ajoutée — manquait !, ≤900px = une colonne
+pouces), classement FARMERS = **piscines trouvées par item distinct** (JB 244,
+Azan 208) au lieu du volume brut. (3) Le « Bouchemaine · 49 » que JB voyait
+encore = cache navigateur (le serveur sert bien « Angers Loire Métropole · 49 »
+depuis hier — F5 suffit). (4) Gardien vérifié en réel : serveur relancé 2×,
+tunnel rétabli, même URL.
+
 ## Arbre des tâches (mis à jour 2026-08-07)
 
 - **[HUMAIN] D0 — pré-vente** : inchangé, priorité n°1, rien ne le remplace.
