@@ -67,6 +67,10 @@ Deux façons de farmer, dans l'ordre de préférence :
 1. **Lien invité (recommandé, rien à installer)** : demande à JB un lien
    `http://…/?jeton=…` (le serveur tourne chez lui, tes votes tombent
    directement dans la base commune, ton compteur de gains est suivi).
+   Côté JB : lancer `./handoff/gardien_atelier.sh` — il démarre le serveur et
+   le tunnel, les relance s'ils tombent, empêche le Mac de dormir, et écrit
+   l'URL courante dans `data/atelier/lien_actuel.txt` (⚠ **relire ce fichier
+   avant d'envoyer un lien** : l'URL change à chaque redémarrage du tunnel).
 2. **En local (si JB ne peut pas héberger)** : clone le repo, lance
    `./bootstrap.sh`, puis demande à JB le **pack farm** (ces chemins, gitignorés
    car la donnée est l'actif) à déposer tels quels dans le repo :

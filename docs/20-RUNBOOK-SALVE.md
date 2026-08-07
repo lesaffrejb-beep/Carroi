@@ -84,11 +84,17 @@ sur ce parquet et relancer l'Atelier. Vérifier au log : `N candidats, N farmabl
 
 ## 5. Farm
 
-Serveur local (`Atelier.command`) + tunnel pour les farmers distants :
+Serveur local (`Atelier.command`) seul, ou — dès qu'un farmer est distant — le
+gardien qui tient serveur + tunnel + veille du Mac :
 
 ```bash
-cloudflared tunnel --url http://localhost:8199
+./handoff/gardien_atelier.sh
 ```
+
+L'URL publique courante est dans `data/atelier/lien_actuel.txt` ; elle change
+à chaque redémarrage du tunnel (trycloudflare = URL éphémère), **la relire
+avant d'envoyer un lien**. Un tunnel nommé sur un domaine à soi supprimerait
+cette contrainte (non fait : pas de domaine à ce jour).
 
 Un lien par personne (identité résolue côté serveur, révocable) :
 
