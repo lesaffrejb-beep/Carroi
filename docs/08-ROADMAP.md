@@ -270,7 +270,23 @@ remplacé par « sauvegarde auto sur le serveur de JB »). Renommages définitif
 (1 063). La prochaine passe d'Azan = ALM, même lien tunnel (Mac maintenu éveillé
 par caffeinate).
 
-## Arbre des tâches (mis à jour 2026-08-06)
+**Nouveau (2026-08-07 — signalements consommés + runbook, session Fable)** :
+**`26_signalements_candidats.py`** transforme les points F en candidats
+(chaîne : déjà-candidat → récupération du polygone CoSIA sous le point →
+disque nu de 2,5 m en dernier recours). Sur la passe d'Azan : 162 clics →
+60 intentions → **19 candidats neufs** (18 CoSIA récupérés, 1 disque),
+vignettes générées, fusionnés dans la file ALM (**9 666 candidats**).
+**Azan a utilisé F correctement** — vérifié : **0** signalement sur sa propre
+zone rouge, médiane 15,6 m du centre, 41/60 sur des zones voisines déjà en file
+(normal en tissu dense). Son seul problème était le blocage après clic, corrigé
+hier. Nouveau **`docs/20-RUNBOOK-SALVE.md`** : les commandes d'un territoire
+dans l'ordre (candidats → dalles → vignettes → file → farm → pré-tri v2 →
+signalements → aval), avec les ordres de grandeur mesurés (~340 candidats /
+10 000 hab., ~500 Mo de dalles/commune, ~830 votes/h) et les pièges vécus.
+Tests : `test_candidats_cosia.py` (8 tests, dont la RÉGRESSION du coin NORD des
+blocs CoSIA).
+
+## Arbre des tâches (mis à jour 2026-08-07)
 
 - **[HUMAIN] D0 — pré-vente** : inchangé, priorité n°1, rien ne le remplace.
 - **[OPUS] Test VLM contre nos labels (facultatif, ~10 €, APRÈS la tâche 13)** :

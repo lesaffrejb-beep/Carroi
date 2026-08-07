@@ -30,6 +30,7 @@ remplacées par le niveau 2 de l'Atelier.
 | [`docs/06-QUALITE-VALIDATION.md`](docs/06-QUALITE-VALIDATION.md) | Validation, score de confiance, tatouage anti-revente |
 | [`docs/07-VENTE-PLAYBOOK.md`](docs/07-VENTE-PLAYBOOK.md) | Prospection B2B, scripts, RDV, contrat |
 | [`docs/08-ROADMAP.md`](docs/08-ROADMAP.md) | **Journal de bord — commencer ici pour savoir où on en est** |
+| [`docs/20-RUNBOOK-SALVE.md`](docs/20-RUNBOOK-SALVE.md) | **Dérouler un nouveau territoire — les commandes dans l'ordre** |
 
 ## Décisions structurantes (résumé)
 
